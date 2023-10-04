@@ -14,7 +14,7 @@
     For freelancers, by a freelance.
     <br />
     <br />
-    <a href="https://lcfd.github.io/trak">Website</a>
+    <a href="https://usetrak.com">Website</a>
     ·
     <a href="https://github.com/lcfd/trak/issues">Issues</a>
   </p>
