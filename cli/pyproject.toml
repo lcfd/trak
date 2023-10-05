@@ -1,0 +1,15 @@
+[project]
+name = "trak"
+version = "0.0.1"
+description = "A CLI to track the time you spend on projects, with useful reports and analytics."
+authors = [
+    {name = "Luca Fedrizzi", email = "hi@lucafedrizzi.com"},
+]
+dependencies = []
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "AGPL-3.0"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
