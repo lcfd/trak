@@ -20,6 +20,7 @@ jobs:
         uses: withastro/action@v0
         with:
           pnpm-version: 8.6.1
+          path: ./website
 
   deploy:
     needs: build
