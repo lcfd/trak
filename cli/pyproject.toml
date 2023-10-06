@@ -3,9 +3,11 @@ name = "trak"
 version = "0.0.1"
 description = "A CLI to track the time you spend on projects, with useful reports and analytics."
 authors = [
-    {name = "Luca Fedrizzi", email = "hi@lucafedrizzi.com"},
+    {name = "Luca Fedrizzi", email = "fedrizzi.luca@hotmail.it"},
 ]
-dependencies = []
+dependencies = [
+    "typer[all]>=0.9.0",
+]
 requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "AGPL-3.0"}
