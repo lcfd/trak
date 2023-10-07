@@ -15,3 +15,14 @@ license = {text = "AGPL-3.0"}
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
+
+[tool.pdm.dev-dependencies]
+style = [
+    "black>=23.9.1",
+]
+test = [
+    "pytest>=7.4.2",
+]
+lint = [
+    "ruff>=0.0.292",
+]
