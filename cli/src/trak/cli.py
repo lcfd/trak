@@ -10,6 +10,7 @@ from trak.__main__ import print_with_padding
 from trak.database import (
     Record,
     add_track_field,
+    get_current_session,
     stop_track_field,
     tracking_already_started,
 )
@@ -133,7 +134,7 @@ Have a good session!"""
                 renderable=print_with_padding(
                     f"""
 Tracking on [bold green]{project}[/bold green] already started \
-at {datetime.fromisoformat(record['start'])}
+at {datetime.fromisoformat(record['start']).strftime("%m/%d/%Y, %H:%M")}
 """
                 ),
             )
@@ -160,6 +161,47 @@ Good job!"""
     else:
         print(
             Panel.fit(
+                title="💬 No active sessions",
+                renderable=print_with_padding(
+                    """Ther aren't active sessions. 
+
+Use the command: trak start <project name> to start a new session of work."""
+                ),
+            )
+        )
+
+
+@app.command()
+def status():
+    """
+    Show the status of the current session.
+    """
+
+    current_session = get_current_session()
+
+    if current_session:
+        start_datetime = datetime.fromisoformat(current_session["start"])
+        formatted_start_datetime = start_datetime.strftime("%Y-%m-%d, %H:%M")
+
+        now = datetime.now()
+        diff = now - start_datetime
+
+        m, s = divmod(diff.seconds, 60)
+        h, m = divmod(m, 60)
+
+        print(
+            Panel(
+                title="💬 Current status",
+                renderable=print_with_padding(
+                    f"""Project: [bold]{current_session['project']}[/bold]
+Started: {formatted_start_datetime}
+Time: [bold]{h}h {m}m[/bold]""",
+                ),
+            )
+        )
+    else:
+        print(
+            Panel(
                 title="💬 No active sessions",
                 renderable=print_with_padding(
                     """Ther aren't active sessions. 
