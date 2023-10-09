@@ -67,6 +67,18 @@ def tracking_already_started():
     return False
 
 
+def get_current_session():
+    with open(DB_FILE_PATH, "r") as db:
+        db_content = db.read()
+
+    parsed_json = json.loads(db_content)
+
+    try:
+        return parsed_json[-1]
+    except IndexError:
+        return False
+
+
 def check_if_database_exists():
     """Check if the json db files exists."""
 
