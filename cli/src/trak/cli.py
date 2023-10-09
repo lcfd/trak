@@ -6,13 +6,15 @@ from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from trak import __app_name__, __version__
+from trak.__main__ import print_with_padding
 from trak.database import (
     Record,
     add_track_field,
-    check_if_database_exists,
     stop_track_field,
     tracking_already_started,
 )
+from typing_extensions import Annotated
+
 
 console = Console()
 
@@ -20,6 +22,9 @@ app = typer.Typer()
 
 
 def _version_callback(value: bool) -> None:
+    """
+    Print the application version.
+    """
     if value:
         print(
             Panel(
@@ -28,6 +33,16 @@ def _version_callback(value: bool) -> None:
                 padding=(2),
             ),
         )
+        raise typer.Exit()
+
+
+def _website_callback(value: bool) -> None:
+    """
+    Launch the usetrak.com website.
+    """
+    if value:
+        typer.launch("https://usetrak.com")
+
         raise typer.Exit()
 
 
@@ -41,17 +56,50 @@ def main(
         callback=_version_callback,
         is_eager=True,
     ),
+    website: Optional[bool] = typer.Option(
+        None,
+        "--website",
+        "-w",
+        help="Launch the usetrak.com website.",
+        callback=_website_callback,
+        is_eager=True,
+    ),
 ) -> None:
     return
 
 
-@app.command()
-def start(project: str, billable: bool = False, tag: str = "", category: str = ""):
-    """Start tracking a project."""
-
-    if not check_if_database_exists():
-        print(Panel.fit("🚨 You don't have a database"))
-        return
+@app.command(name="start", short_help="Start trak")
+def start_tracker(
+    project: str,
+    billable: Annotated[
+        bool,
+        typer.Option(
+            "--billable",
+            "-b",
+            help="The tracked time is billable. Useful in the reporting phase.",
+            show_default=True,
+        ),
+    ] = False,
+    category: Annotated[
+        str,
+        typer.Option(
+            "--category",
+            "-c",
+            help="Add a category to the tracked time. Useful in the reporting phase.",
+        ),
+    ] = "",
+    tag: Annotated[
+        str,
+        typer.Option(
+            "--tag",
+            "-t",
+            help="Add a tag to the tracked time. Useful in the reporting phase.",
+        ),
+    ] = "",
+):
+    """
+    Start tracking a project by name.
+    """
 
     if not project:
         project = typer.prompt("Which project do you want to track?")
@@ -71,47 +119,61 @@ def start(project: str, billable: bool = False, tag: str = "", category: str = "
         print(
             Panel.fit(
                 title="▶️  Start",
-                renderable=f"[bold green]{project}[/bold green] started. Have a good session!",
+                renderable=print_with_padding(
+                    f"""[bold green]{project}[/bold green] started.
+
+Have a good session!"""
+                ),
             )
         )
     else:
         print(
             Panel.fit(
                 title="💬 Already started",
-                renderable=f"Tracking on [bold green]{project}[/bold green] already started at {record['start']}",
+                renderable=print_with_padding(
+                    f"""
+Tracking on [bold green]{project}[/bold green] already started \
+at {datetime.fromisoformat(record['start'])}
+"""
+                ),
             )
         )
 
 
-@app.command()
-def stop():
-    """Stop tracking a project."""
-
-    if not check_if_database_exists():
-        print(Panel.fit("🚨 You don't have a database"))
-        return
+@app.command("stop", short_help="Stop trak")
+def stop_tracker():
+    """
+    Stop tracking the current project.
+    """
 
     record = tracking_already_started()
     if record:
         stop_track_field()
+        message = print_with_padding(
+            f"""
+The [bold green]{record['project']}[/bold green] session is over. 
 
-        print(
-            Panel.fit(
-                title="⏹️  Stop",
-                renderable=f"The [bold green]{record['project']}[/bold green] session is over. Good job!",
-            )
+Good job!"""
         )
+
+        print(Panel.fit(title="⏹️  Stop", renderable=message))
     else:
         print(
             Panel.fit(
                 title="💬 No active sessions",
-                renderable="There are no active sessions. Use the command: trak start <project name>.",
+                renderable=print_with_padding(
+                    """Ther aren't active sessions. 
+
+Use the command: trak start <project name> to start a new session of work."""
+                ),
             )
         )
 
 
 @app.command()
 def report(project: str, when: str = typer.Option(default="month")):
-    """Report stats for projects."""
+    """
+    Report stats for projects.
+    """
 
     print(Panel.fit(f"Report project {project} — {when}"))
