@@ -172,7 +172,15 @@ Use the command: trak start <project name> to start a new session of work."""
 
 
 @app.command()
-def status():
+def status(starship: Annotated[
+        bool,
+        typer.Option(
+            "--starship",
+            "-s",
+            help="Show the output formatted for Starship.",
+            show_default=True,
+        ),
+    ] = False,):
     """
     Show the status of the current session.
     """

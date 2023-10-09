@@ -6,7 +6,9 @@
     >
       <div class="flex flex-row items-center justify-between lg:justify-start">
         <a href="/" class="lg:pr-8 text-black inline-flex items-center gap-3">
-          <span class="font-bold font-display">⏰ Trak</span>
+          <span class="font-bold font-display">
+            <img src="/logo.svg" alt="logo" class="h-10" />
+          </span>
         </a>
         <button
           @click="open = !open"
@@ -60,7 +62,8 @@
         <div class="inline-flex items-center gap-2 list-none lg:ml-auto">
           <a
             class="block px-4 py-2 mt-2 text-sm font-medium text-black md:mt-0 hover:text-accent-400 focus:outline-none focus:shadow-outline"
-            href="https://github.com/lcfd/trak">Leave a star on Github</a
+            target="_blank"
+            href="https://github.com/lcfd/trak">⭐ us on Github</a
           >
           {
             /* <a
