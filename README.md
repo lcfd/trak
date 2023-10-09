@@ -19,3 +19,33 @@
     <a href="https://github.com/lcfd/trak/issues">Issues</a>
   </p>
 </p>
+
+## Installation
+
+## Usage
+
+```bash
+trak start <project-name>
+trak stop
+trak status
+trak report
+```
+
+Start trakking a project that is billable:
+
+`trak start pasta -b`
+
+Start tracking a project on a specific category/topic:
+
+`trak start pasta -c rigatoni`
+
+## Starship
+
+`trak status -s`
+
+```bash
+[custom.timetrace]
+command = """ trak status --s """
+when = "trak status"
+shell = "sh"
+```
