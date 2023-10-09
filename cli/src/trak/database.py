@@ -3,7 +3,12 @@ import json
 from pathlib import Path
 from typing import NamedTuple
 
-DB_FILE_PATH = Path.home().joinpath(".trak_db.json")
+from trak.config import DB_FILE_PATH
+
+
+#
+# Database operations
+#
 
 
 class Record(NamedTuple):
@@ -68,11 +73,13 @@ def check_if_database_exists():
     return Path.exists(DB_FILE_PATH)
 
 
-def init_database(db_path: Path) -> int:
-    """Create the to-do database."""
+def init_database(p: Path) -> int:
+    """Create the application database."""
 
     try:
-        DB_FILE_PATH.write_text("[]")  # Empty to-do list
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("w", encoding="utf-8") as f:
+            f.write("[]")
         return 0
     except OSError:
         return 1
