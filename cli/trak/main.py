@@ -1,25 +1,58 @@
 from datetime import datetime
 from typing import Optional
+
 import typer
-from rich import print
+from rich import print as rprint
 from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
+from typing_extensions import Annotated
+from trak.config import CONFIG_FILE_PATH, DB_FILE_PATH, init_config
+
 from trak import __app_name__, __version__
-from trak.__main__ import print_with_padding
 from trak.database import (
     Record,
     add_track_field,
     get_current_session,
+    init_database,
     stop_track_field,
     tracking_already_started,
 )
-from typing_extensions import Annotated
-
+from trak.utils.print_with_padding import print_with_padding
 
 console = Console()
 
 app = typer.Typer()
+
+initialized = False
+
+messages: list[str] = []
+
+if not DB_FILE_PATH.is_file():
+    initialized = True
+    try:
+        init_database(DB_FILE_PATH)
+        messages.append(f"✅ Database created at {DB_FILE_PATH}.")
+    except Exception as e:
+        raise e
+
+if not CONFIG_FILE_PATH.is_file():
+    initialized = True
+    try:
+        init_config(CONFIG_FILE_PATH)
+        messages.append(f"✅ Config file created at {CONFIG_FILE_PATH}.")
+    except Exception as e:
+        raise e
+
+if initialized:
+    rprint(print_with_padding(text="\n".join(messages), y=1))
+    initialized_message = "Trak has created all the files it needs to work."
+    rprint(
+        Panel(
+            print_with_padding(initialized_message, y=2),
+            title="Trak initalized",
+        )
+    )
 
 
 def _version_callback(value: bool) -> None:
@@ -27,7 +60,7 @@ def _version_callback(value: bool) -> None:
     Print the application version.
     """
     if value:
-        print(
+        rprint(
             Panel(
                 renderable=Align.center(f"{__app_name__} v{__version__}"),
                 title=__app_name__,
@@ -117,7 +150,7 @@ def start_tracker(
                 tag=tag,
             )
         )
-        print(
+        rprint(
             Panel.fit(
                 title="▶️  Start",
                 renderable=print_with_padding(
@@ -128,14 +161,13 @@ Have a good session!"""
             )
         )
     else:
-        print(
+        rprint(
             Panel.fit(
                 title="💬 Already started",
                 renderable=print_with_padding(
                     f"""
 Tracking on [bold green]{project}[/bold green] already started \
-at {datetime.fromisoformat(record['start']).strftime("%m/%d/%Y, %H:%M")}
-"""
+at {datetime.fromisoformat(record['start']).strftime("%m/%d/%Y, %H:%M")}"""
                 ),
             )
         )
@@ -157,9 +189,9 @@ The [bold green]{record['project']}[/bold green] session is over.
 Good job!"""
         )
 
-        print(Panel.fit(title="⏹️  Stop", renderable=message))
+        rprint(Panel.fit(title="⏹️  Stop", renderable=message))
     else:
-        print(
+        rprint(
             Panel.fit(
                 title="💬 No active sessions",
                 renderable=print_with_padding(
@@ -172,15 +204,16 @@ Use the command: trak start <project name> to start a new session of work."""
 
 
 @app.command()
-def status(starship: Annotated[
+def status(
+    starship: Annotated[
         bool,
         typer.Option(
             "--starship",
             "-s",
             help="Show the output formatted for Starship.",
-            show_default=True,
         ),
-    ] = False,):
+    ] = False,
+):
     """
     Show the status of the current session.
     """
@@ -194,30 +227,36 @@ def status(starship: Annotated[
         now = datetime.now()
         diff = now - start_datetime
 
-        m, s = divmod(diff.seconds, 60)
+        m, _ = divmod(diff.seconds, 60)
         h, m = divmod(m, 60)
 
-        print(
-            Panel(
-                title="💬 Current status",
-                renderable=print_with_padding(
-                    f"""Project: [bold]{current_session['project']}[/bold]
+        if starship:
+            print(f"""⏰ {current_session['project']} ⌛ {h}h {m}m""")
+        else:
+            rprint(
+                Panel(
+                    title="💬 Current status",
+                    renderable=print_with_padding(
+                        f"""Project: [bold]{current_session['project']}[/bold]
 Started: {formatted_start_datetime}
 Time: [bold]{h}h {m}m[/bold]""",
-                ),
+                    ),
+                )
             )
-        )
     else:
-        print(
-            Panel(
-                title="💬 No active sessions",
-                renderable=print_with_padding(
-                    """Ther aren't active sessions. 
+        if starship:
+            print("⏰ No active session")
+        else:
+            rprint(
+                Panel(
+                    title="💬 No active session",
+                    renderable=print_with_padding(
+                        """Ther aren't active sessions. 
 
 Use the command: trak start <project name> to start a new session of work."""
-                ),
+                    ),
+                )
             )
-        )
 
 
 @app.command()
@@ -226,4 +265,8 @@ def report(project: str, when: str = typer.Option(default="month")):
     Report stats for projects.
     """
 
-    print(Panel.fit(f"Report project {project} — {when}"))
+    rprint(Panel.fit(f"Report project {project} — {when}"))
+
+
+# if __name__ == "__main__":
+#     app()

@@ -22,6 +22,19 @@
 
 ## Installation
 
+### Local
+
+`poetry build`
+
+```bash
+# x.x.x = The version you desire.
+pipx install ./dist/trak-x.x.x-py3-none-any.whl
+```
+
+### Pypi
+
+
+
 ## Usage
 
 ```bash
@@ -43,9 +56,11 @@ Start tracking a project on a specific category/topic:
 
 `trak status -s`
 
+In `$HOME/.config/starship.toml`:
+
 ```bash
-[custom.timetrace]
-command = """ trak status --s """
+[custom.trak]
+command = """ trak status -s """
 when = "trak status"
 shell = "sh"
 ```
