@@ -1,10 +1,9 @@
-from datetime import datetime
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
 
 from trak.config import DB_FILE_PATH
-
 
 #
 # Database operations
@@ -57,12 +56,12 @@ def tracking_already_started():
     parsed_json = json.loads(db_content)
 
     try:
-        last_incomplete_record = parsed_json[-1]
+        last_record = parsed_json[-1]
     except IndexError:
         return False
 
-    if last_incomplete_record["end"] == "":
-        return last_incomplete_record
+    if last_record["end"] == "":
+        return last_record
 
     return False
 
@@ -74,9 +73,14 @@ def get_current_session():
     parsed_json = json.loads(db_content)
 
     try:
-        return parsed_json[-1]
+        last_record = parsed_json[-1]
     except IndexError:
         return False
+
+    if last_record["end"] == "":
+        return last_record
+
+    return False
 
 
 def check_if_database_exists():
