@@ -1,7 +1,7 @@
 [project]
 name = "trak"
 version = "0.0.1"
-description = "A CLI to track the time you spend on projects, with useful reports and analytics."
+description = "Keep a record of the time you dedicate to your projects."
 authors = [
     {name = "Luca Fedrizzi", email = "fedrizzi.luca@hotmail.it"},
 ]
