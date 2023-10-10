@@ -6,13 +6,13 @@ from typing import NamedTuple
 from rich import padding, print as rprint
 from rich.panel import Panel
 
-from trak.config import DB_FILE_PATH
-from trak.utils.format_date import format_date
-from trak.utils.print_with_padding import print_with_padding
+from trakcli.config import DB_FILE_PATH
+from trakcli.utils.format_date import format_date
+from trakcli.utils.print_with_padding import print_with_padding
 from rich.console import Console
 from rich.table import Table
 
-from trak.utils.same_week import same_week
+from trakcli.utils.same_week import same_week
 
 #
 # Database operations

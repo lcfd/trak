@@ -8,9 +8,9 @@ from rich.console import Console
 from rich.panel import Panel
 from typing_extensions import Annotated
 
-from trak import __app_name__, __version__
-from trak.config import CONFIG_FILE_PATH, DB_FILE_PATH, init_config
-from trak.database import (
+from trakcli import __app_name__, __version__
+from trakcli.config import CONFIG_FILE_PATH, DB_FILE_PATH, init_config
+from trakcli.database import (
     Record,
     add_track_field,
     get_current_session,
@@ -19,7 +19,7 @@ from trak.database import (
     stop_track_field,
     tracking_already_started,
 )
-from trak.utils.print_with_padding import print_with_padding
+from trakcli.utils.print_with_padding import print_with_padding
 
 console = Console()
 
