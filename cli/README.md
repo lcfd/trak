@@ -1,14 +1,24 @@
-# Trak
+<p align="center">
+  <a href="https://github.com/lcfd/trak">
+    <img src="https://raw.githubusercontent.com/lcfd/trak/main/assets/banner.png" alt="Trak banner">
+  </a>
 
-Keep a record of the time you dedicate to your projects.
+  <h1 align="center">trak</h1>
 
-- [Website](https://usetrak.com)
-- [Github](https://usetrak.com)
-
-## Development
-
-Use this command to test the CLI application:
-
-```
-python -m trak
-```
+  <p align="center">
+    <br />
+    Trak is a CLI to track the time you spend on projects, with useful reports and analytics.
+    <br />
+    <br />
+    For freelancers, by a freelance.
+    <br />
+    <br />
+    <a href="https://usetrak.com">Website</a>
+    ·
+    <a href="https://github.com/lcfd/trak/issues">Issues</a>
+    ·
+    <a href="https://usetrak.com/docs/">Documentation</a>
+    •
+    <a href="https://github.com/lcfd/trak/discussions">Feedback</a>
+  </p>
+</p>
