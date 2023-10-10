@@ -7,13 +7,14 @@ from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from typing_extensions import Annotated
-from trak.config import CONFIG_FILE_PATH, DB_FILE_PATH, init_config
 
 from trak import __app_name__, __version__
+from trak.config import CONFIG_FILE_PATH, DB_FILE_PATH, init_config
 from trak.database import (
     Record,
     add_track_field,
     get_current_session,
+    get_record_collection,
     init_database,
     stop_track_field,
     tracking_already_started,
@@ -260,13 +261,36 @@ Use the command: trak start <project name> to start a new session of work."""
 
 
 @app.command()
-def report(project: str, when: str = typer.Option(default="month")):
+def report(
+    project: str,
+    when: Annotated[
+        str,
+        typer.Option(
+            "--when",
+            "-w",
+            help="Look for records in a specific date or range by keyword. \
+Values may be: \
+- today \
+- yesterday \
+- month: the current month \
+- yyyy-mm-dd: like 2023-10-08",
+        ),
+    ] = "",
+    category: Annotated[str, typer.Option("--category", "-c")] = "",
+    tag: Annotated[str, typer.Option("--tag", "-t")] = "",
+    billable: Annotated[
+        bool,
+        typer.Option(
+            "--billable",
+            "-b",
+            help="Consider only the billable records.",
+        ),
+    ] = False,
+):
     """
     Report stats for projects.
     """
 
-    rprint(Panel.fit(f"Report project {project} — {when}"))
-
-
-# if __name__ == "__main__":
-#     app()
+    get_record_collection(
+        project=project, billable=billable, category=category, tag=tag, when=when
+    )
