@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "trakcli"
-version = "0.0.1"
+version = "0.0.2"
 description = "Keep a record of the time you dedicate to your projects."
 authors = ["Luca Fedrizzi <9001053+fedriz@users.noreply.github.com>"]
 license = "AGPL-3.0"
