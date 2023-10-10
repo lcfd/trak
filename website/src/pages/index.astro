@@ -4,54 +4,51 @@ import Navigation from "../components/global/Navigation.astro";
 
 import Hero from "../components/landing/Hero.astro";
 import SectionOne from "../components/landing/SectionOne.astro";
-import SectionTwo from "../components/landing/SectionTwo.astro";
+// import SectionTwo from "../components/landing/SectionTwo.astro";
 import Testimonial from "../components/global/Testimonial.astro";
-import Pricing from "../components/landing/Pricing.astro";
+// import Pricing from "../components/landing/Pricing.astro";
 import Cta from "../components/global/Cta.astro";
 import Footer from "../components/global/Footer.astro";
 import { AstroSeo } from "@astrolib/seo";
 ---
 
-<!---
+<!--
 Use AstroSeo in all the pages you want different Seo than the index page
 -->
 <AstroSeo
   title="Home"
-  description="A CLI to track the time you spend on projects, with useful reports and analytics"
+  description="Keep a record of the time you dedicate to your projects"
   canonical="http://usetrak.com"
   openGraph={{
     url: "http://usetrak.com",
     title: "Trak",
-    description:
-      "A CLI to track the time you spend on projects, with useful reports and analytics",
+    description: "Keep a record of the time you dedicate to your projects",
     images: [
       {
-        url: "http://usetrak.com/opengraph/social-og.jpg",
+        url: "http://usetrak.com/opengraph/social-og.jpeg",
         width: 1200,
         height: 630,
         alt: "Social open graph",
         type: "image/jpeg",
       },
       {
-        url: "http://usetrak.com/opengraph/twitter-og.jpg",
+        url: "http://usetrak.com/opengraph/twitter-og.jpeg",
         width: 4096,
         height: 4096,
         alt: "Twitter open graph",
         type: "image/jpeg",
       },
-      { url: "http://usetrak.com/opengraph/social-og.jpg" },
-      { url: "http://usetrak.com/opengraph/twitter-og.jpg" },
+      { url: "http://usetrak.com/opengraph/social-og.jpeg" },
+      { url: "http://usetrak.com/opengraph/twitter-og.jpeg" },
     ],
     site_name: "Trak",
   }}
+  twitter={{
+    handle: "@usetrakcom",
+    site: "@site",
+    cardType: "summary_large_image",
+  }}
 />
-{
-  /* twitter={{
-  handle: "@trak",
-  site: "@site",
-  cardType: "summary_large_image",
- }} */
-}
 <BaseLayout>
   <Navigation />
   <Hero />
