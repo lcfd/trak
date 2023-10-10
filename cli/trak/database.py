@@ -12,6 +12,8 @@ from trak.utils.print_with_padding import print_with_padding
 from rich.console import Console
 from rich.table import Table
 
+from trak.utils.same_week import same_week
+
 #
 # Database operations
 #
@@ -133,6 +135,14 @@ def get_record_collection(
                 for record in records
                 if datetime.fromisoformat(record["end"]).date()
                 == datetime.today().date()
+            ]
+        elif when == "week":
+            records = [
+                record
+                for record in records
+                if same_week(
+                    datetime.fromisoformat(record["end"]).date().strftime("%Y%m%d"),
+                )
             ]
         elif when == "month":
 
