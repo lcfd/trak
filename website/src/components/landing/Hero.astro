@@ -1,24 +1,27 @@
+---
+const advice = "";
+const advice_link = "";
+---
+
 <section>
   <div
-    class="mx-auto w-full lg:px-24 max-w-7xl md:px-12 items-center px-8 py-24"
+    class="mx-auto w-full lg:px-24 max-w-7xl md:px-12 items-center px-8 py-24 bg-gradient-to-r from-trakblu to-trakyellow md:from-trakblu md:via-trakyellow md:to-trakgreen"
   >
     <div>
       <div class="text-center max-w-4xl mx-auto">
         <div class="sm:flex sm:justify-center">
           {
-            /*<div
-            class="relative rounded-full py-1 px-3 text-sm leading-6 text-gray-600 ring-1 ring-gray-900/10 hover:ring-gray-900/20">
-            <a
-              href="https://lexingtonthemes.com/free-templates/"
-              class="font-semibold text-indigo-600"
-              ><span class="absolute inset-0" aria-hidden="true"></span>
-              <span class="block lg:inline">
-                More free & Premium templates <span aria-hidden="true"
-                  >&rarr;</span
-                >
-              </span>
-            </a>
-          </div>*/
+            advice ? (
+              <div class="relative rounded-full py-1 px-3 text-sm leading-6 text-gray-600 ring-1 ring-gray-900/10 hover:ring-gray-900/20 bg-trakblu">
+                <a href={advice_link} class="font-semibold text-black">
+                  <span class="absolute inset-0" aria-hidden="true" />
+                  <span class="block lg:inline">
+                    {advice}
+                    <span aria-hidden="true">&rarr;</span>
+                  </span>
+                </a>
+              </div>
+            ) : null
           }
         </div>
         <p
@@ -26,13 +29,13 @@
         >
           A CLI to track the time you spend on projects
         </p>
-        <p class="text-gray-500 lg:text-xl max-w-2xl mt-4 mx-auto text-base">
+        <p class="text-gray-800 lg:text-xl max-w-2xl mt-4 mx-auto text-base">
           With useful reports and analytics.
         </p>
       </div>
       <div class="flex justify-center gap-3 mt-10 flex-col sm:flex-row">
         <a
-          class="items-center justify-center h-12 font-medium rounded-xl focus-visible:outline-black focus:outline-none inline-flex duration-200 text-black lg:w-auto px-6 py-3 text-center text-black/80 w-full border"
+          class="items-center justify-center h-12 font-medium rounded-xl focus-visible:outline-black focus:outline-none inline-flex duration-200 text-black lg:w-auto px-6 py-3 text-center text-black/80 w-full border-2 border-black"
           href="https://github.com/lcfd/trak">GitHub</a
         >
         <a

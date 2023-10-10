@@ -1,0 +1,143 @@
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Navigation from "../components/global/Navigation.astro";
+import Faq from "../components/infopages/Faq.astro";
+import Footer from "../components/global/Footer.astro";
+import { AstroSeo } from "@astrolib/seo";
+
+<AstroSeo
+  title="Docs"
+  description="Keep a record of the time you dedicate to your projects"
+  canonical="http://usetrak.com"
+  openGraph={{
+    url: "http://usetrak.com",
+    title: "Open Graph Title",
+    description: "Open Graph Description",
+    images: [
+      {
+        url: "http://usetrak.com/opengraph/social-og.jpeg",
+        width: 1200,
+        height: 630,
+        alt: "Social open graph",
+        type: "image/jpeg",
+      },
+      {
+        url: "http://usetrak.com/opengraph/twitter-og.jpeg",
+        width: 4096,
+        height: 4096,
+        alt: "Twitter open graph",
+        type: "image/jpeg",
+      },
+      { url: "http://usetrak.com/opengraph/social-og.jpeg" },
+      { url: "http://usetrak.com/opengraph/twitter-og.jpeg" },
+    ],
+    site_name: "Trak",
+  }}
+  twitter={{
+    handle: "@usetrakcom",
+    site: "@site",
+    cardType: "summary_large_image",
+  }}
+/>
+<BaseLayout>
+  <Navigation />
+  <section aria-labelledby="documentation-title" id="documentation">
+    <div class="mx-auto w-full lg:px-24 max-w-7xl md:px-12 items-center px-8 py-24 scroll-mt-12">
+      <div>
+        <div class="max-w-2xl mx-auto">
+          <p class="text-black font-extrabold lg:text-5xl text-4xl tracking-tight">Documentation</p>
+          <p class="text-gray-500 lg:text-xl max-w-2xl mt-4 mx-auto text-base">How to install and use the library, and a few more tricks</p>
+        </div>
+        <div class="max-w-2xl prose mt-12 mx-auto">
+
+### A note about updates to this documentation
+
+The documentation may undergo continuous changes since the project is under active development.
+Since there isn't yet an automatic documentation creation pipeline—for now,
+if you want to lend a hand, thanks—this page will be a moment behind what you can find in the [README on GitHub](https://github.com/lcfd/trak#readme).
+
+## Installation
+
+### Pypi
+
+[On Pypi](https://pypi.org/project/trakcli/) you can find the package under the `trakcli` name.
+
+You can install it with pip:
+
+```bash
+pip install trakcli
+```
+
+or with pipx:
+
+```bash
+pipx install trakcli
+```
+
+### Brew
+
+TBA
+
+### Local
+
+Run `poetry build` and then
+
+```bash
+# x.x.x = The version you have used to do the build.
+pipx install ./dist/trakcli-x.x.x-py3-none-any.whl
+```
+
+to install `trak` usign the wheel file.
+
+## Usage
+
+The package has the useful `--help` command that will explain all the commands.
+
+The CLI will guide you anyway through what you should and must do with messages with specific messages.
+
+### Basic commands
+
+```bash
+trak start <project-name>
+
+trak stop
+
+trak status
+
+trak report <project-name>
+```
+
+Start trakking a project that is billable:
+
+`trak start pasta -b`
+
+Start tracking a project on a specific category/topic:
+
+`trak start pasta -c rigatoni`
+
+All the commands are described in the help command:
+
+`trak --help`
+
+## Starship
+
+There is a dedicated command that ouputs clean strings for tools like Starship:
+
+`trak status -s` or `trak status --starship`
+
+To see the status in your terminal line open `$HOME/.config/starship.toml`
+and put this snippet inside of it:
+
+```bash
+[custom.trak]
+command = """ trak status -s """
+when = "trak status"
+shell = "sh"
+```
+
+        </div>
+      </div>
+    </div>
+
+  </section>
+  <Footer />
+</BaseLayout>
