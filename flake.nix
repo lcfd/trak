@@ -16,6 +16,7 @@
           preferWheels = true;
           python = pkgs.python311;
           checkGroups = [ ];
+          meta.mainProgram = "trak";
         };
       in
       {
