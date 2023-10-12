@@ -9,12 +9,10 @@
   outputs = { self, nixpkgs, flake-utils, poetry2nix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        inherit (poetry2nix.legacyPackages.${system}) mkPoetryApplication;
-        pkgs = nixpkgs.legacyPackages.${system};
-        cli = mkPoetryApplication {
+        cli = poetry2nix.legacyPackages.${system}.mkPoetryApplication {
           projectDir = ./cli;
           preferWheels = true;
-          python = pkgs.python311;
+          python = nixpkgs.legacyPackages.${system}.python311;
           checkGroups = [ ];
           meta.mainProgram = "trak";
         };
