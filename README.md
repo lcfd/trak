@@ -43,6 +43,21 @@ pipx install trakcli
 ### Brew
 
 TBA
+
+### Nix
+
+If you have [Nix](https://nixos.org/download.html) installed and flakes enabled, you can try trak using:
+
+```bash
+nix run github:lcfd/trak
+```
+
+The package will be built from source, so it might take a while.
+
+You can pass arguments like this:
+
+`nix run github:lcfd/trak -- --help`
+
 ### Local
 
 Run `poetry build` and then
