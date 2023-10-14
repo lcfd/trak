@@ -1,12 +1,12 @@
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import NamedTuple
 
 from rich import padding, print as rprint
 from rich.panel import Panel
 
 from trakcli.config import DB_FILE_PATH
+from trakcli.database.models import Record
 from trakcli.utils.format_date import format_date
 from trakcli.utils.print_with_padding import print_with_padding
 from rich.console import Console
@@ -19,17 +19,8 @@ from trakcli.utils.same_week import same_week
 #
 
 
-class Record(NamedTuple):
-    project: str = ""
-    start: str = ""
-    end: str = ""
-    billable: bool = False
-    category: str = ""
-    tag: str = ""
-
-
 def add_track_field(record: Record):
-    """..."""
+    """Add a new session."""
 
     with open(DB_FILE_PATH, "r") as db:
         db_content = db.read()
@@ -228,13 +219,13 @@ def check_if_database_exists():
     return Path.exists(DB_FILE_PATH)
 
 
-def init_database(p: Path) -> int:
+def init_database(p: Path, initial_value: str = "[]") -> int:
     """Create the application database."""
 
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("w", encoding="utf-8") as f:
-            f.write("[]")
+            f.write(initial_value)
         return 0
     except OSError:
         return 1
