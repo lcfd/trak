@@ -4,16 +4,18 @@ from rich.padding import Padding
 from rich.prompt import Confirm
 
 from trakcli.config.main import CONFIG_FILE_PATH, DEV_DB_FILE_PATH
-from trakcli.database.basic import add_field_to_json_file, show_json_file_content
+from trakcli.database.basic import manage_field_in_json_file, show_json_file_content
 from trakcli.database.database import init_database
 from trakcli.utils.print_with_padding import print_with_padding
 
 app = typer.Typer()
 
 
-@app.command()
+@app.command(
+    help="Initialize the development database and activate the development mode."
+)
 def init():
-    """Manage the development mode."""
+    """Initialize the development mode."""
 
     rprint(print_with_padding("▶️  Init dev mode!"))
 
@@ -34,7 +36,7 @@ def init():
         )
 
         # Add the development parameter to config.json
-        add_field_to_json_file(CONFIG_FILE_PATH, "development", True)
+        manage_field_in_json_file(CONFIG_FILE_PATH, "development", True)
 
         rprint(f"✅ Add the development parameter to {CONFIG_FILE_PATH}")
 
@@ -42,6 +44,13 @@ def init():
         show_json_file_content(CONFIG_FILE_PATH)
 
         rprint(print_with_padding("🟢 You are ready to develop on trak!"))
+
+
+@app.command(help="Toggle the development mode.")
+def toggle():
+    """Toggle the development mode."""
+
+    pass
 
 
 if __name__ == "__main__":
