@@ -147,14 +147,17 @@ Have a good session!"""
             )
         )
     else:
+        formatted_start_time = datetime.fromisoformat(record["start"]).strftime(
+            "%m/%d/%Y, %H:%M"
+        )
+        msg = (
+            f"Tracking on [bold green]{record['project']}[/bold green] "
+            f"already started at {formatted_start_time}"
+        )
         rprint(
             Panel.fit(
                 title="💬 Already started",
-                renderable=print_with_padding(
-                    f"""
-Tracking on [bold green]{record['project']}[/bold green] already started \
-at {datetime.fromisoformat(record['start']).strftime("%m/%d/%Y, %H:%M")}"""
-                ),
+                renderable=print_with_padding(msg),
             )
         )
 
@@ -169,8 +172,7 @@ def stop_tracker():
     if record:
         stop_trak_session()
         message = print_with_padding(
-            f"""
-The [bold green]{record['project']}[/bold green] session is over. 
+            f"""The [bold green]{record['project']}[/bold green] session is over. 
 
 Good job!"""
         )
@@ -181,7 +183,7 @@ Good job!"""
             Panel.fit(
                 title="💬 No active sessions",
                 renderable=print_with_padding(
-                    """Ther aren't active sessions. 
+                    """There aren't active sessions. 
 
 Use the command: trak start <project name> to start a new session of work."""
                 ),
@@ -226,8 +228,7 @@ def status(
                 Panel(
                     title="💬 Current status",
                     renderable=print_with_padding(
-                        f"""{'( DEV MODE) ' if CONFIG['development'] else ''}
-Project: [bold]{current_session['project']}[/bold]
+                        f"""Project: [bold]{current_session['project']}[/bold]
 Started: {formatted_start_datetime}
 Time: [bold]{h}h {m}m[/bold]""",
                     ),
@@ -244,8 +245,7 @@ No active session"
                 Panel(
                     title="💬 No active session",
                     renderable=print_with_padding(
-                        f"""{'( DEV MODE) ' if CONFIG['development'] else ''} \
-Ther aren't active sessions. 
+                        """Ther aren't active sessions. 
 
 Use the command: trak start <project name> to start a new session of work."""
                     ),
