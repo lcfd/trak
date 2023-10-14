@@ -17,7 +17,7 @@ CONFIG_FILE_PATH = TRAK_FOLDER / "config.json"
 
 
 def init_config(p: Path) -> int:
-    """Create the to-do database."""
+    """Init the config file."""
 
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
