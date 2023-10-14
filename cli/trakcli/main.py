@@ -10,8 +10,7 @@ from typing_extensions import Annotated
 
 from trakcli import __app_name__, __version__
 from trakcli.config import CONFIG_FILE_PATH, DB_FILE_PATH, init_config
-from trakcli.database import (
-    Record,
+from trakcli.database.database import (
     add_track_field,
     get_current_session,
     get_record_collection,
@@ -19,11 +18,16 @@ from trakcli.database import (
     stop_track_field,
     tracking_already_started,
 )
+from trakcli.database.models import Record
 from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.dev.commands import app as dev_app
 
 console = Console()
 
 app = typer.Typer()
+
+app.add_typer(dev_app, name="dev")
+
 
 initialized = False
 
