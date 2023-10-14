@@ -4,7 +4,7 @@ from pathlib import Path
 
 from rich import padding, print as rprint
 from rich.panel import Panel
-from trakcli.config.main import DB_FILE_PATH
+from trakcli.config.main import CONFIG, DB_FILE_PATH, DEV_DB_FILE_PATH
 
 from trakcli.database.models import Record
 from trakcli.utils.format_date import format_date
@@ -14,34 +14,36 @@ from rich.table import Table
 
 from trakcli.utils.same_week import same_week
 
+file_path_to_use = DEV_DB_FILE_PATH if CONFIG["development"] else DB_FILE_PATH
+
 #
 # Database operations
 #
 
 
-def add_track_field(record: Record):
+def add_session(record: Record):
     """Add a new session."""
 
-    with open(DB_FILE_PATH, "r") as db:
+    with open(file_path_to_use, "r") as db:
         db_content = db.read()
 
     parsed_json = json.loads(db_content)
     parsed_json.append(record._asdict())
 
-    with open(DB_FILE_PATH, "w") as db:
+    with open(file_path_to_use, "w") as db:
         json.dump(parsed_json, db, indent=2, separators=(",", ": "))
 
 
-def stop_track_field():
+def stop_trak_session():
     """Stop tracking the current project."""
 
-    with open(DB_FILE_PATH, "r") as db:
+    with open(file_path_to_use, "r") as db:
         db_content = db.read()
 
     parsed_json = json.loads(db_content)
     parsed_json[-1]["end"] = datetime.now().isoformat()
 
-    with open(DB_FILE_PATH, "w") as db:
+    with open(file_path_to_use, "w") as db:
         json.dump(parsed_json, db, indent=2, separators=(",", ": "))
 
 
@@ -51,13 +53,15 @@ def tracking_already_started():
     If it's already running return the record.
     """
 
-    with open(DB_FILE_PATH, "r") as db:
+    with open(file_path_to_use, "r") as db:
         db_content = db.read()
     parsed_json = json.loads(db_content)
 
     try:
         last_record = parsed_json[-1]
     except IndexError:
+        return False
+    except KeyError:
         return False
 
     if last_record["end"] == "":
@@ -67,7 +71,7 @@ def tracking_already_started():
 
 
 def get_current_session():
-    with open(DB_FILE_PATH, "r") as db:
+    with open(file_path_to_use, "r") as db:
         db_content = db.read()
 
     parsed_json = json.loads(db_content)
@@ -75,6 +79,8 @@ def get_current_session():
     try:
         last_record = parsed_json[-1]
     except IndexError:
+        return False
+    except KeyError:
         return False
 
     if last_record["end"] == "":
@@ -92,7 +98,7 @@ def get_record_collection(
 ):
     """Get a collection of records, filtered by paramenters."""
 
-    with open(DB_FILE_PATH, "r") as db:
+    with open(file_path_to_use, "r") as db:
         db_content = db.read()
 
     parsed_json = json.loads(db_content)
@@ -216,7 +222,7 @@ Try with a date like 2023-10-08, or the strings today, yesterday."""
 def check_if_database_exists():
     """Check if the json db files exists."""
 
-    return Path.exists(DB_FILE_PATH)
+    return Path.exists(file_path_to_use)
 
 
 def init_database(p: Path, initial_value: str = "[]") -> int:
