@@ -4,6 +4,13 @@ from typing import Optional
 from rich import print as rprint
 
 
+def get_json_file_content(file_path: Path):
+    with open(file_path, "r") as db:
+        db_content = db.read()
+
+    return json.loads(db_content)
+
+
 def show_json_file_content(file_path: Path):
     """Show the content of a JSON file."""
 
