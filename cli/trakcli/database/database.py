@@ -176,11 +176,11 @@ Try with a date like 2023-10-08, or the strings today, yesterday."""
 
     table = Table(title=f"[bold]{project}[/bold]")
 
-    table.add_column("Start", justify="right", style="cyan", no_wrap=True)
-    table.add_column("End", style="cyan", no_wrap=True)
-    table.add_column("Category", style="magenta")
-    table.add_column("Tag", style="magenta")
-    table.add_column("Hours", style="magenta", no_wrap=True)
+    table.add_column("Start", justify="right", style="green", no_wrap=True)
+    table.add_column("End", style="orange3", no_wrap=True)
+    table.add_column("Category", style="steel_blue1")
+    table.add_column("Tag", style="steel_blue3")
+    table.add_column("Hours", style="yellow", no_wrap=True)
     table.add_column("Billable")
 
     acc_seconds = 0
