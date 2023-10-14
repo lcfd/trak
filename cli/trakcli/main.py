@@ -3,82 +3,43 @@ from typing import Optional
 
 import typer
 from rich import print as rprint
-from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from typing_extensions import Annotated
 
-from trakcli import __app_name__, __version__
-from trakcli.config import CONFIG_FILE_PATH, DB_FILE_PATH, init_config
-from trakcli.database import (
-    Record,
-    add_track_field,
+from trakcli.callbacks import (
+    issues_callback,
+    report_bug_callback,
+    repository_callback,
+    version_callback,
+    website_callback,
+)
+from trakcli.config.commands import app as config_app
+from trakcli.config.main import CONFIG
+from trakcli.database.database import (
+    add_session,
     get_current_session,
     get_record_collection,
-    init_database,
-    stop_track_field,
+    stop_trak_session,
     tracking_already_started,
 )
+from trakcli.database.models import Record
+from trakcli.dev.commands import app as dev_app
+from trakcli.initialize import initialize_trak
 from trakcli.utils.print_with_padding import print_with_padding
 
 console = Console()
 
 app = typer.Typer()
 
-initialized = False
+# Initialize trak required files and settings
+initialize_trak()
 
-messages: list[str] = []
-
-if not DB_FILE_PATH.is_file():
-    initialized = True
-    try:
-        init_database(DB_FILE_PATH)
-        messages.append(f"✅ Database created at {DB_FILE_PATH}.")
-    except Exception as e:
-        raise e
-
-if not CONFIG_FILE_PATH.is_file():
-    initialized = True
-    try:
-        init_config(CONFIG_FILE_PATH)
-        messages.append(f"✅ Config file created at {CONFIG_FILE_PATH}.")
-    except Exception as e:
-        raise e
-
-if initialized:
-    rprint(print_with_padding(text="\n".join(messages), y=1))
-    initialized_message = "Trak has created all the files it needs to work."
-    rprint(
-        Panel(
-            print_with_padding(initialized_message, y=2),
-            title="Trak initalized",
-        )
-    )
-
-
-def _version_callback(value: bool) -> None:
-    """
-    Print the application version.
-    """
-    if value:
-        rprint(
-            Panel(
-                renderable=Align.center(f"{__app_name__} v{__version__}"),
-                title=__app_name__,
-                padding=(2),
-            ),
-        )
-        raise typer.Exit()
-
-
-def _website_callback(value: bool) -> None:
-    """
-    Launch the usetrak.com website.
-    """
-    if value:
-        typer.launch("https://usetrak.com")
-
-        raise typer.Exit()
+# Add subcommands
+app.add_typer(
+    dev_app, name="dev", help="Utils for developers who wants to work on trak."
+)
+app.add_typer(config_app, name="config", help="Interact with your configuration.")
 
 
 @app.callback()
@@ -87,8 +48,8 @@ def main(
         None,
         "--version",
         "-v",
-        help="Show the application's version and exit.",
-        callback=_version_callback,
+        help="Show the application's version.",
+        callback=version_callback,
         is_eager=True,
     ),
     website: Optional[bool] = typer.Option(
@@ -96,14 +57,38 @@ def main(
         "--website",
         "-w",
         help="Launch the usetrak.com website.",
-        callback=_website_callback,
+        callback=website_callback,
+        is_eager=True,
+    ),
+    repository: Optional[bool] = typer.Option(
+        None,
+        "--repository",
+        "-r",
+        help="Launch the trak repository.",
+        callback=repository_callback,
+        is_eager=True,
+    ),
+    issues: Optional[bool] = typer.Option(
+        None,
+        "--issues",
+        "-i",
+        help="Launch the trak issues page on Github.",
+        callback=issues_callback,
+        is_eager=True,
+    ),
+    bug: Optional[bool] = typer.Option(
+        None,
+        "--bug",
+        "-b",
+        help="Report a bug on Github.",
+        callback=report_bug_callback,
         is_eager=True,
     ),
 ) -> None:
     return
 
 
-@app.command(name="start", short_help="Start trak")
+@app.command(name="start", help="Start a trak session.")
 def start_tracker(
     project: str,
     billable: Annotated[
@@ -142,7 +127,7 @@ def start_tracker(
     record = tracking_already_started()
 
     if not record:
-        add_track_field(
+        add_session(
             Record(
                 project=project,
                 start=datetime.now().isoformat(),
@@ -162,19 +147,22 @@ Have a good session!"""
             )
         )
     else:
+        formatted_start_time = datetime.fromisoformat(record["start"]).strftime(
+            "%m/%d/%Y, %H:%M"
+        )
+        msg = (
+            f"Tracking on [bold green]{record['project']}[/bold green] "
+            f"already started at {formatted_start_time}"
+        )
         rprint(
             Panel.fit(
                 title="💬 Already started",
-                renderable=print_with_padding(
-                    f"""
-Tracking on [bold green]{project}[/bold green] already started \
-at {datetime.fromisoformat(record['start']).strftime("%m/%d/%Y, %H:%M")}"""
-                ),
+                renderable=print_with_padding(msg),
             )
         )
 
 
-@app.command("stop", short_help="Stop trak")
+@app.command("stop", help="Stop the current trak session.")
 def stop_tracker():
     """
     Stop tracking the current project.
@@ -182,10 +170,9 @@ def stop_tracker():
 
     record = tracking_already_started()
     if record:
-        stop_track_field()
+        stop_trak_session()
         message = print_with_padding(
-            f"""
-The [bold green]{record['project']}[/bold green] session is over. 
+            f"""The [bold green]{record['project']}[/bold green] session is over. 
 
 Good job!"""
         )
@@ -196,7 +183,7 @@ Good job!"""
             Panel.fit(
                 title="💬 No active sessions",
                 renderable=print_with_padding(
-                    """Ther aren't active sessions. 
+                    """There aren't active sessions. 
 
 Use the command: trak start <project name> to start a new session of work."""
                 ),
@@ -232,7 +219,10 @@ def status(
         h, m = divmod(m, 60)
 
         if starship:
-            print(f"""⏰ {current_session['project']} ⌛ {h}h {m}m""")
+            print(
+                f"""⏰ {'( DEV MODE) ' if CONFIG['development'] else ''}\
+{current_session['project']} ⌛ {h}h {m}m"""
+            )
         else:
             rprint(
                 Panel(
@@ -246,7 +236,10 @@ Time: [bold]{h}h {m}m[/bold]""",
             )
     else:
         if starship:
-            print("⏰ No active session")
+            print(
+                f"⏰ {'( DEV MODE) ' if CONFIG['development'] else ''}\
+No active session"
+            )
         else:
             rprint(
                 Panel(
