@@ -8,3 +8,13 @@ class Record(NamedTuple):
     billable: bool = False
     category: str = ""
     tag: str = ""
+
+
+# SPOILER
+
+# class Project(NamedTuple):
+#     short_name: str
+#     name: str = ""
+#     description: str = ""
+#     customer: str = ""
+#     hour_rate: str = ""
