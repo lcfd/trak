@@ -1,8 +1,8 @@
+from rich import print as rprint
 from rich.panel import Panel
+
 from trakcli.config.main import CONFIG_FILE_PATH, DB_FILE_PATH, init_config
 from trakcli.database.database import init_database
-from rich import print as rprint
-
 from trakcli.utils.print_with_padding import print_with_padding
 
 
