@@ -8,62 +8,34 @@ from rich.console import Console
 from rich.panel import Panel
 from typing_extensions import Annotated
 
-from trakcli import __app_name__, __version__
-from trakcli.config.main import init_config, CONFIG_FILE_PATH, DB_FILE_PATH
+from trakcli import __app_name__, __version__, __website__
+from trakcli.config.commands import app as config_app
+from trakcli.config.main import CONFIG_FILE_PATH
 from trakcli.database.basic import get_json_file_content
 from trakcli.database.database import (
     add_track_field,
     get_current_session,
     get_record_collection,
-    init_database,
     stop_track_field,
     tracking_already_started,
 )
 from trakcli.database.models import Record
-from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.dev.commands import app as dev_app
-from trakcli.config.commands import app as config_app
+from trakcli.initialize import initialize_trak
+from trakcli.utils.print_with_padding import print_with_padding
 
 console = Console()
 
 app = typer.Typer()
+
+# Initialize trak required files and settings
+initialize_trak()
 
 app.add_typer(dev_app, name="dev")
 app.add_typer(config_app, name="config")
 
 # Read the config at CONFIG_FILE_PATH
 config = get_json_file_content(CONFIG_FILE_PATH)
-
-
-initialized = False
-
-messages: list[str] = []
-
-if not DB_FILE_PATH.is_file():
-    initialized = True
-    try:
-        init_database(DB_FILE_PATH)
-        messages.append(f"✅ Database created at {DB_FILE_PATH}.")
-    except Exception as e:
-        raise e
-
-if not CONFIG_FILE_PATH.is_file():
-    initialized = True
-    try:
-        init_config(CONFIG_FILE_PATH)
-        messages.append(f"✅ Config file created at {CONFIG_FILE_PATH}.")
-    except Exception as e:
-        raise e
-
-if initialized:
-    rprint(print_with_padding(text="\n".join(messages), y=1))
-    initialized_message = "Trak has created all the files it needs to work."
-    rprint(
-        Panel(
-            print_with_padding(initialized_message, y=2),
-            title="Trak initalized",
-        )
-    )
 
 
 def _version_callback(value: bool) -> None:
@@ -86,7 +58,7 @@ def _website_callback(value: bool) -> None:
     Launch the usetrak.com website.
     """
     if value:
-        typer.launch("https://usetrak.com")
+        typer.launch(__website__)
 
         raise typer.Exit()
 
@@ -242,13 +214,17 @@ def status(
         h, m = divmod(m, 60)
 
         if starship:
-            print(f"""⏰ {current_session['project']} ⌛ {h}h {m}m""")
+            print(
+                f"""⏰ {'( DEV MODE) ' if config['development'] else ''}\
+{current_session['project']} ⌛ {h}h {m}m"""
+            )
         else:
             rprint(
                 Panel(
                     title="💬 Current status",
                     renderable=print_with_padding(
-                        f"""Project: [bold]{current_session['project']}[/bold]
+                        f"""{'( DEV MODE) ' if config['development'] else ''}
+Project: [bold]{current_session['project']}[/bold]
 Started: {formatted_start_datetime}
 Time: [bold]{h}h {m}m[/bold]""",
                     ),
@@ -256,7 +232,10 @@ Time: [bold]{h}h {m}m[/bold]""",
             )
     else:
         if starship:
-            print("⏰ No active session")
+            print(
+                f"⏰ {'( DEV MODE) ' if config['development'] else ''}\
+No active session"
+            )
         else:
             rprint(
                 Panel(
