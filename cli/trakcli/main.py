@@ -3,12 +3,17 @@ from typing import Optional
 
 import typer
 from rich import print as rprint
-from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from typing_extensions import Annotated
 
-from trakcli import __app_name__, __version__, __website__
+from trakcli.callbacks import (
+    issues_callback,
+    report_bug_callback,
+    repository_callback,
+    version_callback,
+    website_callback,
+)
 from trakcli.config.commands import app as config_app
 from trakcli.config.main import CONFIG
 from trakcli.database.database import (
@@ -37,31 +42,6 @@ app.add_typer(
 app.add_typer(config_app, name="config", help="Interact with your configuration.")
 
 
-def _version_callback(value: bool) -> None:
-    """
-    Print the application version.
-    """
-    if value:
-        rprint(
-            Panel(
-                renderable=Align.center(f"{__app_name__} v{__version__}"),
-                title=__app_name__,
-                padding=(2),
-            ),
-        )
-        raise typer.Exit()
-
-
-def _website_callback(value: bool) -> None:
-    """
-    Launch the usetrak.com website.
-    """
-    if value:
-        typer.launch(__website__)
-
-        raise typer.Exit()
-
-
 @app.callback()
 def main(
     version: Optional[bool] = typer.Option(
@@ -69,7 +49,7 @@ def main(
         "--version",
         "-v",
         help="Show the application's version and exit.",
-        callback=_version_callback,
+        callback=version_callback,
         is_eager=True,
     ),
     website: Optional[bool] = typer.Option(
@@ -77,7 +57,31 @@ def main(
         "--website",
         "-w",
         help="Launch the usetrak.com website.",
-        callback=_website_callback,
+        callback=website_callback,
+        is_eager=True,
+    ),
+    repository: Optional[bool] = typer.Option(
+        None,
+        "--repository",
+        "-r",
+        help="Launch the trak repository.",
+        callback=repository_callback,
+        is_eager=True,
+    ),
+    issues: Optional[bool] = typer.Option(
+        None,
+        "--issues",
+        "-i",
+        help="Launch the trak issues page.",
+        callback=issues_callback,
+        is_eager=True,
+    ),
+    bug: Optional[bool] = typer.Option(
+        None,
+        "--bug",
+        "-b",
+        help="Report a bug",
+        callback=report_bug_callback,
         is_eager=True,
     ),
 ) -> None:
