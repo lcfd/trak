@@ -9,7 +9,8 @@ from rich.panel import Panel
 from typing_extensions import Annotated
 
 from trakcli import __app_name__, __version__
-from trakcli.config import CONFIG_FILE_PATH, DB_FILE_PATH, init_config
+from trakcli.config.main import init_config, CONFIG_FILE_PATH, DB_FILE_PATH
+from trakcli.database.basic import get_json_file_content
 from trakcli.database.database import (
     add_track_field,
     get_current_session,
@@ -21,12 +22,17 @@ from trakcli.database.database import (
 from trakcli.database.models import Record
 from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.dev.commands import app as dev_app
+from trakcli.config.commands import app as config_app
 
 console = Console()
 
 app = typer.Typer()
 
 app.add_typer(dev_app, name="dev")
+app.add_typer(config_app, name="config")
+
+# Read the config at CONFIG_FILE_PATH
+config = get_json_file_content(CONFIG_FILE_PATH)
 
 
 initialized = False

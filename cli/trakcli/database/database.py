@@ -4,8 +4,8 @@ from pathlib import Path
 
 from rich import padding, print as rprint
 from rich.panel import Panel
+from trakcli.config.main import DB_FILE_PATH
 
-from trakcli.config import DB_FILE_PATH
 from trakcli.database.models import Record
 from trakcli.utils.format_date import format_date
 from trakcli.utils.print_with_padding import print_with_padding

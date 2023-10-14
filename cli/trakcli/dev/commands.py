@@ -1,11 +1,10 @@
-from rich.padding import Padding
 import typer
-from trakcli.config import CONFIG_FILE_PATH, DEV_DB_FILE_PATH
-
-from trakcli.database.basic import add_field_to_json_file, show_json_file_content
 from rich import print as rprint
+from rich.padding import Padding
 from rich.prompt import Confirm
 
+from trakcli.config.main import CONFIG_FILE_PATH, DEV_DB_FILE_PATH
+from trakcli.database.basic import add_field_to_json_file, show_json_file_content
 from trakcli.database.database import init_database
 from trakcli.utils.print_with_padding import print_with_padding
 
