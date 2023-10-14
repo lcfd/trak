@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from trakcli.database.basic import get_json_file_content
+
 #
 # Paths
 #
@@ -10,6 +12,8 @@ DB_FILE_PATH = TRAK_FOLDER / "db.json"
 DEV_DB_FILE_PATH = TRAK_FOLDER / "dev_db.json"
 CONFIG_FILE_PATH = TRAK_FOLDER / "config.json"
 
+# Read the config at CONFIG_FILE_PATH
+CONFIG = get_json_file_content(CONFIG_FILE_PATH)
 
 #
 # Configuration helpers

@@ -10,8 +10,7 @@ from typing_extensions import Annotated
 
 from trakcli import __app_name__, __version__, __website__
 from trakcli.config.commands import app as config_app
-from trakcli.config.main import CONFIG_FILE_PATH
-from trakcli.database.basic import get_json_file_content
+from trakcli.config.main import CONFIG
 from trakcli.database.database import (
     add_track_field,
     get_current_session,
@@ -31,13 +30,11 @@ app = typer.Typer()
 # Initialize trak required files and settings
 initialize_trak()
 
+# Add subcommands
 app.add_typer(
     dev_app, name="dev", help="Utils for developers who wants to work on trak."
 )
 app.add_typer(config_app, name="config", help="Interact with your configuration.")
-
-# Read the config at CONFIG_FILE_PATH
-config = get_json_file_content(CONFIG_FILE_PATH)
 
 
 def _version_callback(value: bool) -> None:
@@ -217,7 +214,7 @@ def status(
 
         if starship:
             print(
-                f"""⏰ {'( DEV MODE) ' if config['development'] else ''}\
+                f"""⏰ {'( DEV MODE) ' if CONFIG['development'] else ''}\
 {current_session['project']} ⌛ {h}h {m}m"""
             )
         else:
@@ -225,7 +222,7 @@ def status(
                 Panel(
                     title="💬 Current status",
                     renderable=print_with_padding(
-                        f"""{'( DEV MODE) ' if config['development'] else ''}
+                        f"""{'( DEV MODE) ' if CONFIG['development'] else ''}
 Project: [bold]{current_session['project']}[/bold]
 Started: {formatted_start_datetime}
 Time: [bold]{h}h {m}m[/bold]""",
@@ -235,7 +232,7 @@ Time: [bold]{h}h {m}m[/bold]""",
     else:
         if starship:
             print(
-                f"⏰ {'( DEV MODE) ' if config['development'] else ''}\
+                f"⏰ {'( DEV MODE) ' if CONFIG['development'] else ''}\
 No active session"
             )
         else:

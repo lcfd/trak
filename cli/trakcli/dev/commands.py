@@ -3,7 +3,7 @@ from rich import print as rprint
 from rich.padding import Padding
 from rich.prompt import Confirm
 
-from trakcli.config.main import CONFIG_FILE_PATH, DEV_DB_FILE_PATH
+from trakcli.config.main import CONFIG, CONFIG_FILE_PATH, DEV_DB_FILE_PATH
 from trakcli.database.basic import manage_field_in_json_file, show_json_file_content
 from trakcli.database.database import init_database
 from trakcli.utils.print_with_padding import print_with_padding
@@ -50,7 +50,26 @@ def init():
 def toggle():
     """Toggle the development mode."""
 
-    pass
+    if "development" in CONFIG:
+        manage_field_in_json_file(
+            CONFIG_FILE_PATH, "development", not CONFIG["development"]
+        )
+        if not CONFIG["development"]:
+            rprint(print_with_padding("🟢 You are ready to develop on trak!"))
+        else:
+            rprint(
+                print_with_padding(
+                    """👋 You exited the development mode. 
+
+Thanks for your help 🙏"""
+                )
+            )
+    else:
+        rprint(
+            print_with_padding(
+                "🔴 You have to run the [bold]trak dev init[/bold] command."
+            )
+        )
 
 
 if __name__ == "__main__":
