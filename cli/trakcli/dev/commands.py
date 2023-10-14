@@ -85,35 +85,42 @@ Thanks for your help 🙏"""
 def fake(amount: int):
     """Produces mock data for testing purposes."""
 
-    fake_records = []
+    if CONFIG["development"]:
+        fake_records = []
 
-    today = datetime.now()
-    past_date = today
+        today = datetime.now()
+        past_date = today
 
-    categories = ["frontend", "backend", "meeting"]
-    tags = ["solo", "multi"]
+        categories = ["frontend", "backend", "meeting"]
+        tags = ["solo", "multi"]
 
-    for _ in range(0, amount):
-        delta = timedelta(hours=randrange(1, 6), minutes=randrange(1, 40))
-        delta_plus = timedelta(hours=randrange(1, 3))
+        for _ in range(0, amount):
+            delta = timedelta(hours=randrange(1, 6), minutes=randrange(1, 40))
+            delta_plus = timedelta(hours=randrange(1, 3))
 
-        past_date = past_date - delta
-        past_date_after = past_date + delta_plus
+            past_date = past_date - delta
+            past_date_after = past_date + delta_plus
 
-        fake_records.append(
-            Record(
-                project="test",
-                start=past_date.isoformat(),
-                end=past_date_after.isoformat(),
-                category=random.choice(categories),
-                tag=random.choice(tags),
-                billable=random.choice([True, False]),
-            )._asdict()
+            fake_records.append(
+                Record(
+                    project="test",
+                    start=past_date.isoformat(),
+                    end=past_date_after.isoformat(),
+                    category=random.choice(categories),
+                    tag=random.choice(tags),
+                    billable=random.choice([True, False]),
+                )._asdict()
+            )
+
+        overwrite_json_file(file_path=DEV_DB_FILE_PATH, content=fake_records)
+
+        rprint(print_with_padding(f"🟢 {amount} fake sessions have been created."))
+    else:
+        rprint(
+            print_with_padding(
+                "🔴 This command works only if the developer mode is enabled."
+            )
         )
-
-    overwrite_json_file(file_path=DEV_DB_FILE_PATH, content=fake_records)
-
-    rprint(print_with_padding(f"🟢 {amount} fake sessions have been created."))
 
 
 if __name__ == "__main__":
