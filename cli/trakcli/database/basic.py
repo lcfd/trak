@@ -34,3 +34,10 @@ def manage_field_in_json_file(
 
     with open(file_path, "w") as db:
         json.dump(parsed_json, db, indent=2, separators=(",", ": "))
+
+
+def overwrite_json_file(file_path: Path, content: dict | list[dict]):
+    """Fill a JSON file with the provided content. It's a complete overwrite."""
+
+    with open(file_path, "w") as db:
+        json.dump(content, db, indent=2, separators=(",", ": "))
