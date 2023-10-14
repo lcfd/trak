@@ -1,6 +1,6 @@
+import random
 from datetime import datetime, timedelta
 from random import randrange
-import random
 
 import typer
 from rich import print as rprint

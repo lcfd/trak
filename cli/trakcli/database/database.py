@@ -2,16 +2,16 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from rich import padding, print as rprint
+from rich import padding
+from rich import print as rprint
+from rich.console import Console
 from rich.panel import Panel
-from trakcli.config.main import CONFIG, DB_FILE_PATH, DEV_DB_FILE_PATH
+from rich.table import Table
 
+from trakcli.config.main import CONFIG, DB_FILE_PATH, DEV_DB_FILE_PATH
 from trakcli.database.models import Record
 from trakcli.utils.format_date import format_date
 from trakcli.utils.print_with_padding import print_with_padding
-from rich.console import Console
-from rich.table import Table
-
 from trakcli.utils.same_week import same_week
 
 file_path_to_use = DEV_DB_FILE_PATH if CONFIG["development"] else DB_FILE_PATH
