@@ -27,7 +27,7 @@ def init():
 
     if confirm_reset_development_database:
         # Create the development database (dev_db.json)
-        init_database(DEV_DB_FILE_PATH, "{}")
+        init_database(DEV_DB_FILE_PATH, "[]")
 
         rprint(
             Padding(

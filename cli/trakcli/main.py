@@ -17,10 +17,10 @@ from trakcli.callbacks import (
 from trakcli.config.commands import app as config_app
 from trakcli.config.main import CONFIG
 from trakcli.database.database import (
-    add_track_field,
+    add_session,
     get_current_session,
     get_record_collection,
-    stop_track_field,
+    stop_trak_session,
     tracking_already_started,
 )
 from trakcli.database.models import Record
@@ -48,7 +48,7 @@ def main(
         None,
         "--version",
         "-v",
-        help="Show the application's version and exit.",
+        help="Show the application's version.",
         callback=version_callback,
         is_eager=True,
     ),
@@ -72,7 +72,7 @@ def main(
         None,
         "--issues",
         "-i",
-        help="Launch the trak issues page.",
+        help="Launch the trak issues page on Github.",
         callback=issues_callback,
         is_eager=True,
     ),
@@ -80,7 +80,7 @@ def main(
         None,
         "--bug",
         "-b",
-        help="Report a bug",
+        help="Report a bug on Github.",
         callback=report_bug_callback,
         is_eager=True,
     ),
@@ -127,7 +127,7 @@ def start_tracker(
     record = tracking_already_started()
 
     if not record:
-        add_track_field(
+        add_session(
             Record(
                 project=project,
                 start=datetime.now().isoformat(),
@@ -152,7 +152,7 @@ Have a good session!"""
                 title="💬 Already started",
                 renderable=print_with_padding(
                     f"""
-Tracking on [bold green]{project}[/bold green] already started \
+Tracking on [bold green]{record['project']}[/bold green] already started \
 at {datetime.fromisoformat(record['start']).strftime("%m/%d/%Y, %H:%M")}"""
                 ),
             )
@@ -167,7 +167,7 @@ def stop_tracker():
 
     record = tracking_already_started()
     if record:
-        stop_track_field()
+        stop_trak_session()
         message = print_with_padding(
             f"""
 The [bold green]{record['project']}[/bold green] session is over. 
@@ -244,7 +244,8 @@ No active session"
                 Panel(
                     title="💬 No active session",
                     renderable=print_with_padding(
-                        """Ther aren't active sessions. 
+                        f"""{'( DEV MODE) ' if CONFIG['development'] else ''} \
+Ther aren't active sessions. 
 
 Use the command: trak start <project name> to start a new session of work."""
                     ),
