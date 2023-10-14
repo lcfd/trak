@@ -31,8 +31,10 @@ app = typer.Typer()
 # Initialize trak required files and settings
 initialize_trak()
 
-app.add_typer(dev_app, name="dev")
-app.add_typer(config_app, name="config")
+app.add_typer(
+    dev_app, name="dev", help="Utils for developers who wants to work on trak."
+)
+app.add_typer(config_app, name="config", help="Interact with your configuration.")
 
 # Read the config at CONFIG_FILE_PATH
 config = get_json_file_content(CONFIG_FILE_PATH)
@@ -85,7 +87,7 @@ def main(
     return
 
 
-@app.command(name="start", short_help="Start trak")
+@app.command(name="start", help="Start a trak session.")
 def start_tracker(
     project: str,
     billable: Annotated[
@@ -156,7 +158,7 @@ at {datetime.fromisoformat(record['start']).strftime("%m/%d/%Y, %H:%M")}"""
         )
 
 
-@app.command("stop", short_help="Stop trak")
+@app.command("stop", help="Stop the current trak session.")
 def stop_tracker():
     """
     Stop tracking the current project.
