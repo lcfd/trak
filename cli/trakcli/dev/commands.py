@@ -95,6 +95,7 @@ def fake(amount: int):
         today = datetime.now()
         past_date = today
 
+        projects = ["pokemon", "digimon", "yugioh"]
         categories = ["frontend", "backend", "meeting"]
         tags = ["solo", "multi"]
 
@@ -107,7 +108,7 @@ def fake(amount: int):
 
             fake_records.append(
                 Record(
-                    project="test",
+                    project=random.choice(projects),
                     start=past_date.isoformat(),
                     end=past_date_after.isoformat(),
                     category=random.choice(categories),
