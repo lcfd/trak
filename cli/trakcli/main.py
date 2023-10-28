@@ -15,7 +15,8 @@ from trakcli.callbacks import (
     website_callback,
 )
 from trakcli.config.commands import app as config_app
-from trakcli.config.main import CONFIG
+from trakcli.config.main import get_config
+from trakcli.projects.commands import app as projects_app
 from trakcli.database.database import (
     add_session,
     get_current_session,
@@ -28,6 +29,7 @@ from trakcli.dev.commands import app as dev_app
 from trakcli.initialize import initialize_trak
 from trakcli.utils.print_with_padding import print_with_padding
 
+
 console = Console()
 
 app = typer.Typer()
@@ -35,11 +37,13 @@ app = typer.Typer()
 # Initialize trak required files and settings
 initialize_trak()
 
+
 # Add subcommands
 app.add_typer(
     dev_app, name="dev", help="Utils for developers who wants to work on trak."
 )
 app.add_typer(config_app, name="config", help="Interact with your configuration.")
+app.add_typer(projects_app, name="projects", help="Interact with your projects.")
 
 
 @app.callback()
@@ -205,6 +209,8 @@ def status(
     """
     Show the status of the current session.
     """
+
+    CONFIG = get_config()
 
     current_session = get_current_session()
 
