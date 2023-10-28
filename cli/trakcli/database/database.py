@@ -8,42 +8,58 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from trakcli.config.main import CONFIG, DB_FILE_PATH, DEV_DB_FILE_PATH
+from trakcli.config.main import (
+    get_db_file_path,
+)
 from trakcli.database.models import Record
 from trakcli.utils.format_date import format_date
 from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.utils.same_week import same_week
-
-file_path_to_use = DEV_DB_FILE_PATH if CONFIG["development"] else DB_FILE_PATH
 
 #
 # Database operations
 #
 
 
+def init_database(p: Path, initial_value: str = "[]") -> int:
+    """Initialize the trak database."""
+
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("w", encoding="utf-8") as f:
+            f.write(initial_value)
+        return 0
+    except OSError:
+        return 1
+
+
 def add_session(record: Record):
     """Add a new session."""
 
-    with open(file_path_to_use, "r") as db:
+    db_path = get_db_file_path()
+
+    with open(db_path, "r") as db:
         db_content = db.read()
 
     parsed_json = json.loads(db_content)
     parsed_json.append(record._asdict())
 
-    with open(file_path_to_use, "w") as db:
+    with open(db_path, "w") as db:
         json.dump(parsed_json, db, indent=2, separators=(",", ": "))
 
 
 def stop_trak_session():
     """Stop tracking the current project."""
 
-    with open(file_path_to_use, "r") as db:
+    db_path = get_db_file_path()
+
+    with open(db_path, "r") as db:
         db_content = db.read()
 
     parsed_json = json.loads(db_content)
     parsed_json[-1]["end"] = datetime.now().isoformat()
 
-    with open(file_path_to_use, "w") as db:
+    with open(db_path, "w") as db:
         json.dump(parsed_json, db, indent=2, separators=(",", ": "))
 
 
@@ -53,7 +69,9 @@ def tracking_already_started():
     If it's already running return the record.
     """
 
-    with open(file_path_to_use, "r") as db:
+    db_path = get_db_file_path()
+
+    with open(db_path, "r") as db:
         db_content = db.read()
     parsed_json = json.loads(db_content)
 
@@ -71,7 +89,11 @@ def tracking_already_started():
 
 
 def get_current_session():
-    with open(file_path_to_use, "r") as db:
+    """Get the current session from records in database."""
+
+    db_path = get_db_file_path()
+
+    with open(db_path, "r") as db:
         db_content = db.read()
 
     parsed_json = json.loads(db_content)
@@ -98,7 +120,9 @@ def get_record_collection(
 ):
     """Get a collection of records, filtered by paramenters."""
 
-    with open(file_path_to_use, "r") as db:
+    db_path = get_db_file_path()
+
+    with open(db_path, "r") as db:
         db_content = db.read()
 
     parsed_json = json.loads(db_content)
@@ -217,21 +241,3 @@ Try with a date like 2023-10-08, or the strings today, yesterday."""
     rprint(sum_panel)
 
     return records
-
-
-def check_if_database_exists():
-    """Check if the json db files exists."""
-
-    return Path.exists(file_path_to_use)
-
-
-def init_database(p: Path, initial_value: str = "[]") -> int:
-    """Create the application database."""
-
-    try:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with p.open("w", encoding="utf-8") as f:
-            f.write(initial_value)
-        return 0
-    except OSError:
-        return 1
