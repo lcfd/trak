@@ -10,7 +10,7 @@ def get_projects_from_db(db_path: Path):
 
     parsed_json = json.loads(db_content)
 
-    return {record.get("category", "") for record in parsed_json}
+    return {record.get("project", "") for record in parsed_json}
 
 
 def get_projects_from_config(config):

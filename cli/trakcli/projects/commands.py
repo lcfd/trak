@@ -24,7 +24,7 @@ def list():
 
     projcts_in_db = get_projects_from_db(db_path)
     projects_in_config = get_projects_from_config(CONFIG)
-    combined = [*projcts_in_db, *projects_in_config]
+    combined = {*projcts_in_db, *projects_in_config}
 
     number_of_projects = len(combined)
 
