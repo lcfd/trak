@@ -7,7 +7,7 @@ from rich import print as rprint
 from rich.padding import Padding
 from rich.prompt import Confirm
 
-from trakcli.config.main import CONFIG, CONFIG_FILE_PATH, DEV_DB_FILE_PATH
+from trakcli.config.main import CONFIG_FILE_PATH, DEV_DB_FILE_PATH, get_config
 from trakcli.database.basic import (
     manage_field_in_json_file,
     overwrite_json_file,
@@ -59,6 +59,8 @@ def init():
 def toggle():
     """Toggle the development mode."""
 
+    CONFIG = get_config()
+
     if "development" in CONFIG:
         manage_field_in_json_file(
             CONFIG_FILE_PATH, "development", not CONFIG["development"]
@@ -84,6 +86,8 @@ Thanks for your help 🙏"""
 @app.command(help="Produces mock data for testing purposes.")
 def fake(amount: int):
     """Produces mock data for testing purposes."""
+
+    CONFIG = get_config()
 
     if CONFIG["development"]:
         fake_records = []
