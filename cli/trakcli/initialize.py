@@ -10,26 +10,27 @@ def initialize_trak():
     """Initialize trak required files and configurations
     at the first start."""
 
-    initialized = False
-    messages: list[str] = []
+    db_initialized = False
+    config_initialized = False
+    messages = []
 
     if not DB_FILE_PATH.is_file():
-        initialized = True
         try:
             init_database(DB_FILE_PATH)
             messages.append(f"✅ Database created at {DB_FILE_PATH}.")
+            db_initialized = True
         except Exception as e:
             raise e
 
     if not CONFIG_FILE_PATH.is_file():
-        initialized = True
         try:
             init_config(CONFIG_FILE_PATH)
             messages.append(f"✅ Config file created at {CONFIG_FILE_PATH}.")
+            config_initialized = True
         except Exception as e:
             raise e
 
-    if initialized:
+    if db_initialized or config_initialized:
         rprint(print_with_padding(text="\n".join(messages), y=1))
         initialized_message = "Trak has created all the files it needs to work."
         rprint(
