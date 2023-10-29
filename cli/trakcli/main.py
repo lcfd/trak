@@ -26,6 +26,7 @@ from trakcli.database.database import (
 )
 from trakcli.database.models import Record
 from trakcli.dev.commands import app as dev_app
+from trakcli.report.commands import app as report_app
 from trakcli.initialize import initialize_trak
 from trakcli.utils.print_with_padding import print_with_padding
 
@@ -44,6 +45,7 @@ app.add_typer(
 )
 app.add_typer(config_app, name="config", help="Interact with your configuration.")
 app.add_typer(projects_app, name="projects", help="Interact with your projects.")
+app.add_typer(report_app, name="report", help="See reports for your projects.")
 
 
 @app.callback()
@@ -257,39 +259,3 @@ Use the command: trak start <project name> to start a new session of work."""
                     ),
                 )
             )
-
-
-@app.command()
-def report(
-    project: str,
-    when: Annotated[
-        str,
-        typer.Option(
-            "--when",
-            "-w",
-            help="Look for records in a specific date or range by keyword. \
-Values may be: \
-- today \
-- yesterday \
-- month: the current month \
-- yyyy-mm-dd: like 2023-10-08",
-        ),
-    ] = "",
-    category: Annotated[str, typer.Option("--category", "-c")] = "",
-    tag: Annotated[str, typer.Option("--tag", "-t")] = "",
-    billable: Annotated[
-        bool,
-        typer.Option(
-            "--billable",
-            "-b",
-            help="Consider only the billable records.",
-        ),
-    ] = False,
-):
-    """
-    Report stats for projects.
-    """
-
-    get_record_collection(
-        project=project, billable=billable, category=category, tag=tag, when=when
-    )
