@@ -101,9 +101,13 @@ def report(
     actual_month = datetime.today().month
     actual_year = datetime.today().year
 
+    start_date = datetime.today()
+    end_date = datetime.today()
     try:
-        datetime.fromisoformat(start).date()
-        datetime.fromisoformat(end).date()
+        if start:
+            start_date = datetime.fromisoformat(start).date()
+        if end:
+            end_date = datetime.fromisoformat(end).date()
     except ValueError:
         rprint(
             Panel(
@@ -172,17 +176,14 @@ def report(
             records = [
                 record
                 for record in records
-                if datetime.fromisoformat(record["end"]).date()
-                == datetime.fromisoformat(start).date()
+                if datetime.fromisoformat(record["end"]).date() == start_date
             ]
         elif start and end:
             records = [
                 record
                 for record in records
-                if datetime.fromisoformat(record["end"]).date()
-                >= datetime.fromisoformat(start).date()
-                and datetime.fromisoformat(record["end"]).date()
-                <= datetime.fromisoformat(end).date()
+                if datetime.fromisoformat(record["end"]).date() >= start_date
+                and datetime.fromisoformat(record["end"]).date() <= end_date
             ]
 
         acc_seconds = 0
