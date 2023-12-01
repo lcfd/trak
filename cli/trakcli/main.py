@@ -16,20 +16,18 @@ from trakcli.callbacks import (
 )
 from trakcli.config.commands import app as config_app
 from trakcli.config.main import get_config
-from trakcli.projects.commands import app as projects_app
 from trakcli.database.database import (
     add_session,
     get_current_session,
-    get_record_collection,
     stop_trak_session,
     tracking_already_started,
 )
 from trakcli.database.models import Record
 from trakcli.dev.commands import app as dev_app
-from trakcli.report.commands import app as report_app
 from trakcli.initialize import initialize_trak
+from trakcli.projects.commands import app as projects_app
+from trakcli.report.commands.main import report
 from trakcli.utils.print_with_padding import print_with_padding
-
 
 console = Console()
 
@@ -45,7 +43,6 @@ app.add_typer(
 )
 app.add_typer(config_app, name="config", help="Interact with your configuration.")
 app.add_typer(projects_app, name="projects", help="Interact with your projects.")
-app.add_typer(report_app, name="report", help="See reports for your projects.")
 
 
 @app.callback()
@@ -92,6 +89,9 @@ def main(
     ),
 ) -> None:
     return
+
+
+app.command()(report)
 
 
 @app.command(name="start", help="Start a trak session.")
@@ -178,7 +178,7 @@ def stop_tracker():
     if record:
         stop_trak_session()
         message = print_with_padding(
-            f"""The [bold green]{record['project']}[/bold green] session is over. 
+            f"""The [bold green]{record['project']}[/bold green] session is over.
 
 Good job!"""
         )
@@ -189,7 +189,7 @@ Good job!"""
             Panel.fit(
                 title="💬 No active sessions",
                 renderable=print_with_padding(
-                    """There aren't active sessions. 
+                    """There aren't active sessions.
 
 Use the command: trak start <project name> to start a new session of work."""
                 ),
@@ -253,7 +253,7 @@ No active session"
                 Panel(
                     title="💬 No active session",
                     renderable=print_with_padding(
-                        """Ther aren't active sessions. 
+                        """Ther aren't active sessions.
 
 Use the command: trak start <project name> to start a new session of work."""
                     ),
