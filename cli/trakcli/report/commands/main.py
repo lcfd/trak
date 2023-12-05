@@ -1,14 +1,17 @@
-from datetime import datetime, timedelta
-from typing import Annotated
-from rich.panel import Panel
+from datetime import datetime
+from typing import Annotated, Optional
 
 import typer
 from rich import print as rprint
 from rich.table import Table
 
 from trakcli.database.basic import get_db_content
-from trakcli.utils.print_with_padding import print_with_padding
-from trakcli.utils.same_week import same_week
+from trakcli.report.commands.main_functions import (
+    create_details_table,
+    filter_records,
+    get_grouped_records,
+    get_table_title,
+)
 
 ALL_PROJECTS = "all"
 
@@ -21,6 +24,14 @@ def report(
             "--billable",
             "-b",
             help="Consider only the billable records.",
+        ),
+    ] = False,
+    details: Annotated[
+        bool,
+        typer.Option(
+            "--details",
+            "-d",
+            help="Show all sessions that occurred in the chosen period in detail.",
         ),
     ] = False,
     today: Annotated[
@@ -59,150 +70,85 @@ def report(
         ),
     ] = False,
     start: Annotated[
-        str,
+        Optional[datetime],
         typer.Option(
             "--start",
             help="Start date (e.g. 2023-10-08) for the time range. If --end is not provided, trak will report the data for the provided date.",
+            formats=["%Y-%m-%d"],
         ),
-    ] = "",
+    ] = None,
     end: Annotated[
-        str,
+        Optional[datetime],
         typer.Option(
             "--end",
             help="End date (e.g. 2023-11-24) for the time range. Won't work without the start flag.",
+            formats=["%Y-%m-%d"],
         ),
-    ] = "",
+    ] = None,
 ):
     """Get reports for your projects."""
 
-    parsed_json = get_db_content()
+    db_content = get_db_content()
 
-    table_title = "Report"
-    if today:
-        table_title += " for today"
-    elif yesterday:
-        table_title += " for yestarday"
-    elif week:
-        table_title += " for this week"
-    elif month:
-        table_title += " for this month"
-    elif year:
-        table_title += " for this year"
-    elif start and end == "":
-        table_title += f" for the day {start}"
-    elif start and end:
-        table_title += f" for the period from {start} to {end}"
+    report_table_title = get_table_title(
+        today, yesterday, week, month, year, start, end
+    )
 
-    table = Table(title=table_title)
+    main_table = Table(title=report_table_title)
 
-    table.add_column("🏷️  Project", style="cyan", no_wrap=True)
-    table.add_column("🧮 Time spent", style="magenta")
+    main_table.add_column("🏷️  Project", style="cyan", no_wrap=True)
+    main_table.add_column("🧮 Time spent", style="magenta")
 
-    actual_month = datetime.today().month
-    actual_year = datetime.today().year
-
-    start_date = datetime.today()
-    end_date = datetime.today()
-    try:
-        if start:
-            start_date = datetime.fromisoformat(start).date()
-        if end:
-            end_date = datetime.fromisoformat(end).date()
-    except ValueError:
-        rprint(
-            Panel(
-                title="🔴 Invalid date",
-                renderable=print_with_padding(
-                    (
-                        "The provided date it's invalid."
-                        "\n\n"
-                        f"Try with a date like {datetime.now().date()}."
-                    )
-                ),
-            )
-        )
-
-        return
-
-    grouped = {}
-
-    for record in parsed_json:
-        record_project = record.get("project", False)
-        if record_project:
-            if record_project == project or project == ALL_PROJECTS:
-                if isinstance(grouped.get(record_project, False), list):
-                    grouped[record_project].append(record)
-                else:
-                    grouped[record_project] = [record]
+    grouped = get_grouped_records(project, db_content, ALL_PROJECTS)
+    records = []
+    details_tables = []
+    total_acc_seconds = 0
 
     for g in grouped:
-        records = grouped[g]
-
-        if billable:
-            records = [
-                record for record in grouped[g] if record["billable"] == billable
-            ]
-
-        if yesterday:
-            records = [
-                record
-                for record in records
-                if datetime.fromisoformat(record["end"]).date()
-                == datetime.today().date() - timedelta(1)
-            ]
-        elif today:
-            records = [
-                record
-                for record in records
-                if datetime.fromisoformat(record["end"]).date()
-                == datetime.today().date()
-            ]
-        elif week:
-            records = [
-                record
-                for record in records
-                if same_week(
-                    datetime.fromisoformat(record["end"]).date().strftime("%Y%m%d"),
-                )
-            ]
-        elif month:
-            records = [
-                record
-                for record in records
-                if datetime.fromisoformat(record["end"]).month == actual_month
-                and datetime.fromisoformat(record["end"]).year == actual_year
-            ]
-        elif start and end == "":
-            records = [
-                record
-                for record in records
-                if datetime.fromisoformat(record["end"]).date() == start_date
-            ]
-        elif start and end:
-            records = [
-                record
-                for record in records
-                if datetime.fromisoformat(record["end"]).date() >= start_date
-                and datetime.fromisoformat(record["end"]).date() <= end_date
-            ]
+        records = filter_records(
+            grouped[g], billable, yesterday, today, week, month, start, end
+        )
 
         acc_seconds = 0
 
         for record in records:
-            start_datetime = datetime.fromisoformat(record["start"])
-            end_datetime = datetime.fromisoformat(record["end"])
+            record_start = record.get("start", "")
+            record_end = record.get("end", "")
 
-            diff = end_datetime - start_datetime
+            if record_start != "" and record_end != "":
+                start_datetime = datetime.fromisoformat(record_start)
+                end_datetime = datetime.fromisoformat(record_end)
 
-            acc_seconds = acc_seconds + diff.seconds
+                diff = end_datetime - start_datetime
 
-            m, _ = divmod(diff.seconds, 60)
-            h, m = divmod(m, 60)
+                acc_seconds = acc_seconds + diff.seconds
 
+                m, _ = divmod(diff.seconds, 60)
+                h, m = divmod(m, 60)
+
+        total_acc_seconds += acc_seconds
         m, _ = divmod(acc_seconds, 60)
         h, m = divmod(m, 60)
 
-        table.add_row(g, f"[bold]{h}h {m}m[/bold]")
+        main_table.add_row(g, f"[bold]{h}h {m}m[/bold]")
+
+        if details and len(records):
+            details_tables.append(create_details_table(g, records))
 
     rprint("")
-    rprint(table)
+
+    # Add Total if all projects
+    if project == ALL_PROJECTS:
+        m, _ = divmod(total_acc_seconds, 60)
+        h, m = divmod(m, 60)
+
+        main_table.add_section()
+        main_table.add_row("Total", f"[bold]{h}h {m}m[/bold]")
+
+    # Print summary report table
+    rprint(main_table)
+
+    # Print details
+    for details_table in details_tables:
+        rprint("")
+        rprint(details_table)
