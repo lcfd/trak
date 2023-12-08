@@ -35,7 +35,7 @@ You can install it with pip:
 pip install trakcli
 ```
 
-or with pipx:
+or with `pipx`:
 
 ```bash
 pipx install trakcli
@@ -69,26 +69,31 @@ pipx install ./dist/trakcli-x.x.x-py3-none-any.whl
 
 to install `trak` usign the wheel file.
 
-
 ## Usage
 
 The package has the useful `--help` command that will explain all the commands.
 
-The CLI will guide you anyway through what you should and must do with messages with specific messages.
+`trak --help`
+
+The CLI will guide you through what you should and must do with messages with specific messages.
 
 ### Basic commands
 
 ```bash
+# Start a new session
 trak start <project-name>
 
+# Stop the current session
 trak stop
 
+# Show the elapsed time of the current session
 trak status
 
+# Show the amount of hours spend on the project
 trak report <project-name>
 ```
 
-Start trakking a project that is billable:
+Start tracking a billable project:
 
 `trak start pasta -b`
 
@@ -96,13 +101,9 @@ Start tracking a project on a specific category/topic:
 
 `trak start pasta -c rigatoni`
 
-All the commands are described in the help command:
-
-`trak --help`
-
 ## Starship
 
-There is a dedicated command that ouputs clean strings for tools like Starship:
+There is a dedicated command that outputs clean strings for tools like Starship:
 
 `trak status -s` or `trak status --starship`
 
@@ -115,3 +116,5 @@ command = """ trak status -s """
 when = "trak status"
 shell = "sh"
 ```
+
+This way you can stay updated on the state of your session wherever you integrate this command.
