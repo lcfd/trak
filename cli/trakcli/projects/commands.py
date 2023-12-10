@@ -65,7 +65,7 @@ def create():
     )
     tags = typer.prompt("Tags (CSV format)", default="")
     customer = typer.prompt("Customer", default="")
-    hour_rate = typer.prompt("Hour rate", default=1, show_default=True)
+    fare = typer.prompt("Hour rate", default=1, show_default=True)
 
     if id:
         new_project = Project(
@@ -77,7 +77,7 @@ def create():
             else [],
             tags=[t.strip() for t in tags.split(",")] if tags != "" else [],
             customer=customer,
-            hour_rate=hour_rate,
+            fare=fare,
         )
 
         config = get_config()
