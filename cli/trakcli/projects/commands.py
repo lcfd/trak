@@ -1,16 +1,17 @@
 import json
-from rich.panel import Panel
-from rich.table import Table
+
 import typer
 from rich import print as rprint
+from rich.panel import Panel
+from rich.table import Table
+
 from trakcli.config.main import CONFIG_FILE_PATH, get_config, get_db_file_path
 from trakcli.config.models import Project
-from trakcli.utils.print_with_padding import print_with_padding
-
 from trakcli.projects.database import (
     get_projects_from_config,
     get_projects_from_db,
 )
+from trakcli.utils.print_with_padding import print_with_padding
 
 app = typer.Typer()
 
@@ -19,12 +20,11 @@ app = typer.Typer()
 def list():
     """List the projects."""
 
-    CONFIG = get_config()
     db_path = get_db_file_path()
 
-    projcts_in_db = get_projects_from_db(db_path)
-    projects_in_config = get_projects_from_config(CONFIG)
-    combined = {*projcts_in_db, *projects_in_config}
+    projects_in_db = get_projects_from_db(db_path)
+    projects_in_config = get_projects_from_config()
+    combined = {*projects_in_db, *projects_in_config}
 
     number_of_projects = len(combined)
 
@@ -33,12 +33,32 @@ def list():
     )
 
     table.add_column("id", style="green", no_wrap=True)
+    table.add_column("from", style="cyan", no_wrap=True)
 
-    for c in combined:
-        table.add_row(c)
+    for project in projects_in_config:
+        table.add_row(project, "config")
+
+    projects_id_db_only = False
+    for project in projects_in_db:
+        if project not in projects_in_config:
+            projects_id_db_only = True
+            table.add_row(project, "database")
 
     rprint("")
     rprint(table)
+    rprint("")
+    if projects_id_db_only:
+        rprint(
+            Panel.fit(
+                title="Tip",
+                renderable=print_with_padding(
+                    (
+                        "You have projects that don't exist in configuration.\n"
+                        "Plase, run the `trak create project <project-id>` command to configure your project."
+                    )
+                ),
+            )
+        )
 
 
 @app.command(help="Create a project.")
