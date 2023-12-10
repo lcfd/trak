@@ -28,6 +28,7 @@ from trakcli.initialize import initialize_trak
 from trakcli.projects.commands import app as projects_app
 from trakcli.report.commands.main import report
 from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.create import app as create_app
 
 console = Console()
 
@@ -43,6 +44,7 @@ app.add_typer(
 )
 app.add_typer(config_app, name="config", help="Interact with your configuration.")
 app.add_typer(projects_app, name="projects", help="Interact with your projects.")
+app.add_typer(create_app, name="create", help="Create something in trak.")
 
 
 @app.callback()
