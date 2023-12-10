@@ -26,8 +26,10 @@ from trakcli.database.models import Record
 from trakcli.dev.commands import app as dev_app
 from trakcli.initialize import initialize_trak
 from trakcli.projects.commands import app as projects_app
+from trakcli.projects.database import get_projects_from_config
 from trakcli.report.commands.main import report
 from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.create import app as create_app
 
 console = Console()
 
@@ -43,6 +45,7 @@ app.add_typer(
 )
 app.add_typer(config_app, name="config", help="Interact with your configuration.")
 app.add_typer(projects_app, name="projects", help="Interact with your projects.")
+app.add_typer(create_app, name="create", help="Create something in trak.")
 
 
 @app.callback()
@@ -131,27 +134,43 @@ def start_tracker(
         project = typer.prompt("Which project do you want to track?")
 
     record = tracking_already_started()
+    projects_in_config = get_projects_from_config()
 
     if not record:
-        add_session(
-            Record(
-                project=project,
-                start=datetime.now().isoformat(),
-                billable=billable,
-                category=category,
-                tag=tag,
+        if project in projects_in_config:
+            add_session(
+                Record(
+                    project=project,
+                    start=datetime.now().isoformat(),
+                    billable=billable,
+                    category=category,
+                    tag=tag,
+                )
             )
-        )
-        rprint(
-            Panel.fit(
-                title="▶️  Start",
-                renderable=print_with_padding(
-                    f"""[bold green]{project}[/bold green] started.
+            rprint(
+                Panel.fit(
+                    title="▶️  Start",
+                    renderable=print_with_padding(
+                        f"""[bold green]{project}[/bold green] started.
 
-Have a good session!"""
-                ),
+    Have a good session!"""
+                    ),
+                )
             )
-        )
+        else:
+            renderable_projects_list = "\n • ".join(projects_in_config)
+            rprint("")
+            rprint(
+                Panel(
+                    title="[red]Missing project[/red]",
+                    renderable=print_with_padding(
+                        "This project doesn't exists.\n\n"
+                        f"Awailable projects: \n • {renderable_projects_list}\n\n\n\n"
+                        "Try to run the `trak create project <project name>` command if you want to create a new project."
+                    ),
+                )
+            )
+            return
     else:
         formatted_start_time = datetime.fromisoformat(record["start"]).strftime(
             "%m/%d/%Y, %H:%M"

@@ -1,5 +1,8 @@
 import json
 from pathlib import Path
+import pathlib
+
+from trakcli.config.main import TRAK_FOLDER
 
 
 def get_projects_from_db(db_path: Path):
@@ -13,9 +16,18 @@ def get_projects_from_db(db_path: Path):
     return {record.get("project", "") for record in parsed_json}
 
 
-def get_projects_from_config(config):
+def get_projects_from_config():
     """Get the projects in the config."""
 
-    projects = config.get("projects", [])
+    projects_path = pathlib.Path(TRAK_FOLDER / "projects")
 
-    return [p.get("id", "ERROR: No id!") for p in projects]
+    projects = []
+
+    for x in projects_path.iterdir():
+        if x.is_dir():
+            details_path = x / "details.json"
+            with open(details_path, "r") as f:
+                details = json.load(f)
+                projects.append(details.get("id", "ERROR: No id!"))
+
+    return projects
