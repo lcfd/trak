@@ -1,5 +1,7 @@
 from datetime import datetime
 from typing import Annotated
+from rich.panel import Panel
+from trakcli.projects.utils.print_missing_project import print_with_padding
 
 import typer
 from rich import print as rprint
@@ -60,10 +62,27 @@ def print_project_works(works, project_id):
         rprint(works_table)
 
         return
+    else:
+        rprint("")
+        rprint(
+            Panel.fit(
+                title="[red]No works[/red]",
+                renderable=print_with_padding(
+                    (
+                        "You do not have any active work currently for this project.\n\n"
+                        "You can create one with the command:\n"
+                        "trak create work <work_id> -p <project_id> -n <name> -t <hours> --from 2024-01-01 --to 2024-02-01"
+                    )
+                ),
+            )
+        )
 
 
 def list_works(
     project_id: Annotated[str, typer.Argument()] = ALL_PROJECTS,
+    done: Annotated[
+        bool, typer.Option("--done", "-d", help="Show also done works.")
+    ] = False,
 ):
     """List the works in a project or all of them."""
 
@@ -73,6 +92,10 @@ def list_works(
         # Check if project esists
         if details:
             works = get_project_works_from_config(project_id)
+
+            if works is not None and done is False:
+                works = [w for w in works if w.get("done", False) is False]
+
             print_project_works(works, project_id)
 
             return
