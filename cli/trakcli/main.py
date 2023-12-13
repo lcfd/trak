@@ -16,6 +16,7 @@ from trakcli.callbacks import (
 )
 from trakcli.config.commands import app as config_app
 from trakcli.config.main import get_config
+from trakcli.create import app as create_app
 from trakcli.database.database import (
     add_session,
     get_current_session,
@@ -27,9 +28,10 @@ from trakcli.dev.commands import app as dev_app
 from trakcli.initialize import initialize_trak
 from trakcli.projects.commands import app as projects_app
 from trakcli.projects.database import get_projects_from_config
+from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.report.commands.main import report
 from trakcli.utils.print_with_padding import print_with_padding
-from trakcli.create import app as create_app
+from trakcli.works import app as works_app
 
 console = Console()
 
@@ -46,6 +48,7 @@ app.add_typer(
 app.add_typer(config_app, name="config", help="Interact with your configuration.")
 app.add_typer(projects_app, name="projects", help="Interact with your projects.")
 app.add_typer(create_app, name="create", help="Create something in trak.")
+app.add_typer(works_app, name="works", help="Interact with your works.")
 
 
 @app.callback()
@@ -151,25 +154,16 @@ def start_tracker(
                 Panel.fit(
                     title="▶️  Start",
                     renderable=print_with_padding(
-                        f"""[bold green]{project}[/bold green] started.
-
-    Have a good session!"""
+                        (
+                            f"[bold green]{project}[/bold green] started.\n\n"
+                            "Have a good session!"
+                        )
                     ),
                 )
             )
         else:
-            renderable_projects_list = "\n • ".join(projects_in_config)
-            rprint("")
-            rprint(
-                Panel(
-                    title="[red]Missing project[/red]",
-                    renderable=print_with_padding(
-                        "This project doesn't exists.\n\n"
-                        f"Awailable projects: \n • {renderable_projects_list}\n\n\n\n"
-                        "Try to run the `trak create project <project name>` command if you want to create a new project."
-                    ),
-                )
-            )
+            print_missing_project(projects_in_config)
+
             return
     else:
         formatted_start_time = datetime.fromisoformat(record["start"]).strftime(
@@ -186,6 +180,8 @@ def start_tracker(
             )
         )
 
+    return
+
 
 @app.command("stop", help="Stop the current trak session.")
 def stop_tracker():
@@ -197,9 +193,10 @@ def stop_tracker():
     if record:
         stop_trak_session()
         message = print_with_padding(
-            f"""The [bold green]{record['project']}[/bold green] session is over.
-
-Good job!"""
+            (
+                f"The [bold green]{record['project']}[/bold green] session is over.\n\n"
+                "Good job!"
+            )
         )
 
         rprint(Panel.fit(title="⏹️  Stop", renderable=message))
@@ -272,9 +269,12 @@ No active session"
                 Panel(
                     title="💬 No active session",
                     renderable=print_with_padding(
-                        """Ther aren't active sessions.
-
-Use the command: trak start <project name> to start a new session of work."""
+                        (
+                            "Ther aren't active sessions.\n\n"
+                            "Use the command: trak start <project name> to start a new session of work."
+                        )
                     ),
                 )
             )
+
+    return
