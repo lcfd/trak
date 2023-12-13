@@ -31,3 +31,17 @@ def get_projects_from_config():
                 projects.append(details.get("id", "ERROR: No id!"))
 
     return projects
+
+
+def get_project_from_config(project_id: str):
+    """Get a project in the config by id."""
+
+    project_path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
+
+    if project_path.exists() and project_path.is_dir():
+        details_path = project_path / "details.json"
+        with open(details_path, "r") as f:
+            details = json.load(f)
+        return details
+    else:
+        return None

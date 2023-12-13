@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Optional
+from trakcli.projects.utils.print_missing_project import print_missing_project
 
 import typer
 from rich import print as rprint
 from rich.panel import Panel
 
-from trakcli.config.main import get_config
 from trakcli.database.database import add_session
 from trakcli.database.models import Record
 from trakcli.projects.database import get_projects_from_config
@@ -79,10 +79,8 @@ def create_session(
         ),
     ] = False,
 ):
-    CONFIG = get_config()
-
     # Check if the project exists
-    projects_in_config = get_projects_from_config(CONFIG)
+    projects_in_config = get_projects_from_config()
     if len(projects_in_config):
         if project_id in projects_in_config:
             # Check if today or when is passed
@@ -146,21 +144,7 @@ def create_session(
                     )
                 )
         else:
-            renderable_projects_list = "\n • ".join(projects_in_config)
-            rprint(
-                Panel(
-                    title="[red]Missing project[/red]",
-                    renderable=print_with_padding(
-                        "This project doesn't exists.\n\n"
-                        f"Awailable projects: \n • {renderable_projects_list}\n\n\n\n"
-                        "Try to run the `trak create project <project name>` command if you want to create a new project."
-                    ),
-                )
-            )
+            print_missing_project(projects_in_config)
             return
     else:
         rprint(projects_in_config)
-
-    # Check if hours or minutes is passed
-    # Get category
-    # Get tag
