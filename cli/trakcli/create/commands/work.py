@@ -77,8 +77,6 @@ def create_work(
         ),
     ] = 1,
 ):
-    rprint("Create a work")
-
     projects_in_config = get_projects_from_config()
 
     if project_id in projects_in_config:
