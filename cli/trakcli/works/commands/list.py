@@ -30,13 +30,21 @@ def print_project_works(works, project_id):
 
             from_date = w.get("from_date", None)
             if from_date is not None:
-                from_date = datetime.fromisoformat(from_date).strftime(
-                    "%Y-%m-%d, %H:%M"
-                )
+                try:
+                    from_date = datetime.fromisoformat(from_date).strftime("%Y-%m-%d")
+                except ValueError:
+                    rprint(
+                        f"[red]Error in {w['id']}'s from_date of {project_id} project.[/red]"
+                    )
 
             to_date = w.get("to_date", None)
             if to_date is not None:
-                to_date = datetime.fromisoformat(to_date).strftime("%Y-%m-%d, %H:%M")
+                try:
+                    to_date = datetime.fromisoformat(to_date).strftime("%Y-%m-%d")
+                except ValueError:
+                    rprint(
+                        f"[red]Error in {w['id']}'s to_date of {project_id} project.[/red]"
+                    )
 
             works_table.add_row(
                 w.get("id", "Missing id!"),
@@ -47,8 +55,10 @@ def print_project_works(works, project_id):
                 from_date,
                 to_date,
             )
+
         rprint("")
         rprint(works_table)
+
         return
 
 
