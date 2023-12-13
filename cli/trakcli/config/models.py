@@ -8,4 +8,4 @@ class Project(NamedTuple):
     categories: list[str] = []
     tags: list[str] = []
     customer: str = ""
-    fare: int = 1
+    rate: int = 1
