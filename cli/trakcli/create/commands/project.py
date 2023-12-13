@@ -50,7 +50,7 @@ def create_project(
                 else [],
                 tags=[t.strip() for t in tags.split(",")] if tags != "" else [],
                 customer=customer,
-                fare=hour_rate,
+                rate=hour_rate,
             )
 
             with open(details_path, "w") as details_file:
