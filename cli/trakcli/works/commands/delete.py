@@ -19,7 +19,7 @@ def delete_work(
     project_id: Annotated[
         str,
         typer.Option(
-            "--from", "-f", "-p", help="The project's id in which the work is located."
+            "--in", "--of", "-p", help="The project's id in which the work is located."
         ),
     ],
 ):
