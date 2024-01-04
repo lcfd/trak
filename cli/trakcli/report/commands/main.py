@@ -6,17 +6,15 @@ from rich import print as rprint
 from rich.table import Table
 
 from trakcli.database.basic import get_db_content
-from trakcli.report.commands.main_functions import (
-    create_details_table,
-    filter_records,
-    get_grouped_records,
-    get_table_title,
-)
+from trakcli.report.functions.create_details_table import create_details_table
+from trakcli.report.functions.filter_records import filter_records
+from trakcli.report.functions.get_grouped_records import get_grouped_records
+from trakcli.report.functions.get_table_title import get_table_title
 
 ALL_PROJECTS = "all"
 
 
-def report(
+def report_project(
     project: Annotated[str, typer.Argument()] = ALL_PROJECTS,
     billable: Annotated[
         bool,
