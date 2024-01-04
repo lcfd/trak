@@ -1,8 +1,8 @@
 import typer
 
-from .commands.main import project
+from .commands.report_project import report_project
 
 app = typer.Typer()
 
 
-app.command("a")(project)
+app.command("project")(report_project)

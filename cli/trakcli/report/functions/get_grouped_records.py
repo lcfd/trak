@@ -1,4 +1,6 @@
 def get_grouped_records(project, records, all):
+    """Get a list of records and group them by project name."""
+
     grouped = {}
     for record in records:
         record_project = record.get("project", False)
