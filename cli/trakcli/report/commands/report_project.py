@@ -43,6 +43,7 @@ def report_project(
         bool,
         typer.Option(
             "--yesterday",
+            "-y",
             help="Consider only this month's records.",
         ),
     ] = False,
@@ -50,6 +51,7 @@ def report_project(
         bool,
         typer.Option(
             "--week",
+            "-w",
             help="Consider only this week's records.",
         ),
     ] = False,
@@ -57,6 +59,7 @@ def report_project(
         bool,
         typer.Option(
             "--month",
+            "-m",
             help="Consider only this month's records.",
         ),
     ] = False,
@@ -64,6 +67,7 @@ def report_project(
         bool,
         typer.Option(
             "--year",
+            "-y",
             help="Consider only this year's records.",
         ),
     ] = False,
@@ -71,6 +75,7 @@ def report_project(
         Optional[datetime],
         typer.Option(
             "--start",
+            "-s",
             help="Start date (e.g. 2023-10-08) for the time range. If --end is not provided, trak will report the data for the provided date.",
             formats=["%Y-%m-%d"],
         ),
@@ -79,6 +84,7 @@ def report_project(
         Optional[datetime],
         typer.Option(
             "--end",
+            "-e",
             help="End date (e.g. 2023-11-24) for the time range. Won't work without the start flag.",
             formats=["%Y-%m-%d"],
         ),

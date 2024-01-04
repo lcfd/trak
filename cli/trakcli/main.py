@@ -29,10 +29,9 @@ from trakcli.initialize import initialize_trak
 from trakcli.projects.commands import app as projects_app
 from trakcli.projects.database import get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
-from trakcli.report.commands.main import project
+from trakcli.report import app as report_app
 from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.works import app as works_app
-from trakcli.report import app as report_app
 
 console = Console()
 

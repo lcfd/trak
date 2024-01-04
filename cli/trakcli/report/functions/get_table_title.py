@@ -1,4 +1,12 @@
-def get_table_title(today, yesterday, week, month, year, start, end):
+def get_table_title(
+    today: bool | None = None,
+    yesterday: bool | None = None,
+    week: bool | None = None,
+    month: bool | None = None,
+    year: bool | None = None,
+    start: str | None = None,
+    end: str | None = None,
+):
     table_title = "Report"
 
     if today:
