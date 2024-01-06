@@ -1,10 +1,8 @@
-import math
 from datetime import datetime
 from typing import Annotated, Optional
 
 import typer
 from rich import print as rprint
-from rich.panel import Panel
 from rich.progress import Progress
 from rich.table import Table
 
@@ -195,14 +193,13 @@ def report_project(
     rprint(main_table)
 
     # Print detailed data
-
     for data in projects_data:
-        rprint("")
         if data["details"] is not None:
+            rprint("")
             rprint(data["details"])
 
         project_works = data["works"]
-        if project_works is not None:
+        if project_works is not None and works is True:
             if len(project_works):
                 for pw in project_works:
                     # Print the data for a work
@@ -234,6 +231,7 @@ def report_project(
                     m, _ = divmod(acc_seconds, 60)
                     h, m = divmod(m, 60)
 
+                    rprint("")
                     rprint("  ======")
                     rprint(f" | Work {pw['id']}")
                     rprint(f" | [green]{pw['name']}")
