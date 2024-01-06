@@ -249,7 +249,7 @@ def status(
             )
         else:
             rprint(
-                Panel(
+                Panel.fit(
                     title="💬 Current status",
                     renderable=print_with_padding(
                         f"""Project: [bold]{current_session['project']}[/bold]
@@ -266,11 +266,11 @@ No active session"
             )
         else:
             rprint(
-                Panel(
+                Panel.fit(
                     title="💬 No active session",
                     renderable=print_with_padding(
                         (
-                            "Ther aren't active sessions.\n\n"
+                            "There is no ongoing session at the moment.\n\n"
                             "Use the command: trak start <project name> to start a new session of work."
                         )
                     ),
