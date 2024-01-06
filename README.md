@@ -40,6 +40,7 @@ or with `pipx`:
 ```bash
 pipx install trakcli
 ```
+
 ### Brew
 
 TBA
@@ -67,15 +68,15 @@ Run `poetry build` and then
 pipx install ./dist/trakcli-x.x.x-py3-none-any.whl
 ```
 
-to install `trak` usign the wheel file.
+to install `trak` using the wheel file.
 
 ## Usage
 
-The package has the useful `--help` command that will explain all the commands.
+The package has the useful `--help` command that explains all the commands.
 
 `trak --help`
 
-The CLI will guide you through what you should and must do with messages with specific messages.
+The CLI guides you through what you should and must do with specific messages.
 
 ### Basic commands
 
@@ -90,7 +91,7 @@ trak stop
 trak status
 
 # Show the amount of hours spend on the project
-trak report <project-name>
+trak report project <project-name>
 ```
 
 Start tracking a billable project:
