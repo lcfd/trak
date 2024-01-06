@@ -3,7 +3,16 @@ from datetime import datetime, timedelta
 from trakcli.utils.same_week import same_week
 
 
-def filter_records(records, billable, yesterday, today, week, month, start, end):
+def filter_records(
+    records,
+    billable=None,
+    yesterday=None,
+    today=None,
+    week=None,
+    month=None,
+    start=None,
+    end=None,
+):
     actual_month = datetime.today().month
     actual_year = datetime.today().year
 
