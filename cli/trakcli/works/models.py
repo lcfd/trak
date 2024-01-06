@@ -10,3 +10,4 @@ class Work(NamedTuple):
     to_date: str
     description: str = ""
     done: bool = False
+    payed: bool = False
