@@ -14,7 +14,7 @@ from trakcli.works.database import (
 )
 
 
-def payed_work(
+def paid_work(
     work_id: Annotated[str, typer.Argument()],
     project_id: Annotated[
         str,
@@ -23,18 +23,18 @@ def payed_work(
         ),
     ],
 ):
-    """Mark a work of a project as payed."""
+    """Mark a work of a project as paid."""
 
     projects = get_projects_from_config()
 
     if project_id in projects:
         confirm_done = Confirm.ask(
-            f"Are you sure you want to mark the [green]{work_id}[/green] work from [green]{project_id}[/green] project as payed?",
+            f"Are you sure you want to mark the [green]{work_id}[/green] work from [green]{project_id}[/green] project as paid?",
             default=False,
         )
         if not confirm_done:
             rprint("")
-            rprint("[yellow]Not marked as payed.[/yellow]")
+            rprint("[yellow]Not marked as paid.[/yellow]")
             raise typer.Abort()
 
         works = get_project_works_from_config(project_id)
@@ -42,7 +42,7 @@ def payed_work(
             works_ids = [w["id"] for w in works]
             if work_id in works_ids:
                 filtered_works = [
-                    {**w, "payed": True} if w["id"] == work_id else w for w in works
+                    {**w, "paid": True} if w["id"] == work_id else w for w in works
                 ]
 
                 set_project_works_in_config(project_id, filtered_works)
@@ -51,7 +51,7 @@ def payed_work(
                 rprint(
                     Panel.fit(
                         title="[green]Success[/green]",
-                        renderable=f"Work {work_id} successfully from {project_id} project marked as payed.",
+                        renderable=f"Work {work_id} successfully from {project_id} project marked as paid.",
                     )
                 )
             else:
