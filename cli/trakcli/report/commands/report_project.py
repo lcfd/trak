@@ -201,11 +201,14 @@ def report_project(
         if project_works is not None and works is True:
             if len(project_works):
                 for pw in project_works:
+                    start_date_string = pw.get("from_date")
+                    end_date_string = pw.get("to_date")
+                    start_date = datetime.strptime(start_date_string, "%Y-%m-%dT%H:%M")
+                    end_date = datetime.strptime(end_date_string, "%Y-%m-%dT%H:%M")
+
                     # Print the data for a work
                     filtered_records = filter_records(
-                        records=data.get("records"),
-                        start=datetime.strptime(pw.get("from_date"), "%Y-%m-%dT%H:%M"),
-                        end=datetime.strptime(pw.get("to_date"), "%Y-%m-%dT%H:%M"),
+                        records=data.get("records"), start=start_date, end=end_date
                     )
 
                     acc_seconds = 0
@@ -231,35 +234,40 @@ def report_project(
                     h, m = divmod(m, 60)
 
                     rprint("")
-                    rprint("  ======")
-                    rprint(f" | Work {pw['id']}")
-                    rprint(f" | [green]{pw['name']}")
-                    rprint("  ======")
-                    rprint("")
+                    rprint("┏━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    rprint(f"┃ [blue]Work {pw['id']}")
+                    rprint(f"┃ [green]{pw['name']}")
+                    rprint("┃ ---")
+                    rprint(f"┃ start: {start_date}, end: {end_date}")
+                    rprint(f"┃ project: {data['project']}")
+                    rprint("┡━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    rprint("│ ")
                     with Progress() as progress:
-                        rprint("[blue]Used time budget:")
-                        rprint(f"Total: {pw['time']} hours")
-                        rprint(f"Used: {h} hours {m} minutes ")
+                        rprint("│ [blue]Used time budget:")
+                        rprint(f"│ Total: {pw['time']} hours")
+                        rprint(f"│ Used: {h} hours {m} minutes ")
                         task = progress.add_task("", total=work_time * 3600)
                         progress.update(task, advance=acc_seconds)
-                    rprint("")
+                    rprint("│ ")
                     with Progress() as progress:
-                        rprint("[blue]Closeness to the deadline:")
+                        rprint("│ [blue]Closeness to the deadline:")
                         start = datetime.strptime(pw.get("from_date"), "%Y-%m-%dT%H:%M")
                         end = datetime.strptime(pw.get("to_date"), "%Y-%m-%dT%H:%M")
                         work_duration_days = (end - start).days
                         today_to_deadline_days = (end - datetime.today()).days
                         today_from_start_days = (datetime.today() - start).days
-                        rprint(f"Total: {work_duration_days} days")
-                        rprint(f"Remaining: {today_to_deadline_days} days")
+                        rprint(f"│ Total: {work_duration_days} days")
+                        rprint(f"│ Remaining: {today_to_deadline_days} days")
                         task = progress.add_task("", total=work_duration_days)
                         progress.update(task, advance=today_from_start_days)
-                    rprint("")
-                    rprint("[blue]Workable hours (8h/day) until deadline:")
+                    rprint("│ ")
+                    rprint("│ [blue]Workable hours (8h/day) until deadline:")
                     today_to_deadline_days = (end - datetime.today()).days
                     rprint(
-                        f"{(today_to_deadline_days  *24) / 8} hours in {today_to_deadline_days} days"
+                        f"│ {(today_to_deadline_days  *24) / 8} hours in {today_to_deadline_days} days"
                     )
-                    rprint("")
-                    rprint("[blue]Value of your work so far:")
-                    rprint(f"{pw['rate']*h}€")
+                    rprint("│ ")
+                    rprint("│ [blue]Value of your work so far:")
+                    rprint(f"│ {pw['rate']*h}€")
+                    rprint("│ ")
+                    rprint("└━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
