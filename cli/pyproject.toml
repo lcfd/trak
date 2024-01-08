@@ -30,6 +30,35 @@ black = ">=23.9.1"
 ruff = "^0.0.292"
 
 
+[tool.pdm]
+[tool.pdm.dev-dependencies]
+dev = ["black>=23.9.1", "ruff<1.0.0,>=0.0.292", "pytest>=7.4.4"]
+
+[tool.pdm.build]
+includes = []
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[project]
+authors = [
+  { name = "Luca Fedrizzi", email = "9001053+fedriz@users.noreply.github.com" },
+]
+license = { text = "AGPL-3.0" }
+requires-python = ">=3.11,<4.0"
+dependencies = ["typer[all]>=0.9.0"]
+name = "trakcli"
+version = "0.0.4"
+description = "Keep a record of the time you dedicate to your projects."
+readme = "README.md"
+keywords = ["cli", "timetraker", "time", "traker", "tool"]
+
+[project.urls]
+"Trak on X" = "https://twitter.com/usetrakcom"
+"Luca Fedrizzi's website" = "https://lucafedrizzi.com/"
+"Luca Fedrizzi on X" = "https://twitter.com/lc_fd"
+homepage = "https://usetrak.com/"
+repository = "https://github.com/lcfd/trak"
+
+[project.scripts]
+trak = "trakcli.main:app"

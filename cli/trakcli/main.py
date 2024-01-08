@@ -29,7 +29,7 @@ from trakcli.initialize import initialize_trak
 from trakcli.projects.commands import app as projects_app
 from trakcli.projects.database import get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
-from trakcli.report.commands.main import report
+from trakcli.report import app as report_app
 from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.works import app as works_app
 
@@ -49,6 +49,9 @@ app.add_typer(config_app, name="config", help="Interact with your configuration.
 app.add_typer(projects_app, name="projects", help="Interact with your projects.")
 app.add_typer(create_app, name="create", help="Create something in trak.")
 app.add_typer(works_app, name="works", help="Interact with your works.")
+app.add_typer(report_app, name="report", help="Get useful insights from your records.")
+
+# app.command()(report)
 
 
 @app.callback()
@@ -95,9 +98,6 @@ def main(
     ),
 ) -> None:
     return
-
-
-app.command()(report)
 
 
 @app.command(name="start", help="Start a trak session.")
@@ -249,7 +249,7 @@ def status(
             )
         else:
             rprint(
-                Panel(
+                Panel.fit(
                     title="💬 Current status",
                     renderable=print_with_padding(
                         f"""Project: [bold]{current_session['project']}[/bold]
@@ -266,11 +266,11 @@ No active session"
             )
         else:
             rprint(
-                Panel(
+                Panel.fit(
                     title="💬 No active session",
                     renderable=print_with_padding(
                         (
-                            "Ther aren't active sessions.\n\n"
+                            "There is no ongoing session at the moment.\n\n"
                             "Use the command: trak start <project name> to start a new session of work."
                         )
                     ),

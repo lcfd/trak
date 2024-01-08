@@ -24,6 +24,8 @@ def print_project_works(works, project_id):
     works_table.add_column("Rate")
     works_table.add_column("From")
     works_table.add_column("To")
+    works_table.add_column("Done")
+    works_table.add_column("Paid")
 
     if works is not None and len(works):
         for w in works:
@@ -56,6 +58,8 @@ def print_project_works(works, project_id):
                 f"{rate}",
                 from_date,
                 to_date,
+                "✅" if w.get("done", False) else "🏃",
+                "✅" if w.get("paid", False) else "❌",
             )
 
         rprint("")
