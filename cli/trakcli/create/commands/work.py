@@ -111,6 +111,7 @@ def create_work(
                 to_date=to_date.strftime("%Y-%d-%m"),
                 description=description,
                 done=False,
+                paid=False,
             )
 
             if works is not None:
