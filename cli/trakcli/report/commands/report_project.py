@@ -113,7 +113,6 @@ def report_project(
     main_table.add_column("🧮 Time spent", style="magenta")
 
     grouped = get_grouped_records(project, db_content, ALL_PROJECTS)
-    # records = []
 
     #
     # Accumulators
