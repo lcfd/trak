@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional
 
+import questionary
 import typer
 from rich import print as rprint
 from rich.panel import Panel
@@ -9,11 +10,15 @@ from trakcli.database.database import add_session, tracking_already_started
 from trakcli.database.models import Record
 from trakcli.projects.database import get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
+from trakcli.tracker.messages.print_session_already_started import (
+    print_session_already_started,
+)
 from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.styles_questionary import questionary_style_select
 
 
 def start_tracker(
-    project: str,
+    project: Annotated[Optional[str], typer.Argument()] = None,
     billable: Annotated[
         bool,
         typer.Option(
@@ -41,54 +46,52 @@ def start_tracker(
     ] = "",
 ):
     """
-    Start tracking a project by name.
+    Start tracking a project by project_id.
     """
 
-    if not project:
-        project = typer.prompt("Which project do you want to track?")
-
-    record = tracking_already_started()
     projects_in_config = get_projects_from_config()
 
-    if not record:
-        if project in projects_in_config:
-            add_session(
-                Record(
-                    project=project,
-                    start=datetime.now().isoformat(),
-                    billable=billable,
-                    category=category,
-                    tag=tag,
-                )
-            )
-            rprint(
-                Panel.fit(
-                    title="▶️  Start",
-                    renderable=print_with_padding(
-                        (
-                            f"[bold green]{project}[/bold green] started.\n\n"
-                            "Have a good session!"
-                        )
-                    ),
-                )
-            )
-        else:
-            print_missing_project(projects_in_config)
+    if not project:
+        project = questionary.select(
+            "Select a project:",
+            choices=projects_in_config,
+            pointer="• ",
+            show_selected=True,
+            style=questionary_style_select,
+        ).ask()
 
+        if not project:
             return
-    else:
-        formatted_start_time = datetime.fromisoformat(record["start"]).strftime(
-            "%m/%d/%Y, %H:%M"
-        )
-        msg = (
-            f"Tracking on [bold green]{record['project']}[/bold green] "
-            f"already started at {formatted_start_time}"
+
+    if project not in projects_in_config:
+        print_missing_project(projects_in_config)
+
+        return
+
+    record = tracking_already_started()
+
+    if not isinstance(record, Record):
+        add_session(
+            Record(
+                project=project,
+                start=datetime.now().isoformat(),
+                billable=billable,
+                category=category,
+                tag=tag,
+            )
         )
         rprint(
             Panel.fit(
-                title="💬 Already started",
-                renderable=print_with_padding(msg),
+                title="▶️  Start",
+                renderable=print_with_padding(
+                    (
+                        f"[bold green]{project}[/bold green] started.\n\n"
+                        "Have a good session!"
+                    )
+                ),
             )
         )
+    else:
+        print_session_already_started(record)
 
     return
