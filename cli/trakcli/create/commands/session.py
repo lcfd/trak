@@ -1,15 +1,15 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Optional
-from trakcli.create.messages.print_new_created_session import print_new_created_session
-from trakcli.projects.utils.print_missing_project import print_missing_project
 
 import typer
 from rich import print as rprint
 from rich.panel import Panel
 
+from trakcli.create.messages.print_new_created_session import print_new_created_session
 from trakcli.database.database import add_session
 from trakcli.database.models import Record
 from trakcli.projects.database import get_projects_from_config
+from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.projects.utils.print_no_projects import print_no_projects
 from trakcli.utils.print_with_padding import print_with_padding
 
