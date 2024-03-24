@@ -32,7 +32,9 @@ initialize_trak()
 
 app.command(name="start", help="Start a session.")(start_tracker)
 app.command(name="stop", help="Stop the current session.")(stop_tracker)
-app.command(name="status")(get_current_session_status)
+app.command(name="status", help="Show the status of the current session.")(
+    get_current_session_status
+)
 
 # Add subcommands
 app.add_typer(
