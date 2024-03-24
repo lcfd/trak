@@ -5,6 +5,9 @@ import typer
 from rich import print as rprint
 from rich.panel import Panel
 
+from trakcli.create.messages.print_missing_timings_error import (
+    print_missing_timings_error,
+)
 from trakcli.create.messages.print_new_created_session import print_new_created_session
 from trakcli.database.database import add_session
 from trakcli.database.models import Record
@@ -171,17 +174,8 @@ def create_session(
     else:
         # This is the last method possible to insert the timings for the new session.
         # Since "start" and "stop" are more verbose, they serve as the default fallback method.
-        rprint("")
-        rprint(
-            Panel.fit(
-                title="[red]Missing timings[/red]",
-                renderable=print_with_padding(
-                    "You need to provide the timings for your session. \n"
-                    "You can use the --today and --minutes or --hours flags, or the --start and --end flags instead.\n\n"
-                    'Tip: All flags come with short versions. For example, "--minutes" can be written as "-m".'
-                ),
-            )
-        )
+        print_missing_timings_error()
+
         return
 
     #
@@ -200,17 +194,7 @@ def create_session(
     if not dryrun:
         add_session(new_session)
     else:
-        rprint("")
-        rprint("[bold orange3]DRY RUN")
+        rprint("\n[bold orange3] 🛠️  DRY RUN")
 
     print_new_created_session(project_id=project_id, new_session=new_session)
     return
-
-    # else:
-    #     # --today and --when parameters are empty
-    #     rprint(
-    #         Panel(
-    #             title="[red]Missing start time[/red]",
-    #             renderable=print_with_padding("Use the `--today` or `--when` flag."),
-    #         )
-    #     )
