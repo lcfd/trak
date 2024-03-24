@@ -8,6 +8,6 @@ from trakcli.create.commands.project import create_project
 app = typer.Typer()
 
 
-app.command("session")(create_session)
-app.command("work")(create_work)
-app.command("project")(create_project)
+app.command("session", help="Create a new session")(create_session)
+app.command("work", help="Create a new work")(create_work)
+app.command("project", help="Create a new project")(create_project)
