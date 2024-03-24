@@ -2,7 +2,7 @@ from datetime import datetime
 
 
 def same_week(dateString):
-    """returns true if a dateString in %Y%m%d format is part of the current week"""
+    """Returns true if a dateString in %Y%m%d format is part of the current week."""
 
     d1 = datetime.strptime(dateString, "%Y%m%d")
     d2 = datetime.today()
