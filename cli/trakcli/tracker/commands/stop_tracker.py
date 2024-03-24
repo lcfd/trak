@@ -8,29 +8,34 @@ from trakcli.utils.print_with_padding import print_with_padding
 
 def stop_tracker():
     """
-    Stop tracking the current project.
+    Stop the current session.
+    This will add and end datetime in the end field.
     """
 
     record = tracking_already_started()
 
     if isinstance(record, Record):
         stop_trak_session()
-        message = print_with_padding(
-            (
-                f"The [bold green]{record.project}[/bold green] session is over.\n\n"
-                "Good job!"
+        rprint(
+            Panel.fit(
+                title="⏹️  Stop",
+                renderable=print_with_padding(
+                    (
+                        f"The [bold green]{record.project}[/bold green] session is over.\n\n"
+                        "Good job!"
+                    )
+                ),
             )
         )
-
-        rprint(Panel.fit(title="⏹️  Stop", renderable=message))
     else:
         rprint(
             Panel.fit(
                 title="💬 No active sessions",
                 renderable=print_with_padding(
-                    """There aren't active sessions.
-
-Use the command: trak start <project name> to start a new session of work."""
+                    (
+                        "There aren't active sessions.\n\n"
+                        "Use the command: trak start <project name> to start a new session of work."
+                    )
                 ),
             )
         )
