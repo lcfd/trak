@@ -168,6 +168,21 @@ def create_session(
     if start and end:
         start_timedate = start
         end_timedate = end
+    else:
+        # This is the last method possible to insert the timings for the new session.
+        # Since "start" and "stop" are more verbose, they serve as the default fallback method.
+        rprint("")
+        rprint(
+            Panel.fit(
+                title="[red]Missing timings[/red]",
+                renderable=print_with_padding(
+                    "You need to provide the timings for your session. \n"
+                    "You can use the --today and --minutes or --hours flags, or the --start and --end flags instead.\n\n"
+                    'Tip: All flags come with short versions. For example, "--minutes" can be written as "-m".'
+                ),
+            )
+        )
+        return
 
     #
     # Create the session
