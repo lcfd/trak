@@ -63,7 +63,7 @@ def stop_trak_session():
         json.dump(parsed_json, db, indent=2, separators=(",", ": "))
 
 
-def tracking_already_started():
+def tracking_already_started() -> Record | bool:
     """
     Check if there already is a record that is running.
     If it's already running return the record.
@@ -76,6 +76,8 @@ def tracking_already_started():
     parsed_json = json.loads(db_content)
 
     try:
+        # TODO: improve current session parsing.
+        # This approach may lead to problems, like manual edit by users.
         last_record = parsed_json[-1]
     except IndexError:
         return False
@@ -83,7 +85,7 @@ def tracking_already_started():
         return False
 
     if last_record["end"] == "":
-        return last_record
+        return Record(**last_record)
 
     return False
 
