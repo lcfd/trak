@@ -40,8 +40,10 @@ def get_current_session_status(
 
         if starship:
             print(
-                f"""⏰ {'( DEV MODE) ' if CONFIG['development'] else ''}\
-{current_session['project']} ⌛ {h}h {m}m"""
+                (
+                    f"⏰ {'( DEV MODE) ' if CONFIG['development'] else ''}"
+                    f"{current_session['project']} ⌛ {h}h {m}m"
+                )
             )
         else:
             rprint(
