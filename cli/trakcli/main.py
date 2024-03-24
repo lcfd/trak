@@ -1,11 +1,7 @@
-from datetime import datetime
 from typing import Optional
 
 import typer
-from rich import print as rprint
 from rich.console import Console
-from rich.panel import Panel
-from typing_extensions import Annotated
 
 from trakcli.callbacks import (
     issues_callback,
@@ -15,11 +11,7 @@ from trakcli.callbacks import (
     website_callback,
 )
 from trakcli.config.commands import app as config_app
-from trakcli.config.main import get_config
 from trakcli.create import app as create_app
-from trakcli.database.database import (
-    get_current_session,
-)
 from trakcli.dev.commands import app as dev_app
 from trakcli.initialize import initialize_trak
 from trakcli.projects.commands import app as projects_app
@@ -29,7 +21,6 @@ from trakcli.tracker.commands.get_current_session_status import (
 )
 from trakcli.tracker.commands.start_tracker import start_tracker
 from trakcli.tracker.commands.stop_tracker import stop_tracker
-from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.works import app as works_app
 
 console = Console()
