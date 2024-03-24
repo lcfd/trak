@@ -1,19 +1,26 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Optional
-from trakcli.projects.utils.print_missing_project import print_missing_project
 
 import typer
 from rich import print as rprint
 from rich.panel import Panel
 
+from trakcli.create.messages.print_missing_timings_error import (
+    print_missing_timings_error,
+)
+from trakcli.create.messages.print_new_created_session import print_new_created_session
 from trakcli.database.database import add_session
 from trakcli.database.models import Record
 from trakcli.projects.database import get_projects_from_config
+from trakcli.projects.utils.print_missing_project import print_missing_project
+from trakcli.projects.utils.print_no_projects import print_no_projects
 from trakcli.utils.print_with_padding import print_with_padding
 
 
 def create_session(
-    project_id: str,
+    project_id: Annotated[Optional[str], typer.Argument()] = None,
+    ####################################
+    # Add method: by day, and add hours and minutes
     today: Annotated[
         Optional[datetime],
         typer.Option(
@@ -27,7 +34,7 @@ def create_session(
         typer.Option(
             "--when",
             "-w",
-            help="Last name of person to greet.",
+            help="Give the date and time of when you have started the session.",
             formats=["%Y-%m-%dT%H:%M"],
         ),
     ] = None,
@@ -47,6 +54,28 @@ def create_session(
             help="Minutes spent in the session.",
         ),
     ] = None,
+    ####################################
+    # Start and stop method
+    start: Annotated[
+        Optional[datetime],
+        typer.Option(
+            "--start",
+            "-s",
+            help="The date and time you began the session. Incompatible with --when/--today.",
+            formats=["%Y-%m-%dT%H:%M"],
+        ),
+    ] = None,
+    end: Annotated[
+        Optional[datetime],
+        typer.Option(
+            "--end",
+            "-e",
+            help="The date and time you ended the session. Incompatible with --when/--today.",
+            formats=["%Y-%m-%dT%H:%M"],
+        ),
+    ] = None,
+    ####################################
+    # Properties
     category: Annotated[
         str,
         typer.Option(
@@ -71,80 +100,101 @@ def create_session(
             help="The project is billable.",
         ),
     ] = False,
+    ####################################
+    # Meta
     dryrun: Annotated[
         bool,
         typer.Option(
             "--dry-run",
+            "--dryrun",
             help="Check the session you are about to create, without save it.",
         ),
     ] = False,
 ):
-    # Check if the project exists
     projects_in_config = get_projects_from_config()
-    if len(projects_in_config):
-        if project_id in projects_in_config:
-            # Check if today or when is passed
-            start_timedate = datetime.today()
-            if today or when:
-                # Create the start date for the session
-                if today:
-                    now = datetime.today()
-                    today_time = today.time()
-                    start_timedate = now.replace(
-                        hour=today_time.hour, minute=today_time.minute
-                    )
-                if when:
-                    start_timedate = when
 
-                end_timedate = start_timedate
-                if hours or minutes:
-                    if hours:
-                        end_timedate = end_timedate + timedelta(hours=hours)
-                    if minutes:
-                        end_timedate = end_timedate + timedelta(minutes=minutes)
+    # Check if there are configured projects
+    if not len(projects_in_config):
+        print_no_projects()
+        return
 
-                    new_session = Record(
-                        project=project_id,
-                        start=start_timedate.isoformat(),
-                        end=end_timedate.isoformat(),
-                        billable=billable,
-                        category=category,
-                        tag=tag,
-                    )
+    # Check if the project exists
+    if not project_id or project_id not in projects_in_config:
+        print_missing_project(projects_in_config)
+        return
 
-                    if not dryrun:
-                        add_session(new_session)
-                        rprint("")
-                        rprint("✅ Session created.")
+    #
+    # Timings
+    #
 
-                    rprint("")
-                    rprint(
-                        Panel.fit(
-                            title=project_id,
-                            renderable=print_with_padding(
-                                (
-                                    f"start: {new_session.start}\n"
-                                    f"end: {new_session.end}\n"
-                                    f"billable: {new_session.billable}\n"
-                                    f"category: {new_session.category}\n"
-                                    f"tag: {new_session.tag}"
-                                )
-                            ),
-                        )
-                    )
+    start_timedate = datetime.today()
+    end_timedate = datetime.today()
 
-                    return
-            else:
-                rprint(
-                    Panel(
-                        title="[red]Missing start time[/red]",
-                        renderable=print_with_padding(
-                            "Use the `--today` or `--when` flag."
-                        ),
-                    )
-                )
+    # Add method
+    ## This comes first because it has priority by design.
+
+    if today or when:
+        # Create the start date for the session
+        if today:
+            start_timedate = start_timedate.replace(
+                hour=today.hour, minute=today.minute
+            )
+        if when:
+            start_timedate = when
+
+        end_timedate = start_timedate
+
+        # Add hours and minutes
+        if hours or minutes:
+            if hours:
+                end_timedate = start_timedate + timedelta(hours=hours)
+            if minutes:
+                end_timedate = start_timedate + timedelta(minutes=minutes)
+
         else:
-            print_missing_project(projects_in_config)
+            rprint("")
+            rprint(
+                Panel.fit(
+                    title="[red]Missing duration[/red]",
+                    renderable=print_with_padding(
+                        "You need to provide the duration of the session, in hours or minutes (--minutes or --hours)."
+                    ),
+                )
+            )
             return
     else:
-        rprint(projects_in_config)
+        # Start and end datetimes are probably used
+        pass
+
+    # Start and stop method
+
+    if start and end:
+        start_timedate = start
+        end_timedate = end
+    else:
+        # This is the last method possible to insert the timings for the new session.
+        # Since "start" and "stop" are more verbose, they serve as the default fallback method.
+        print_missing_timings_error()
+
+        return
+
+    #
+    # Create the session
+    #
+
+    new_session = Record(
+        project=project_id,
+        start=start_timedate.isoformat(),
+        end=end_timedate.isoformat(),
+        billable=billable,
+        category=category,
+        tag=tag,
+    )
+
+    if not dryrun:
+        add_session(new_session)
+    else:
+        rprint("\n[bold orange3] 🛠️  DRY RUN")
+
+    print_new_created_session(project_id=project_id, new_session=new_session)
+    return
