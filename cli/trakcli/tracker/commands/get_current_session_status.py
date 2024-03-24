@@ -46,21 +46,26 @@ def get_current_session_status(
                 )
             )
         else:
+            rprint("")
             rprint(
                 Panel.fit(
                     title="💬 Current status",
                     renderable=print_with_padding(
-                        f"""Project: [bold]{current_session['project']}[/bold]
-Started: {formatted_start_datetime}
-Time: [bold]{h}h {m}m[/bold]""",
+                        (
+                            f"Project: [green]{current_session['project']}[/green]\n\n"
+                            f"Started: {formatted_start_datetime}\n"
+                            f"Time: [green]{h}h {m}m[/green]"
+                        )
                     ),
                 )
             )
     else:
         if starship:
             print(
-                f"⏰ {'( DEV MODE) ' if CONFIG['development'] else ''}\
-No active session"
+                (
+                    f"⏰ {'( DEV MODE) ' if CONFIG['development'] else ''} "
+                    "No active session"
+                )
             )
         else:
             rprint(
