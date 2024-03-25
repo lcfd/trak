@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import questionary
 from rich import padding
 from rich import print as rprint
 from rich.console import Console
@@ -15,6 +16,7 @@ from trakcli.database.models import Record
 from trakcli.utils.format_date import format_date
 from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.utils.same_week import same_week
+from trakcli.utils.styles_questionary import questionary_style_select
 
 #
 # Database operations
@@ -57,10 +59,44 @@ def stop_trak_session():
         db_content = db.read()
 
     parsed_json = json.loads(db_content)
-    parsed_json[-1]["end"] = datetime.now().isoformat()
 
-    with open(db_path, "w") as db:
-        json.dump(parsed_json, db, indent=2, separators=(",", ": "))
+    # Create a list of the running sessions
+    current_sessions_indexes = [
+        (index, record) for index, record in enumerate(parsed_json) if not record["end"]
+    ]
+
+    session_index = -1
+
+    if len(current_sessions_indexes) > 1:
+        # Support stopping a session when there are multiple running sessions
+        choices = [
+            questionary.Choice(title=record["project"], value=index)
+            for index, record in enumerate(parsed_json)
+            if not record["end"]
+        ]
+
+        session_index = questionary.select(
+            "Select a session:",
+            choices=choices,
+            pointer="• ",
+            show_selected=True,
+            style=questionary_style_select,
+        ).ask()
+
+    elif len(current_sessions_indexes) == 1:
+        session_index = current_sessions_indexes[0][0]
+
+    if session_index > -1:
+        parsed_json[session_index]["end"] = datetime.now().isoformat()
+
+        with open(db_path, "w") as db:
+            json.dump(parsed_json, db, indent=2, separators=(",", ": "))
+
+        # Return the stopped record
+        try:
+            return Record(**parsed_json[session_index])
+        except Exception:
+            return
 
 
 def tracking_already_started() -> Record | bool:
@@ -73,12 +109,46 @@ def tracking_already_started() -> Record | bool:
 
     with open(db_path, "r") as db:
         db_content = db.read()
+
     parsed_json = json.loads(db_content)
 
+    # Create a list of the running sessions
+    current_sessions = [record for record in parsed_json if not record["end"]]
+
     try:
-        # TODO: improve current session parsing.
-        # This approach may lead to problems, like manual edit by users.
-        last_record = parsed_json[-1]
+        last_record = current_sessions[-1]
+    except IndexError:
+        return False
+    except KeyError:
+        return False
+
+    if last_record["end"] == "":
+        try:
+            return Record(**last_record)
+        except Exception:
+            return False
+
+    return False
+
+
+def get_current_session_started() -> Record | bool:
+    """
+    Check if there already is a record that is running.
+    If it's already running return the record.
+    """
+
+    db_path = get_db_file_path()
+
+    with open(db_path, "r") as db:
+        db_content = db.read()
+
+    parsed_json = json.loads(db_content)
+
+    # Create a list of the running sessions
+    current_sessions = [record for record in parsed_json if not record["end"]]
+
+    try:
+        last_record = current_sessions[-1]
     except IndexError:
         return False
     except KeyError:
@@ -100,8 +170,11 @@ def get_current_session():
 
     parsed_json = json.loads(db_content)
 
+    # Create a list of the running sessions
+    current_sessions = [record for record in parsed_json if not record["end"]]
+
     try:
-        last_record = parsed_json[-1]
+        last_record = current_sessions[-1]
     except IndexError:
         return False
     except KeyError:
