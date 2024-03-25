@@ -15,18 +15,31 @@ def stop_tracker():
     record = tracking_already_started()
 
     if isinstance(record, Record):
-        stop_trak_session()
-        rprint(
-            Panel.fit(
-                title="⏹️  Stop",
-                renderable=print_with_padding(
-                    (
-                        f"The [bold green]{record.project}[/bold green] session is over.\n\n"
-                        "Good job!"
-                    )
-                ),
+        stopped_record = stop_trak_session()
+
+        # TODO: Show the user the duration of the stopped sessions
+        # https://github.com/lcfd/trak/issues/49
+        if stopped_record:
+            rprint(
+                Panel.fit(
+                    title="⏹️  Stop",
+                    renderable=print_with_padding(
+                        (
+                            f"The [bold green]{stopped_record.project}[/bold green] session is over.\n\n"
+                            "Good job!"
+                        )
+                    ),
+                )
             )
-        )
+        else:
+            rprint(
+                Panel.fit(
+                    title="🚨 [red]Error[/red]",
+                    renderable=print_with_padding(
+                        ("Check your database, there must be something wrong in it.")
+                    ),
+                )
+            )
     else:
         rprint(
             Panel.fit(
