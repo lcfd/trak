@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Optional
 
+import questionary
 import typer
 from rich import print as rprint
 from rich.panel import Panel
@@ -15,6 +16,7 @@ from trakcli.projects.database import get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.projects.utils.print_no_projects import print_no_projects
 from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.styles_questionary import questionary_style_select
 
 
 def create_session(
@@ -118,6 +120,19 @@ def create_session(
         print_no_projects()
         return
 
+    # Provide the list of prjects to the user
+    if not project_id:
+        project_id = questionary.select(
+            "Select a project:",
+            choices=projects_in_config,
+            pointer="• ",
+            show_selected=True,
+            style=questionary_style_select,
+        ).ask()
+
+        if not project_id:
+            return
+
     # Check if the project exists
     if not project_id or project_id not in projects_in_config:
         print_missing_project(projects_in_config)
@@ -197,4 +212,5 @@ def create_session(
         rprint("\n[bold orange3] 🛠️  DRY RUN")
 
     print_new_created_session(project_id=project_id, new_session=new_session)
+
     return
