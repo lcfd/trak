@@ -1,5 +1,11 @@
-def get_grouped_records(project, records, all):
-    """Get a list of records and group them by project name."""
+from typing import Literal
+
+
+def get_grouped_records(project: str, records, all: Literal["all"]):
+    """
+    Get a list of records and group them by project name.
+    In other words it filters the records by project.
+    """
 
     grouped = {}
     for record in records:
