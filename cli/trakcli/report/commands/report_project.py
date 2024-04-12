@@ -1,23 +1,28 @@
 from datetime import datetime
 from typing import Annotated, Optional
 
+import questionary
 import typer
 from rich import print as rprint
 from rich.progress import Progress
 from rich.table import Table
 
 from trakcli.database.basic import get_db_content
+from trakcli.projects.database import get_projects_from_config
+from trakcli.projects.utils.print_missing_project import print_missing_project
+from trakcli.projects.utils.print_no_projects import print_no_projects
 from trakcli.report.functions.create_details_table import create_details_table
 from trakcli.report.functions.filter_records import filter_records
 from trakcli.report.functions.get_grouped_records import get_grouped_records
 from trakcli.report.functions.get_table_title import get_table_title
+from trakcli.utils.styles_questionary import questionary_style_select
 from trakcli.works.database import get_project_works_from_config
 
 ALL_PROJECTS = "all"
 
 
 def report_project(
-    project: Annotated[str, typer.Argument()] = ALL_PROJECTS,
+    project: Annotated[Optional[str], typer.Argument()] = None,
     billable: Annotated[
         bool,
         typer.Option(
@@ -30,7 +35,7 @@ def report_project(
         bool,
         typer.Option(
             "--works",
-            help="WORKS WORKS WORKS",
+            help="Works",  # TODO: Add better documentation
         ),
     ] = False,
     details: Annotated[
@@ -99,7 +104,37 @@ def report_project(
         ),
     ] = None,
 ):
-    """Get reports for your projects."""
+    """
+    Get reports for your projects.
+    The projects will be get by the configuration in the .trak folder.
+    """
+
+    projects_in_config = get_projects_from_config()
+
+    projects_in_config.append("all")
+
+    # Check if there are configured projects
+    if not len(projects_in_config):
+        print_no_projects()
+        return
+
+    # Provide the list of prjects to the user
+    if not project:
+        project = questionary.select(
+            "Select a project:",
+            choices=projects_in_config,
+            pointer="• ",
+            show_selected=True,
+            style=questionary_style_select,
+        ).ask()
+
+        if not project:
+            return
+
+    # Check if the project exists
+    if not project or project not in projects_in_config:
+        print_missing_project(projects_in_config)
+        return
 
     db_content = get_db_content()
 
@@ -109,8 +144,8 @@ def report_project(
 
     main_table = Table(title=report_table_title)
 
-    main_table.add_column("🏷️  Project", style="cyan", no_wrap=True)
-    main_table.add_column("🧮 Time spent", style="magenta")
+    main_table.add_column("Project", style="cyan", no_wrap=True)
+    main_table.add_column("Time spent", style="magenta")
 
     grouped = get_grouped_records(project, db_content, ALL_PROJECTS)
 
@@ -178,6 +213,7 @@ def report_project(
 
         projects_data.append(project_data)
 
+    # Spacing
     rprint("")
 
     # Add Total if all projects
@@ -191,6 +227,7 @@ def report_project(
     # Print summary report table
     rprint(main_table)
 
+    # Details --details -d
     # Print detailed data
     for data in projects_data:
         if data["details"] is not None:
@@ -232,6 +269,8 @@ def report_project(
 
                     m, _ = divmod(acc_seconds, 60)
                     h, m = divmod(m, 60)
+
+                    # TODO: to extract in a separated function
 
                     rprint("")
                     rprint("┏━━━━━━━━━━━━━━━━━━━━━━━━━━")
