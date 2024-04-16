@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional
 
 import typer
 from rich import print as rprint
@@ -76,8 +76,16 @@ def create_work(
             help="",
         ),
     ] = 1,
+    archived: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--archived",
+            "-a",
+            help="Show archived projects in lists.",
+        ),
+    ] = False,
 ):
-    projects_in_config = get_projects_from_config()
+    projects_in_config = get_projects_from_config(archived)
 
     if project_id in projects_in_config:
         details = get_project_from_config(project_id)

@@ -1,5 +1,6 @@
 import pathlib
 import shutil
+from typing import Annotated, Optional
 
 import typer
 from rich import print as rprint
@@ -8,11 +9,9 @@ from rich.table import Table
 
 from trakcli.config.main import (
     TRAK_FOLDER,
-    get_db_file_path,
 )
 from trakcli.projects.database import (
     get_projects_from_config,
-    get_projects_from_db,
 )
 from trakcli.utils.print_with_padding import print_with_padding
 
@@ -20,14 +19,20 @@ app = typer.Typer()
 
 
 @app.command(help="List your projects.")
-def list():
+def list(
+    archived: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--archived",
+            "-a",
+            help="Show archived projects in lists.",
+        ),
+    ] = False,
+):
     """List the projects."""
 
-    db_path = get_db_file_path()
-
-    projects_in_db = get_projects_from_db(db_path)
-    projects_in_config = get_projects_from_config()
-    combined = {*projects_in_db, *projects_in_config}
+    projects_in_config = get_projects_from_config(archived)
+    combined = {*projects_in_config}
 
     number_of_projects = len(combined)
 
@@ -41,27 +46,8 @@ def list():
     for project in projects_in_config:
         table.add_row(project, "config")
 
-    projects_id_db_only = False
-    for project in projects_in_db:
-        if project not in projects_in_config:
-            projects_id_db_only = True
-            table.add_row(project, "database")
-
     rprint("")
     rprint(table)
-    rprint("")
-    if projects_id_db_only:
-        rprint(
-            Panel.fit(
-                title="Tip",
-                renderable=print_with_padding(
-                    (
-                        "You have projects that don't exist in configuration.\n"
-                        "Plase, run the `trak create project <project-id>` command to configure your project."
-                    )
-                ),
-            )
-        )
 
 
 @app.command(help="Delete a project.")

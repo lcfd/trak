@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional
 from rich.panel import Panel
 from trakcli.projects.utils.print_missing_project import print_with_padding
 
@@ -87,6 +87,14 @@ def list_works(
     done: Annotated[
         bool, typer.Option("--done", "-d", help="Show also done works.")
     ] = False,
+    archived: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--archived",
+            "-a",
+            help="Show archived projects in lists.",
+        ),
+    ] = False,
 ):
     """List the works in a project or all of them."""
 
@@ -105,7 +113,7 @@ def list_works(
             return
     else:
         # Show all current projects
-        projects = get_projects_from_config()
+        projects = get_projects_from_config(archived)
 
         for project in projects:
             works = get_project_works_from_config(project)
