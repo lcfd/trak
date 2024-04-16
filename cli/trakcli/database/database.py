@@ -36,7 +36,7 @@ def init_database(p: Path, initial_value: str = "[]") -> int:
 
 
 def add_session(record: Record):
-    """Add a new session."""
+    """Add a new session to the database."""
 
     db_path = get_db_file_path()
 
