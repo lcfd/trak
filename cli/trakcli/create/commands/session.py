@@ -1,11 +1,12 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Annotated, Optional
 
 import questionary
 import typer
 from rich import print as rprint
-from rich.panel import Panel
 
+from trakcli.create.create_sessions_methods import add_method, sub_method
+from trakcli.create.messages.print_missing_duration import print_missing_duration
 from trakcli.create.messages.print_missing_timings_error import (
     print_missing_timings_error,
 )
@@ -15,27 +16,16 @@ from trakcli.database.models import Record
 from trakcli.projects.database import get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.projects.utils.print_no_projects import print_no_projects
-from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.utils.styles_questionary import questionary_style_select
 
 
 def create_session(
     project_id: Annotated[Optional[str], typer.Argument()] = None,
-    ####################################
-    # Add method: by day, and add hours and minutes
-    today: Annotated[
+    date: Annotated[
         Optional[datetime],
         typer.Option(
-            "--today",
-            help="For a task happend today, just enter a the time.",
-            formats=["%H:%M"],
-        ),
-    ] = None,
-    when: Annotated[
-        Optional[datetime],
-        typer.Option(
-            "--when",
-            "-w",
+            "--date",
+            "-d",
             help="Give the date and time of when you have started the session.",
             formats=["%Y-%m-%dT%H:%M"],
         ),
@@ -56,8 +46,6 @@ def create_session(
             help="Minutes spent in the session.",
         ),
     ] = None,
-    ####################################
-    # Start and stop method
     start: Annotated[
         Optional[datetime],
         typer.Option(
@@ -113,6 +101,8 @@ def create_session(
         ),
     ] = False,
 ):
+    #
+    # Project checking
     projects_in_config = get_projects_from_config()
 
     # Check if there are configured projects
@@ -137,66 +127,50 @@ def create_session(
     if not project_id or project_id not in projects_in_config:
         print_missing_project(projects_in_config)
         return
+    # End project checking
+    #
 
     #
     # Timings
-    #
-
     start_timedate = datetime.today()
     end_timedate = datetime.today()
 
-    # Add method
-    ## This comes first because it has priority by design.
+    if date:
+        #
+        # Add method
+        #
+        # Medium fast, for when user remember when has started the session
+        if not hours and not minutes:
+            # There must be at least hours or minutes if today or date are used
+            print_missing_duration()
 
-    if today or when:
-        # Create the start date for the session
-        if today:
-            start_timedate = start_timedate.replace(
-                hour=today.hour, minute=today.minute
-            )
-        if when:
-            start_timedate = when
-
-        end_timedate = start_timedate
-
-        # Add hours and minutes
-        if hours or minutes:
-            if hours:
-                end_timedate = start_timedate + timedelta(hours=hours)
-            if minutes:
-                end_timedate = start_timedate + timedelta(minutes=minutes)
-
-        else:
-            rprint("")
-            rprint(
-                Panel.fit(
-                    title="[red]Missing duration[/red]",
-                    renderable=print_with_padding(
-                        "You need to provide the duration of the session, in hours or minutes (--minutes or --hours)."
-                    ),
-                )
-            )
             return
-    else:
-        # Start and end datetimes are probably used
-        pass
 
-    # Start and stop method
+        start_timedate, end_timedate = add_method(date, hours, minutes)
 
-    if start and end:
+    elif hours or minutes:
+        #
+        # Sub method
+        #
+        ## Fast, usually good for when a session just finished
+        start_timedate, end_timedate = sub_method(hours, minutes)
+
+    elif start and end:
+        #
+        # Precise method
+        #
+        ## Slow, but useful for precise or automated insertions
         start_timedate = start
         end_timedate = end
+
     else:
-        # This is the last method possible to insert the timings for the new session.
-        # Since "start" and "stop" are more verbose, they serve as the default fallback method.
+        # No data from user
         print_missing_timings_error()
 
         return
 
     #
     # Create the session
-    #
-
     new_session = Record(
         project=project_id,
         start=start_timedate.isoformat(),
@@ -206,11 +180,15 @@ def create_session(
         tag=tag,
     )
 
+    #
+    # Handle dryrun
     if not dryrun:
         add_session(new_session)
     else:
-        rprint("\n[bold orange3] 🛠️  DRY RUN")
+        rprint("\n[bold orange3] 󰙨 DRY RUN[bold orange3]")
 
+    #
+    # Visual output
     print_new_created_session(project_id=project_id, new_session=new_session)
 
     return
