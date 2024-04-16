@@ -6,7 +6,7 @@ from trakcli.config.main import TRAK_FOLDER
 
 
 def get_projects_from_db(db_path: Path):
-    """Get the projects in the database."""
+    """Deprecated. Get the projects in the database."""
 
     with open(db_path, "r") as db:
         db_content = db.read()
@@ -16,7 +16,7 @@ def get_projects_from_db(db_path: Path):
     return {record.get("project", "") for record in parsed_json}
 
 
-def get_projects_from_config():
+def get_projects_from_config(archived: bool | None = False):
     """Get the projects in the config."""
 
     projects_path = pathlib.Path(TRAK_FOLDER / "projects")
@@ -28,7 +28,9 @@ def get_projects_from_config():
             details_path = x / "details.json"
             with open(details_path, "r") as f:
                 details = json.load(f)
-                projects.append(details.get("id", "ERROR: No id!"))
+
+                if not details.get("archived") or archived:
+                    projects.append(details.get("id", "ERROR: No id!"))
 
     return projects
 

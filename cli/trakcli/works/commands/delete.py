@@ -1,13 +1,12 @@
-from typing import Annotated
-from rich.panel import Panel
-from trakcli.projects.utils.print_missing_project import print_missing_project
-from rich.prompt import Confirm
-
+from typing import Annotated, Optional
 
 import typer
 from rich import print as rprint
+from rich.panel import Panel
+from rich.prompt import Confirm
 
 from trakcli.projects.database import get_projects_from_config
+from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.works.database import (
     get_project_works_from_config,
     set_project_works_in_config,
@@ -22,10 +21,18 @@ def delete_work(
             "--in", "--of", "-p", help="The project's id in which the work is located."
         ),
     ],
+    archived: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--archived",
+            "-a",
+            help="Show archived projects in lists.",
+        ),
+    ] = False,
 ):
     """Delete a work from a project."""
 
-    projects = get_projects_from_config()
+    projects = get_projects_from_config(archived)
 
     if project_id in projects:
         delete = Confirm.ask(

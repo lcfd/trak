@@ -100,10 +100,18 @@ def create_session(
             help="Check the session you are about to create, without save it.",
         ),
     ] = False,
+    archived: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--archived",
+            "-a",
+            help="Show archived projects in lists.",
+        ),
+    ] = False,
 ):
     #
     # Project checking
-    projects_in_config = get_projects_from_config()
+    projects_in_config = get_projects_from_config(archived)
 
     # Check if there are configured projects
     if not len(projects_in_config):
