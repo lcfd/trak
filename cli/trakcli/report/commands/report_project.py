@@ -103,15 +103,23 @@ def report_project(
             formats=["%Y-%m-%d"],
         ),
     ] = None,
+    archived: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--archived",
+            "-a",
+            help="Show archived projects in lists.",
+        ),
+    ] = False,
 ):
     """
     Get reports for your projects.
     The projects will be get by the configuration in the .trak folder.
     """
 
-    projects_in_config = get_projects_from_config()
+    projects_in_config = get_projects_from_config(archived)
 
-    projects_in_config.append("all")
+    projects_in_config.append(ALL_PROJECTS)
 
     # Check if there are configured projects
     if not len(projects_in_config):
