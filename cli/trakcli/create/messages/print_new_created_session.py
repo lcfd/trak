@@ -6,6 +6,10 @@ from trakcli.utils.print_with_padding import print_with_padding
 
 
 def print_new_created_session(project_id: str, new_session: Record):
+    start, _, _ = new_session.start.replace("T", " ").partition(".")
+    end, _, _ = new_session.end.replace("T", " ").partition(".")
+    billable = "Yes" if new_session.billable else "No"
+
     rprint("")
     rprint(
         Panel.fit(
@@ -13,10 +17,10 @@ def print_new_created_session(project_id: str, new_session: Record):
             renderable=print_with_padding(
                 (
                     f"[yellow1]Timings[/yellow1]\n"
-                    f"start: {new_session.start.replace('T', ' ')}\n"
-                    f"end: {new_session.end.replace('T', ' ')}\n\n"
+                    f"start: {start}\n"
+                    f"end: {end}\n\n"
                     f"[yellow1]Properties[/yellow1]\n"
-                    f"billable: {'No' if new_session.billable else 'Yes'}\n"
+                    f"billable: {billable}\n"
                     f"category: {new_session.category or 'No category'}\n"
                     f"tag: {new_session.tag or 'No tag'}"
                 )
