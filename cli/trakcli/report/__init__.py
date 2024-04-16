@@ -6,4 +6,3 @@ app = typer.Typer()
 
 
 app.command("project")(report_project)
-app.command("projects")(report_project)
