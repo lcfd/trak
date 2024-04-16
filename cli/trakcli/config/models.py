@@ -9,3 +9,4 @@ class Project(NamedTuple):
     tags: list[str] = []
     customer: str = ""
     rate: int = 1
+    archived: bool = False
