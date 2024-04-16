@@ -44,12 +44,20 @@ def start_tracker(
             help="Add a tag to the tracked time. Useful in the reporting phase.",
         ),
     ] = "",
+    archived: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--archived",
+            "-a",
+            help="Show archived projects in lists.",
+        ),
+    ] = False,
 ):
     """
     Start tracking a project by project_id.
     """
 
-    projects_in_config = get_projects_from_config()
+    projects_in_config = get_projects_from_config(archived)
 
     if not project:
         project = questionary.select(

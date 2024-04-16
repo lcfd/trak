@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Optional
 
 import typer
 from rich import print as rprint
@@ -22,10 +22,18 @@ def done_work(
             "--in", "--of", "-p", help="The project's id in which the work is located."
         ),
     ],
+    archived: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--archived",
+            "-a",
+            help="Show archived projects in lists.",
+        ),
+    ] = False,
 ):
     """Mark as done a work of a project."""
 
-    projects = get_projects_from_config()
+    projects = get_projects_from_config(archived)
 
     if project_id in projects:
         confirm_done = Confirm.ask(
