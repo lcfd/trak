@@ -1,3 +1,4 @@
+from datetime import datetime
 from rich import print as rprint
 from rich.panel import Panel
 
@@ -14,18 +15,25 @@ def stop_tracker():
 
     record = tracking_already_started()
 
+    rprint("")
     if isinstance(record, Record):
         stopped_record = stop_trak_session()
 
-        # TODO: Show the user the duration of the stopped sessions
-        # https://github.com/lcfd/trak/issues/49
         if stopped_record:
+            start_datetime = datetime.fromisoformat(stopped_record.start)
+            end_datetime = datetime.fromisoformat(stopped_record.end)
+            diff = end_datetime - start_datetime
+
+            all_minutes, _ = divmod(diff.seconds, 60)
+            h, m = divmod(all_minutes, 60)
+
             rprint(
                 Panel.fit(
-                    title="⏹️  Stop",
+                    title="[bold green]⏹️ Stop[/bold green]",
                     renderable=print_with_padding(
                         (
                             f"The [bold green]{stopped_record.project}[/bold green] session is over.\n\n"
+                            f"This session lasted [bold green]{h}h {m}m[/bold green].\n\n"
                             "Good job!"
                         )
                     ),
