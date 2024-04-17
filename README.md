@@ -43,7 +43,7 @@ pipx install trakcli
 
 ### Brew
 
-TBA
+`brew install tap lcfd/trak/trak`
 
 ### Nix
 
