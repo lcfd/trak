@@ -39,6 +39,7 @@ def create_project(
         tags = typer.prompt("Tags (CSV format)", default="")
         customer = typer.prompt("Customer", default="")
         hour_rate = typer.prompt("Hour rate", default=1, show_default=True)
+        archived = typer.prompt("Archived", default=False, show_default=True)
 
         if project_id:
             new_project = Project(
@@ -51,6 +52,7 @@ def create_project(
                 tags=[t.strip() for t in tags.split(",")] if tags != "" else [],
                 customer=customer,
                 rate=hour_rate,
+                archived=archived,
             )
 
             with open(details_path, "w") as details_file:

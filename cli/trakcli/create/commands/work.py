@@ -5,7 +5,7 @@ import typer
 from rich import print as rprint
 from rich.panel import Panel
 
-from trakcli.projects.database import get_project_from_config, get_projects_from_config
+from trakcli.projects.database import db_get_project_details, get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.works.database import (
@@ -88,7 +88,7 @@ def create_work(
     projects_in_config = get_projects_from_config(archived)
 
     if project_id in projects_in_config:
-        details = get_project_from_config(project_id)
+        details = db_get_project_details(project_id)
 
         # Check if project esists
         if details:
