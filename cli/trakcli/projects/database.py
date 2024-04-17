@@ -3,6 +3,13 @@ from pathlib import Path
 import pathlib
 
 from trakcli.config.main import TRAK_FOLDER
+from trakcli.config.models import Project
+
+from rich import print as rprint
+
+from trakcli.projects.messages.print_project_broken_configuration import (
+    print_project_broken_configuration,
+)
 
 
 def get_projects_from_db(db_path: Path):
@@ -35,7 +42,7 @@ def get_projects_from_config(archived: bool | None = False):
     return projects
 
 
-def get_project_from_config(project_id: str):
+def db_get_project_details(project_id: str) -> Project | None:
     """Get a project in the config by id."""
 
     project_path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
@@ -44,6 +51,23 @@ def get_project_from_config(project_id: str):
         details_path = project_path / "details.json"
         with open(details_path, "r") as f:
             details = json.load(f)
-        return details
+        try:
+            project = Project(**details)
+        except Exception:
+            print_project_broken_configuration(project_id)
+            return None
+
+        return project
+    else:
+        return None
+
+
+def db_get_project_details_path(project_id: str):
+    """Get project config path."""
+
+    project_path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
+
+    if project_path.exists() and project_path.is_dir():
+        return project_path / "details.json"
     else:
         return None

@@ -14,7 +14,7 @@ from trakcli.config.commands import app as config_app
 from trakcli.create import app as create_app
 from trakcli.dev.commands import app as dev_app
 from trakcli.initialize import initialize_trak
-from trakcli.projects.commands import app as projects_app
+from trakcli.projects import app as projects_app
 from trakcli.report import app as report_app
 from trakcli.tracker.commands.get_current_session_status import (
     get_current_session_status,
