@@ -7,7 +7,7 @@ import typer
 from rich import print as rprint
 from rich.table import Table
 
-from trakcli.projects.database import get_project_from_config, get_projects_from_config
+from trakcli.projects.database import db_get_project_details, get_projects_from_config
 from trakcli.works.database import get_project_works_from_config
 
 ALL_PROJECTS = "all"
@@ -99,7 +99,7 @@ def list_works(
     """List the works in a project or all of them."""
 
     if project_id != ALL_PROJECTS:
-        details = get_project_from_config(project_id)
+        details = db_get_project_details(project_id)
 
         # Check if project esists
         if details:
