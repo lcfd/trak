@@ -18,7 +18,7 @@ def print_session_already_started(record: Record):
     formatted_start_time = start_datetime.strftime("%Y-%m-%d, %H:%M")
 
     msg = (
-        f"Tracking on [bold green]{record.project}[/bold green] "
+        f"Tracking on [bold green]{record.project}[/bold green]"
         f"already started at {formatted_start_time}.\n\n"
         f"It's been going for [bold green]{h}h {m}m[/bold green]."
     )
