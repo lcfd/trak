@@ -11,8 +11,9 @@ def version_callback(value: bool) -> None:
     Print the application version.
     """
     if value:
+        rprint("")
         rprint(
-            Panel(
+            Panel.fit(
                 renderable=Align.center(f"{__app_name__} v{__version__}"),
                 title=__app_name__,
                 padding=(2),
