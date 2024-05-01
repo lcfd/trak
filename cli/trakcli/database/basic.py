@@ -3,12 +3,18 @@ from pathlib import Path
 from rich import print as rprint
 
 from trakcli.config.main import get_db_file_path
+from trakcli.database.models import Record
 from trakcli.utils.file_system.get_json_file_content import get_json_file_content
 
 
-def get_db_content():
+def get_db_content() -> list[Record] | None:
     db_path = get_db_file_path()
-    return get_json_file_content(db_path)
+    sessions_list = get_json_file_content(db_path)
+    try:
+        sessions_list = list(map(lambda session: Record(**session), sessions_list))
+        return sessions_list
+    except Exception:
+        return None
 
 
 def show_json_file_content(file_path: Path):

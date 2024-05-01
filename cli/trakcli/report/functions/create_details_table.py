@@ -2,10 +2,11 @@ from datetime import datetime
 
 from rich.table import Table
 
+from trakcli.database.models import Record
 from trakcli.utils.format_date import format_date
 
 
-def create_details_table(project, records):
+def create_details_table(project: str, records: list[Record]):
     details_table = Table(title=f"Sessions for {project}")
 
     details_table.add_column("Start", style="green", no_wrap=True)
@@ -15,9 +16,12 @@ def create_details_table(project, records):
     details_table.add_column("Hours", style="yellow", no_wrap=True)
     details_table.add_column("Billable")
 
+    # Sort by start date
+    records = sorted(records, key=lambda x: x.start)
+
     for record in records:
-        record_start = record.get("start", "")
-        record_end = record.get("end", "") or datetime.now().isoformat()
+        record_start = record.start
+        record_end = record.end or datetime.now().isoformat()
 
         h, m = 0, 0
 
@@ -31,12 +35,12 @@ def create_details_table(project, records):
             h, m = divmod(m, 60)
 
         details_table.add_row(
-            format_date(record["start"]),
-            format_date(record["end"]) if record["end"] != "" else "🏃 Ongoing",
-            record["category"] or "---",
-            record["tag"] or "---",
+            format_date(record.start),
+            format_date(record.end) if record.end != "" else "🏃 Ongoing",
+            record.category or "---",
+            record.tag or "---",
             f"{h}h {m}m" if record_start != "" else "",
-            "✅" if record["billable"] else "",
+            "✅" if record.billable else "",
         )
 
     return details_table
