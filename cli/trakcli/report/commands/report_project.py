@@ -81,7 +81,6 @@ def report_project(
         bool,
         typer.Option(
             "--year",
-            "-y",
             help="Consider only this year's records.",
         ),
     ] = False,
