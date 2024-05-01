@@ -15,6 +15,7 @@ from trakcli.report.functions.create_details_table import create_details_table
 from trakcli.report.functions.filter_records import filter_records
 from trakcli.report.functions.get_grouped_records import get_grouped_records
 from trakcli.report.functions.get_table_title import get_table_title
+from trakcli.utils.messages.print_error import print_error
 from trakcli.utils.styles_questionary import questionary_style_select
 from trakcli.works.database import get_project_works_from_config
 
@@ -145,6 +146,13 @@ def report_project(
 
     db_content = get_db_content()
 
+    if db_content is None:
+        print_error(
+            title="Corrupted database",
+            text="Check your database, you may have some broken records.",
+        )
+        return
+
     report_table_title = get_table_title(
         today, yesterday, week, month, year, start, end
     )
@@ -185,8 +193,8 @@ def report_project(
         acc_seconds = 0
 
         for record in records:
-            record_start = record.get("start", "")
-            record_end = record.get("end", "")
+            record_start = record.start
+            record_end = record.end
 
             if record_start != "" and record_end != "":
                 start_datetime = datetime.fromisoformat(record_start)
