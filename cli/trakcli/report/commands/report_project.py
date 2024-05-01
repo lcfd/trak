@@ -35,7 +35,7 @@ def report_project(
         bool,
         typer.Option(
             "--works",
-            help="Works",  # TODO: Add better documentation
+            help="Show the works related to the project.",
         ),
     ] = False,
     details: Annotated[
@@ -170,7 +170,7 @@ def report_project(
             records = filter_records(
                 records=grouped[g],
                 billable=True,
-                yesterday=yesterday,
+                yesterday=None,
                 today=None,
                 week=None,
                 month=None,
