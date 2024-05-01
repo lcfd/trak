@@ -4,6 +4,7 @@ import typer
 from rich.console import Console
 
 from trakcli.callbacks import (
+    docs_callback,
     issues_callback,
     report_bug_callback,
     repository_callback,
@@ -87,6 +88,13 @@ def main(
         "-b",
         help="Report a bug on Github.",
         callback=report_bug_callback,
+        is_eager=True,
+    ),
+    docs: Optional[bool] = typer.Option(
+        None,
+        "--docs",
+        help="Launch the documentation website.",
+        callback=docs_callback,
         is_eager=True,
     ),
 ) -> None:
