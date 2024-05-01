@@ -3,7 +3,13 @@ from rich import print as rprint
 from rich.align import Align
 from rich.panel import Panel
 
-from trakcli.__init__ import __app_name__, __git_repository__, __version__, __website__
+from trakcli.__init__ import (
+    __app_name__,
+    __git_repository__,
+    __version__,
+    __website__,
+    __docs__,
+)
 
 
 def version_callback(value: bool) -> None:
@@ -55,4 +61,13 @@ def report_bug_callback(value: bool) -> None:
     """
     if value:
         typer.launch("https://github.com/lcfd/trak/issues/new")
+        raise typer.Exit()
+
+
+def docs_callback(value: bool) -> None:
+    """
+    Launch the docs.usetrak.com website.
+    """
+    if value:
+        typer.launch(__docs__)
         raise typer.Exit()
