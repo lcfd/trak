@@ -5,7 +5,6 @@ import pathlib
 from trakcli.config.main import TRAK_FOLDER
 from trakcli.config.models import Project
 
-from rich import print as rprint
 
 from trakcli.projects.messages.print_project_broken_configuration import (
     print_project_broken_configuration,

@@ -1,13 +1,13 @@
 from typing import Annotated, Optional
 
 import typer
-from rich import print as rprint
-from rich.panel import Panel
 from rich.prompt import Confirm
 
 from trakcli.projects.database import get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.messages.print_error import print_error
+from trakcli.utils.messages.print_success import print_success
+from trakcli.utils.messages.print_warning import print_warning
 from trakcli.works.database import (
     get_project_works_from_config,
     set_project_works_in_config,
@@ -41,8 +41,10 @@ def done_work(
             default=False,
         )
         if not confirm_done:
-            rprint("")
-            rprint("[yellow]Not marked as done.[/yellow]")
+            print_warning(
+                title="Not marked as done",
+                text=f"The {work_id} work hasn't been marked as done.",
+            )
             raise typer.Abort()
 
         works = get_project_works_from_config(project_id)
@@ -55,25 +57,17 @@ def done_work(
 
                 set_project_works_in_config(project_id, filtered_works)
 
-                rprint("")
-                rprint(
-                    Panel.fit(
-                        title="[green]Success[/green]",
-                        renderable=f"Work {work_id} successfully from {project_id} project marked as done.",
-                    )
+                print_success(
+                    title="Success",
+                    text=f"Work {work_id} successfully from {project_id} project marked as done.",
                 )
             else:
-                rprint("")
-                rprint(
-                    Panel.fit(
-                        title="[red]The work doesn't exist[/red]",
-                        renderable=print_with_padding(
-                            (
-                                "You can create a new work with the command:\n"
-                                "trak create work <work_id> -p <project_id> -n <name> -t <hours> --from 2024-01-01 --to 2024-02-01"
-                            )
-                        ),
-                    )
+                print_error(
+                    title="[red]The work doesn't exist[/red]",
+                    text=(
+                        "You can create a new work with the command:\n"
+                        "trak create work <work_id> -p <project_id> -n <name> -t <hours> --from 2024-01-01 --to 2024-02-01"
+                    ),
                 )
 
                 return

@@ -3,8 +3,6 @@ from typing import Annotated, Optional
 
 import questionary
 import typer
-from rich import print as rprint
-from rich.panel import Panel
 
 from trakcli.database.database import add_session, tracking_already_started
 from trakcli.database.models import Record
@@ -13,7 +11,7 @@ from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.tracker.messages.print_session_already_started import (
     print_session_already_started,
 )
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.messages.print_success import print_success
 from trakcli.utils.styles_questionary import questionary_style_select
 
 
@@ -88,16 +86,9 @@ def start_tracker(
                 tag=tag,
             )
         )
-        rprint(
-            Panel.fit(
-                title="▶️  Start",
-                renderable=print_with_padding(
-                    (
-                        f"[bold green]{project}[/bold green] started.\n\n"
-                        "Have a good session!"
-                    )
-                ),
-            )
+        print_success(
+            title="▶️  Start",
+            text=(f"[green]{project}[/green] started.\n\n" "Have a good session!"),
         )
     else:
         print_session_already_started(record)
