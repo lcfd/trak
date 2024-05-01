@@ -51,7 +51,7 @@ dependencies = [
     "questionary>=2.0.1",
 ]
 name = "trakcli"
-version = "0.0.4"
+version = "0.0.5"
 description = "Keep a record of the time you dedicate to your projects."
 readme = "README.md"
 keywords = ["cli", "timetraker", "time", "traker", "tool"]
