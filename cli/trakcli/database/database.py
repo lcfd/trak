@@ -83,6 +83,9 @@ def stop_trak_session():
             style=questionary_style_select,
         ).ask()
 
+        if session_index is None:
+            return
+
     elif len(current_sessions_indexes) == 1:
         session_index = current_sessions_indexes[0][0]
 
