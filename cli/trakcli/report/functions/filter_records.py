@@ -24,24 +24,26 @@ def filter_records(
         records = [
             record
             for record in records
-            if record["end"]
-            and datetime.fromisoformat(record["end"]).date()
+            if record["start"]
+            and record["end"]
+            and datetime.fromisoformat(record["start"]).date()
             == datetime.today().date() - timedelta(1)
         ]
     elif today:
         records = [
             record
             for record in records
-            if record["end"]
-            and datetime.fromisoformat(record["end"]).date() == datetime.today().date()
+            if record["start"]
+            and datetime.fromisoformat(record["start"]).date()
+            == datetime.today().date()
         ]
     elif week:
         records = [
             record
             for record in records
-            if record["end"]
+            if record["start"]
             and same_week(
-                datetime.fromisoformat(record["end"]).date().strftime("%Y%m%d"),
+                datetime.fromisoformat(record["start"]).date().strftime("%Y%m%d"),
             )
         ]
     elif month:
@@ -49,23 +51,30 @@ def filter_records(
             record
             for record in records
             if record["start"]
-            and record["end"]
-            and datetime.fromisoformat(record["end"]).month == actual_month
-            and datetime.fromisoformat(record["end"]).year == actual_year
+            and datetime.fromisoformat(record["start"]).month == actual_month
+            and datetime.fromisoformat(record["start"]).year == actual_year
         ]
     elif start is not None and end is None:
         records = [
             record
             for record in records
+            if record.get("start", "") != ""
+            and datetime.fromisoformat(record["start"]).date() == start.date()
+        ]
+    elif start is None and end is not None:
+        records = [
+            record
+            for record in records
             if record.get("end", "") != ""
-            and datetime.fromisoformat(record["end"]).date() == start.date()
+            and datetime.fromisoformat(record["end"]).date() == end.date()
         ]
     elif start is not None and end is not None:
         records = [
             record
             for record in records
             if record.get("end", "") != ""
-            and datetime.fromisoformat(record["end"]).date() >= start.date()
+            and record.get("start", "") != ""
+            and datetime.fromisoformat(record["start"]).date() >= start.date()
             and datetime.fromisoformat(record["end"]).date() <= end.date()
         ]
 
