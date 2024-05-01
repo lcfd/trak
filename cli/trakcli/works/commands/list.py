@@ -1,13 +1,12 @@
 from datetime import datetime
 from typing import Annotated, Optional
-from rich.panel import Panel
-from trakcli.projects.utils.print_missing_project import print_with_padding
 
 import typer
 from rich import print as rprint
 from rich.table import Table
 
 from trakcli.projects.database import db_get_project_details, get_projects_from_config
+from trakcli.utils.messages.print_error import print_error
 from trakcli.works.database import get_project_works_from_config
 
 ALL_PROJECTS = "all"
@@ -67,18 +66,13 @@ def print_project_works(works, project_id):
 
         return
     else:
-        rprint("")
-        rprint(
-            Panel.fit(
-                title="[red]No works[/red]",
-                renderable=print_with_padding(
-                    (
-                        "You do not have any active work currently for this project.\n\n"
-                        "You can create one with the command:\n"
-                        "trak create work <work_id> -p <project_id> -n <name> -t <hours> --from 2024-01-01 --to 2024-02-01"
-                    )
-                ),
-            )
+        print_error(
+            title="No works",
+            text=(
+                "You do not have any active work currently for this project.\n\n"
+                "You can create one with the command:\n"
+                "trak create work <work_id> -p <project_id> -n <name> -t <hours> --from 2024-01-01 --to 2024-02-01"
+            ),
         )
 
 

@@ -4,7 +4,6 @@ from typing import Annotated, Optional
 import questionary
 import typer
 
-from trakcli.config.models import Project
 from trakcli.projects.database import (
     db_get_project_details,
     db_get_project_details_path,
@@ -19,7 +18,6 @@ from trakcli.projects.messages.print_project_broken_configuration import (
 from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.projects.utils.print_no_projects import print_no_projects
 from trakcli.utils.styles_questionary import questionary_style_select
-from rich import print as rprint
 
 
 def command_project_archive(project: Annotated[Optional[str], typer.Argument()] = None):

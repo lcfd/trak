@@ -1,13 +1,12 @@
 from datetime import datetime
 
-from rich import print
-from rich.panel import Panel
-
 from trakcli.database.models import Record
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.messages.print_info import print_info
 
 
 def print_session_already_started(record: Record):
+    """Notify the user that a session is already ongoing."""
+
     start_datetime = datetime.fromisoformat(record.start)
     now = datetime.now()
     diff = now - start_datetime
@@ -18,17 +17,11 @@ def print_session_already_started(record: Record):
     formatted_start_time = start_datetime.strftime("%Y-%m-%d, %H:%M")
 
     msg = (
-        f"Tracking on [bold green]{record.project}[/bold green]"
+        f"Tracking on [bold green]{record.project}[/bold green] "
         f"already started at {formatted_start_time}.\n\n"
         f"It's been going for [bold green]{h}h {m}m[/bold green]."
     )
 
-    print("")
-    print(
-        Panel.fit(
-            title="💬 Already started",
-            renderable=print_with_padding(msg),
-        )
-    )
+    print_info(title="Session already started", text=msg)
 
     return

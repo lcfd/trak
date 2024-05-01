@@ -1,10 +1,10 @@
 from datetime import datetime
-from rich import print as rprint
-from rich.panel import Panel
 
 from trakcli.database.database import stop_trak_session, tracking_already_started
 from trakcli.database.models import Record
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.messages.print_error import print_error
+from trakcli.utils.messages.print_info import print_info
+from trakcli.utils.messages.print_success import print_success
 
 
 def stop_tracker():
@@ -15,7 +15,6 @@ def stop_tracker():
 
     record = tracking_already_started()
 
-    rprint("")
     if isinstance(record, Record):
         stopped_record = stop_trak_session()
 
@@ -27,36 +26,27 @@ def stop_tracker():
             all_minutes, _ = divmod(diff.seconds, 60)
             h, m = divmod(all_minutes, 60)
 
-            rprint(
-                Panel.fit(
-                    title="[bold green]⏹️ Stop[/bold green]",
-                    renderable=print_with_padding(
-                        (
-                            f"The [bold green]{stopped_record.project}[/bold green] session is over.\n\n"
-                            f"This session lasted [bold green]{h}h {m}m[/bold green].\n\n"
-                            "Good job!"
-                        )
-                    ),
-                )
-            )
-        else:
-            rprint(
-                Panel.fit(
-                    title="🚨 [red]Error[/red]",
-                    renderable=print_with_padding(
-                        ("Check your database, there must be something wrong in it.")
-                    ),
-                )
-            )
-    else:
-        rprint(
-            Panel.fit(
-                title="💬 No active sessions",
-                renderable=print_with_padding(
-                    (
-                        "There aren't active sessions.\n\n"
-                        "Use the command: trak start <project name> to start a new session of work."
-                    )
+            print_success(
+                title="⏹️ Stop",
+                text=(
+                    f"The [bold green]{stopped_record.project}[/bold green] session is over.\n\n"
+                    f"This session lasted [bold green]{h}h {m}m[/bold green].\n\n"
+                    "Good job!"
                 ),
             )
+        else:
+            print_error(
+                title="Project not provided",
+                text=(
+                    "There are multiple sessions running.\n\n"
+                    "You need to pick a project from the list."
+                ),
+            )
+    else:
+        print_info(
+            title="No active sessions",
+            text=(
+                "There aren't active sessions to stop.\n\n"
+                'Use the command "trak start" to start a new session of work.'
+            ),
         )
