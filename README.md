@@ -47,17 +47,17 @@ pipx install trakcli
 
 ### Nix
 
-If you have [Nix](https://nixos.org/download.html) installed and flakes enabled, you can try trak using:
+Try it:
 
 ```bash
-nix run github:lcfd/trak
+nix shell nixpkgs/master#trak
 ```
 
-The package will be built from source, so it might take a while.
+Install it:
 
-You can pass arguments like this:
-
-`nix run github:lcfd/trak -- --help`
+```bash
+nix profile install nixpkgs/master#trak
+```
 
 ### Local
 
