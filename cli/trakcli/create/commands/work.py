@@ -1,32 +1,29 @@
 from datetime import datetime
 from typing import Annotated, Optional
 
+import questionary
 import typer
 from rich import print as rprint
 from rich.panel import Panel
 
 from trakcli.projects.database import db_get_project_details, get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
+from trakcli.projects.utils.print_no_projects import print_no_projects
+from trakcli.utils.messages.print_error import print_error
+from trakcli.utils.messages.print_success import print_success
 from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.works.database import (
     get_project_works_from_config,
     set_project_works_in_config,
 )
 from trakcli.works.models import Work
+from trakcli.utils.styles_questionary import questionary_style_select
 
 
 def create_work(
-    id: Annotated[
+    work_id: Annotated[
         str,
         typer.Argument(help="The id for the new work."),
-    ],
-    project_id: Annotated[
-        str,
-        typer.Option(
-            "--project-id",
-            "-p",
-            help="The id of the project where the new work will be placed.",
-        ),
     ],
     name: Annotated[
         str,
@@ -41,25 +38,29 @@ def create_work(
         typer.Option(
             "--time",
             "-t",
-            help="",
+            help="Budgeted time.",
         ),
     ],
     from_date: Annotated[
         datetime,
         typer.Option(
             "--from",
-            help="",
-            formats=["%Y-%m-%d"],
+            help="Start date of the work.",
+            formats=["%Y-%m-%dT%H:%M"],
         ),
     ],
     to_date: Annotated[
         datetime,
         typer.Option(
             "--to",
-            help="",
-            formats=["%Y-%m-%d"],
+            help="End date of the work.",
+            formats=["%Y-%m-%dT%H:%M"],
         ),
     ],
+    project_id: Annotated[
+        Optional[str],
+        typer.Argument(help="The id of the project."),
+    ] = None,
     description: Annotated[
         str,
         typer.Option(
@@ -73,7 +74,7 @@ def create_work(
         typer.Option(
             "--rate",
             "-r",
-            help="",
+            help="The rate you want to be paid per hour.",
         ),
     ] = 1,
     archived: Annotated[
@@ -86,6 +87,28 @@ def create_work(
     ] = False,
 ):
     projects_in_config = get_projects_from_config(archived)
+
+    # Check if there are configured projects
+    if not len(projects_in_config):
+        print_no_projects()
+        return
+
+    if not project_id:
+        project_id = questionary.select(
+            "Select a project:",
+            choices=projects_in_config,
+            pointer="• ",
+            show_selected=True,
+            style=questionary_style_select,
+        ).ask()
+
+        if not project_id:
+            return
+
+    if project_id not in projects_in_config:
+        print_missing_project(projects_in_config)
+
+        return
 
     if project_id in projects_in_config:
         details = db_get_project_details(project_id)
@@ -111,7 +134,7 @@ def create_work(
                     return
 
             new_work = Work(
-                id=id,
+                id=work_id,
                 name=name,
                 time=time,
                 rate=rate,
@@ -129,24 +152,16 @@ def create_work(
 
             set_project_works_in_config(project_id, works)
 
-            rprint("")
-            rprint(
-                Panel.fit(
-                    title="[green]Work created[/green]",
-                    renderable=print_with_padding(f"Work {id} created."),
-                )
+            print_success(
+                title="Work created",
+                text=f"Work {id} created.",
             )
 
             return
         else:
-            rprint("")
-            rprint(
-                Panel.fit(
-                    title="[red]Error in config[/red]",
-                    renderable=print_with_padding(
-                        "Error in/with details file in project's configuration."
-                    ),
-                )
+            print_error(
+                title="Error in config",
+                text="Error in details file in project's configuration.",
             )
 
             return

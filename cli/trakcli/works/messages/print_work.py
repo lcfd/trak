@@ -33,6 +33,8 @@ def print_work(
     # Workable hours
     today_to_deadline_days = (end - datetime.today()).days
 
+    paid = "✅" if work.get("paid", False) else "❌"
+
     # Header
     rprint(
         Padding(
@@ -44,7 +46,7 @@ def print_work(
                 f"[green]{work['name']}[/green] [blue]({work['id']})[/blue]\n"
                 "---\n"
                 f"Start: {start_date.strftime('%y-%m-%d')} || End: {end_date.strftime('%y-%m-%d')}\n"
-                f"project: {project}\n"
+                f"project: {project} || Paid: {paid}\n"
                 "--------------------------------------------------------------\n"
                 # "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 "\n"
