@@ -1,11 +1,9 @@
 import json
 
 import typer
-from rich import print as rprint
-from rich.json import JSON
-from rich.panel import Panel
 
-from trakcli.config.main import CONFIG_FILE_PATH, get_config
+from trakcli.config.main import get_config
+from trakcli.utils.messages.print_info import print_info
 
 app = typer.Typer()
 
@@ -16,9 +14,7 @@ def show():
 
     CONFIG = get_config()
 
-    rprint(
-        Panel(
-            title=f"Your config file {CONFIG_FILE_PATH}",
-            renderable=JSON(json.dumps(CONFIG)),
-        )
+    print_info(
+        title="Your config file",
+        text=json.dumps(CONFIG, indent=4),
     )
