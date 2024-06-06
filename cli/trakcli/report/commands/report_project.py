@@ -268,8 +268,8 @@ def report_project(
                     work_time = pw.get("time", None)
 
                     for record in filtered_records:
-                        record_start = record.get("start", "")
-                        record_end = record.get("end", "")
+                        record_start = record.start
+                        record_end = record.end
 
                         if record_start != "" and record_end != "":
                             start_datetime = datetime.fromisoformat(record_start)
