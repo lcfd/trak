@@ -4,7 +4,6 @@ from typing import Annotated, Optional
 import questionary
 import typer
 from rich import print as rprint
-from rich.progress import Progress
 from rich.table import Table
 
 from trakcli.database.basic import get_db_content
@@ -18,6 +17,7 @@ from trakcli.report.functions.get_table_title import get_table_title
 from trakcli.utils.messages.print_error import print_error
 from trakcli.utils.styles_questionary import questionary_style_select
 from trakcli.works.database import get_project_works_from_config
+from trakcli.works.messages.print_work import print_work
 
 ALL_PROJECTS = "all"
 
@@ -265,8 +265,6 @@ def report_project(
 
                     acc_seconds = 0
 
-                    work_time = pw.get("time", None)
-
                     for record in filtered_records:
                         record_start = record.start
                         record_end = record.end
@@ -285,43 +283,13 @@ def report_project(
                     m, _ = divmod(acc_seconds, 60)
                     h, m = divmod(m, 60)
 
-                    # TODO: to extract in a separated function
-
-                    rprint("")
-                    rprint("┏━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                    rprint(f"┃ [blue]Work {pw['id']}")
-                    rprint(f"┃ [green]{pw['name']}")
-                    rprint("┃ ---")
-                    rprint(f"┃ start: {start_date}, end: {end_date}")
-                    rprint(f"┃ project: {data['project']}")
-                    rprint("┡━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                    rprint("│ ")
-                    with Progress() as progress:
-                        rprint("│ [blue]Used time budget:")
-                        rprint(f"│ Total: {pw['time']} hours")
-                        rprint(f"│ Used: {h} hours {m} minutes ")
-                        task = progress.add_task("", total=work_time * 3600)
-                        progress.update(task, advance=acc_seconds)
-                    rprint("│ ")
-                    with Progress() as progress:
-                        rprint("│ [blue]Closeness to the deadline:")
-                        start = datetime.strptime(pw.get("from_date"), "%Y-%m-%dT%H:%M")
-                        end = datetime.strptime(pw.get("to_date"), "%Y-%m-%dT%H:%M")
-                        work_duration_days = (end - start).days
-                        today_to_deadline_days = (end - datetime.today()).days
-                        today_from_start_days = (datetime.today() - start).days
-                        rprint(f"│ Total: {work_duration_days} days")
-                        rprint(f"│ Remaining: {today_to_deadline_days} days")
-                        task = progress.add_task("", total=work_duration_days)
-                        progress.update(task, advance=today_from_start_days)
-                    rprint("│ ")
-                    rprint("│ [blue]Workable hours (8h/day) until deadline:")
-                    today_to_deadline_days = (end - datetime.today()).days
-                    rprint(
-                        f"│ {(today_to_deadline_days  *24) / 8} hours in {today_to_deadline_days} days"
+                    print_work(
+                        work=pw,
+                        start_date=start_date,
+                        end_date=end_date,
+                        project=data["project"],
+                        hours=h,
+                        minutes=m,
+                        work_time=pw.get("time", None),
+                        totSeconds=acc_seconds,
                     )
-                    rprint("│ ")
-                    rprint("│ [blue]Value of your work so far:")
-                    rprint(f"│ {pw['rate']*h}€")
-                    rprint("│ ")
-                    rprint("└━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
