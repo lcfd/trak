@@ -9,7 +9,7 @@ def init_config(p: Path) -> int:
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("w", encoding="utf-8") as db:
             json.dump(
-                {"development": False, "projects": []},
+                {"development": False},
                 db,
                 indent=2,
                 separators=(",", ": "),
