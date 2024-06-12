@@ -9,6 +9,7 @@ from rich.panel import Panel
 from trakcli.projects.database import db_get_project_details, get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.projects.utils.print_no_projects import print_no_projects
+from trakcli.utils.datetime_to_string import datetime_to_string
 from trakcli.utils.messages.print_error import print_error
 from trakcli.utils.messages.print_success import print_success
 from trakcli.utils.print_with_padding import print_with_padding
@@ -18,6 +19,7 @@ from trakcli.works.database import (
 )
 from trakcli.works.models import Work
 from trakcli.utils.styles_questionary import questionary_style_select
+from trakcli.utils.messages.print_warning import print_warning
 
 
 def create_work(
@@ -110,6 +112,8 @@ def create_work(
 
         return
 
+    print(from_date, to_date)
+
     if project_id in projects_in_config:
         details = db_get_project_details(project_id)
 
@@ -120,15 +124,15 @@ def create_work(
             # Check if id already exists
             if works is not None:
                 work_ids = [w["id"] for w in works]
-                if id in work_ids:
-                    rprint("")
-                    rprint(
-                        Panel.fit(
-                            title="[yellow]This work id already exists[/yellow]",
-                            renderable=print_with_padding(
-                                "You should change the id parameter or you can just use the work already in the configuration."
-                            ),
-                        )
+                if work_id in work_ids:
+                    print_warning(
+                        title="This work already exists",
+                        text=(
+                            f'The id "{work_id}" has already been used in the "{project_id}" project.\n\n'
+                            f'You can check ALL the works in the project "{project_id}" by using the command:\n'
+                            f"trak works list {project_id} --done\n\n"
+                            "Use a different value for work_id."
+                        ),
                     )
 
                     return
@@ -138,8 +142,8 @@ def create_work(
                 name=name,
                 time=time,
                 rate=rate,
-                from_date=from_date.strftime("%Y-%d-%m"),
-                to_date=to_date.strftime("%Y-%d-%m"),
+                from_date=datetime_to_string(from_date),
+                to_date=datetime_to_string(to_date),
                 description=description,
                 done=False,
                 paid=False,
@@ -154,7 +158,7 @@ def create_work(
 
             print_success(
                 title="Work created",
-                text=f"Work {id} created.",
+                text=f"Work [green]{work_id}[/green] created.",
             )
 
             return
