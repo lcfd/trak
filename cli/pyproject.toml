@@ -32,7 +32,11 @@ ruff = "^0.0.292"
 
 [tool.pdm]
 [tool.pdm.dev-dependencies]
-dev = ["black>=23.9.1", "ruff<1.0.0,>=0.0.292", "pytest>=7.4.4"]
+dev = [
+    "black>=23.9.1",
+    "ruff<1.0.0,>=0.0.292",
+    "pytest>=7.4.4",
+]
 
 [tool.pdm.build]
 includes = []
