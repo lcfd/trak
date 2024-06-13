@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import pathlib
 
+
 from trakcli.config.main import TRAK_FOLDER
 from trakcli.config.models import Project
 
@@ -9,6 +10,7 @@ from trakcli.config.models import Project
 from trakcli.projects.messages.print_project_broken_configuration import (
     print_project_broken_configuration,
 )
+from trakcli.utils.messages.print_error import print_error
 
 
 def get_projects_from_db(db_path: Path):
@@ -27,7 +29,7 @@ def get_projects_from_config(archived: bool | None = False):
 
     projects_path = pathlib.Path(TRAK_FOLDER / "projects")
 
-    projects = []
+    projects: list[str] = []
 
     for x in projects_path.iterdir():
         if x.is_dir():
@@ -36,7 +38,14 @@ def get_projects_from_config(archived: bool | None = False):
                 details = json.load(f)
 
                 if not details.get("archived") or archived:
-                    projects.append(details.get("id", "ERROR: No id!"))
+                    id = details.get("id", None)
+                    if id:
+                        projects.append(id)
+                    else:
+                        print_error(
+                            title="Missing id",
+                            text=f"The project {str(x)} doesn't have an id.",
+                        )
 
     return projects
 
