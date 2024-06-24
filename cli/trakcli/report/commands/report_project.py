@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated, Optional, TypedDict
 
 import questionary
 import typer
@@ -7,6 +7,7 @@ from rich import print as rprint
 from rich.table import Table
 
 from trakcli.database.basic import get_db_content
+from trakcli.database.models import Record
 from trakcli.projects.database import get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
 from trakcli.projects.utils.print_no_projects import print_no_projects
@@ -18,8 +19,16 @@ from trakcli.utils.messages.print_error import print_error
 from trakcli.utils.styles_questionary import questionary_style_select
 from trakcli.works.database import get_project_works_from_config
 from trakcli.works.messages.print_work import print_work
+from trakcli.works.models import Work
 
 ALL_PROJECTS = "all"
+
+
+class ProjectData(TypedDict):
+    project: str
+    details: Table | None
+    works: list[Work]
+    records: list[Record]
 
 
 def report_project(
@@ -168,7 +177,7 @@ def report_project(
     # Accumulators
     #
 
-    projects_data = []
+    projects_data: list[ProjectData] = []
     total_acc_seconds = 0
 
     for g in grouped:
@@ -213,7 +222,12 @@ def report_project(
 
         main_table.add_row(g, f"[bold]{h}h {m}m[/bold]")
 
-        project_data = {"project": g, "details": None, "works": [], "records": records}
+        project_data: ProjectData = {
+            "project": g,
+            "details": None,
+            "works": [],
+            "records": records,
+        }
 
         if len(records):
             if details:
@@ -223,7 +237,7 @@ def report_project(
                 project_works = get_project_works_from_config(g)
                 if project_works is not None:
                     for work in project_works:
-                        if work.get("done") is not True:
+                        if work.done is not True:
                             project_data["works"].append(work)
 
         projects_data.append(project_data)
@@ -253,8 +267,8 @@ def report_project(
         if project_works is not None and works is True:
             if len(project_works):
                 for pw in project_works:
-                    start_date_string = pw.get("from_date")
-                    end_date_string = pw.get("to_date")
+                    start_date_string = pw.from_date
+                    end_date_string = pw.to_date
                     start_date = datetime.strptime(start_date_string, "%Y-%m-%dT%H:%M")
                     end_date = datetime.strptime(end_date_string, "%Y-%m-%dT%H:%M")
 
@@ -290,6 +304,6 @@ def report_project(
                         project=data["project"],
                         hours=h,
                         minutes=m,
-                        work_time=pw.get("time", None),
+                        work_time=pw.time,
                         totSeconds=acc_seconds,
                     )
