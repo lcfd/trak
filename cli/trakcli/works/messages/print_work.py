@@ -5,10 +5,11 @@ from rich.padding import Padding
 
 from trakcli.config.main import get_config
 from trakcli.utils.PercentageBar import PercentageBar
+from trakcli.works.models import Work
 
 
 def print_work(
-    work,
+    work: Work,
     start_date: datetime,
     end_date: datetime,
     project: str,
@@ -24,8 +25,8 @@ def print_work(
     currency = CONFIG["currency"] if CONFIG["currency"] else "M"
 
     # Closeness to deadline
-    start = datetime.strptime(work.get("from_date"), "%Y-%m-%dT%H:%M")
-    end = datetime.strptime(work.get("to_date"), "%Y-%m-%dT%H:%M")
+    start = datetime.strptime(work.from_date, "%Y-%m-%dT%H:%M")
+    end = datetime.strptime(work.to_date, "%Y-%m-%dT%H:%M")
     work_duration_days = (end - start).days
     today_to_deadline_days = (end - datetime.today()).days
     today_from_start_days = (datetime.today() - start).days
@@ -33,7 +34,7 @@ def print_work(
     # Workable hours
     today_to_deadline_days = (end - datetime.today()).days
 
-    paid = "✅" if work.get("paid", False) else "❌"
+    paid = "✅" if work.paid else "❌"
 
     # Header
     rprint(
@@ -43,7 +44,7 @@ def print_work(
                 "⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿ W O R K ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦\n"
                 # "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 "--------------------------------------------------------------\n"
-                f"[green]{work['name']}[/green] [blue]({work['id']})[/blue]\n"
+                f"[green]{work.name}[/green] [blue]({work.id})[/blue]\n"
                 "---\n"
                 f"Start: {start_date.strftime('%y-%m-%d')} || End: {end_date.strftime('%y-%m-%d')}\n"
                 f"project: {project} || Paid: {paid}\n"
@@ -51,7 +52,7 @@ def print_work(
                 # "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 "\n"
                 "[blue]Used time budget:[/blue]\n"
-                f"Total: {work['time']} hours\n"
+                f"Total: {work.time} hours\n"
                 f"Used: {hours} hours {minutes} minutes\n"
                 f"{PercentageBar(work_time * 3600, totSeconds)}"
                 "\n"
@@ -65,8 +66,8 @@ def print_work(
                 "[blue]Workable hours (8h/day) until deadline:[/blue]\n"
                 f"{(today_to_deadline_days  *24) / 8} hours in {today_to_deadline_days} days\n"
                 "\n"
-                f"[blue]Value of your work so far at {work['rate']}{currency} per hour:[/blue]\n"
-                f"[green]{work['rate']*hours}{currency}[/green]\n"
+                f"[blue]Value of your work so far at {work.rate}{currency} per hour:[/blue]\n"
+                f"[green]{work.rate*hours}{currency}[/green]\n"
                 # "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 "--------------------------------------------------------------\n"
                 "⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟\n"
