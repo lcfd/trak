@@ -3,8 +3,6 @@ from typing import Annotated, Optional
 
 import questionary
 import typer
-from rich import print as rprint
-from rich.panel import Panel
 
 from trakcli.projects.database import db_get_project_details, get_projects_from_config
 from trakcli.projects.utils.print_missing_project import print_missing_project
@@ -12,7 +10,6 @@ from trakcli.projects.utils.print_no_projects import print_no_projects
 from trakcli.utils.datetime_to_string import datetime_to_string
 from trakcli.utils.messages.print_error import print_error
 from trakcli.utils.messages.print_success import print_success
-from trakcli.utils.print_with_padding import print_with_padding
 from trakcli.works.database import (
     get_project_works_from_config,
     set_project_works_in_config,
@@ -123,7 +120,7 @@ def create_work(
 
             # Check if id already exists
             if works is not None:
-                work_ids = [w["id"] for w in works]
+                work_ids = [w.id for w in works]
                 if work_id in work_ids:
                     print_warning(
                         title="This work already exists",
@@ -150,9 +147,9 @@ def create_work(
             )
 
             if works is not None:
-                works.append(new_work._asdict())
+                works.append(new_work)
             else:
-                works = [new_work._asdict()]
+                works = [new_work]
 
             set_project_works_in_config(project_id, works)
 
