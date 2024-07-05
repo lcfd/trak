@@ -1,8 +1,6 @@
-import json
 from pathlib import Path
 
 from trakcli.utils.file_system.get_json_file_content import get_json_file_content
-
 
 #
 # Paths
