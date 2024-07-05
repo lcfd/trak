@@ -1,5 +1,4 @@
 from datetime import datetime
-from questionary import text
 from rich.table import Table
 from rich import print as rprint
 
