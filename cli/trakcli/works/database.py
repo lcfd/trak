@@ -26,7 +26,7 @@ def get_project_works_from_config(project_id: str):
         return None
 
 
-def set_project_works_in_config(project_id: str, works: list[dict]):
+def set_project_works_in_config(project_id: str, works: list[Work]):
     """Get the project works in the config by id."""
 
     project_path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
@@ -35,6 +35,11 @@ def set_project_works_in_config(project_id: str, works: list[dict]):
         works_path = project_path / "works.json"
         if works_path.exists() and works_path.is_file():
             with open(works_path, "w") as works_file:
-                json.dump(works, works_file, indent=2, separators=(",", ": "))
+                json.dump(
+                    [w._asdict() for w in works],
+                    works_file,
+                    indent=2,
+                    separators=(",", ": "),
+                )
     else:
         return None
