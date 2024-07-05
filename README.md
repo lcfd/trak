@@ -125,3 +125,24 @@ This way you can stay updated on the state of your session wherever you integrat
 ### Create dist tar
 
 `tar --exclude=".venv" --exclude="dist" --exclude=".mypy_cache" --exclude=".pytest_cache" --exclude="**/__pycache__" -czvf dist.tar.gz cli`
+
+## How to contribute to the project
+
+### Things you should know
+
+Every version has its own dedicated branch.
+
+For example: `0.0.6`.
+All the changes done during this version development time will go into this branch.
+
+### Steps
+
+- Keep an issue from the Issues
+  - If it doesn't exit create one
+- Create a branch starting from the next version branch
+  - The name of the issue should be `issue-<ISSUE NUMBER>`
+- Do you magic 🪄 🐇
+- Once you finish create a pull request to the next version branch
+  - In the description add `Closes #<ISSUE NUMBER>`
+- The maintainer will do a review of the changes
+- Done! 🎉
