@@ -34,7 +34,7 @@ def paid_work(
     confirm_paid = Confirm.ask(
         (
             f"\nAre you sure you want to mark the [green]{work_id}[/green] "
-            "work of [green]{project_id}[/green] project as paid?"
+            f"work of [green]{project_id}[/green] project as paid?"
         ),
         default=False,
     )
