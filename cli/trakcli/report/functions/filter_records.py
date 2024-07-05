@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from trakcli.database.models import Record
-from trakcli.utils.same_week import same_week
+from trakcli.utils.dates import same_week
 
 
 def filter_records(

@@ -1,12 +1,12 @@
 from typing import Annotated, Optional
 
 import typer
-from rich import print as rprint
-from rich.panel import Panel
 from rich.prompt import Confirm
 
-from trakcli.projects.database import get_projects_from_config
-from trakcli.projects.utils.print_missing_project import print_missing_project
+from trakcli.utils.messages import print_success, print_warning
+from trakcli.utils.projects_picker import (
+    projects_picker,
+)
 from trakcli.works.database import (
     get_project_works_from_config,
     set_project_works_in_config,
@@ -14,13 +14,10 @@ from trakcli.works.database import (
 
 
 def delete_work(
-    work_id: Annotated[str, typer.Argument()],
+    work_id: Annotated[str, typer.Argument(help="The id of work.")],
     project_id: Annotated[
-        str,
-        typer.Option(
-            "--in", "--of", "-p", help="The project's id in which the work is located."
-        ),
-    ],
+        Optional[str], typer.Argument(help="The project id of the work.")
+    ] = None,
     archived: Annotated[
         Optional[bool],
         typer.Option(
@@ -32,30 +29,34 @@ def delete_work(
 ):
     """Delete a work from a project."""
 
-    projects = get_projects_from_config(archived)
-
-    if project_id in projects:
-        delete = Confirm.ask(
-            f"Are you sure you want to delete the [green]{work_id}[/green] work from [green]{project_id}[/green] project?",
-            default=False,
+    # Confirm the deletion of a project
+    confirm_deletion = Confirm.ask(
+        (
+            f"\nAre you sure you want to delete the [green]{work_id}[/green] "
+            "work from [green]{project_id}[/green] project?"
+        ),
+        default=False,
+    )
+    if not confirm_deletion:
+        print_warning(
+            title="Deletion interrupted", text="Your work will not be deleted."
         )
-        if not delete:
-            rprint("")
-            rprint("[yellow]Not deleting.[/yellow]")
-            raise typer.Abort()
+        raise typer.Abort()
 
-        works = get_project_works_from_config(project_id)
-        if works is not None:
-            filtered_works = [w for w in works if w["id"] != work_id]
+    project_id = projects_picker(project_id=project_id, archived=archived)
 
-            set_project_works_in_config(project_id, filtered_works)
+    if not project_id:
+        return
 
-            rprint("")
-            rprint(
-                Panel.fit(
-                    title="[green]Success[/green]",
-                    renderable=f"Work {work_id} successfully deleted from {project_id} project.",
-                )
-            )
-    else:
-        print_missing_project(projects)
+    works = get_project_works_from_config(project_id)
+    if works is not None:
+        filtered_works = [w for w in works if w.id != work_id]
+
+        set_project_works_in_config(project_id, filtered_works)
+
+        print_success(
+            title="Success",
+            text=f"Work {work_id} successfully deleted from {project_id} project.",
+        )
+
+    return

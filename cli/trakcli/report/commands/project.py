@@ -1,22 +1,17 @@
 from datetime import datetime
 from typing import Annotated, Optional, TypedDict
 
-import questionary
 import typer
 from rich import print as rprint
 from rich.table import Table
 
 from trakcli.database.basic import get_db_content
 from trakcli.database.models import Record
-from trakcli.projects.database import get_projects_from_config
-from trakcli.projects.utils.print_missing_project import print_missing_project
-from trakcli.projects.utils.print_no_projects import print_no_projects
-from trakcli.report.functions.create_details_table import create_details_table
 from trakcli.report.functions.filter_records import filter_records
 from trakcli.report.functions.get_grouped_records import get_grouped_records
-from trakcli.report.functions.get_table_title import get_table_title
-from trakcli.utils.messages.print_error import print_error
-from trakcli.utils.styles_questionary import questionary_style_select
+from trakcli.report.functions.table import create_details, create_title
+from trakcli.utils.messages import print_error
+from trakcli.utils.projects_picker import projects_picker
 from trakcli.works.database import get_project_works_from_config
 from trakcli.works.messages.print_work import print_work
 from trakcli.works.models import Work
@@ -32,7 +27,7 @@ class ProjectData(TypedDict):
 
 
 def report_project(
-    project: Annotated[Optional[str], typer.Argument()] = None,
+    project_id: Annotated[Optional[str], typer.Argument()] = None,
     billable: Annotated[
         bool,
         typer.Option(
@@ -99,7 +94,11 @@ def report_project(
         typer.Option(
             "--start",
             "-s",
-            help="Start date (e.g. 2023-10-08) for the time range. If --end is not provided, trak will report the data for the provided date.",
+            help=(
+                "Start date (e.g. 2023-10-08) for the time range. "
+                "If --end is not provided, trak will report the data "
+                "for the provided date."
+            ),
             formats=["%Y-%m-%d"],
         ),
     ] = None,
@@ -108,7 +107,10 @@ def report_project(
         typer.Option(
             "--end",
             "-e",
-            help="End date (e.g. 2023-11-24) for the time range. Won't work without the start flag.",
+            help=(
+                "End date (e.g. 2023-11-24) for the time range. "
+                "Won't work without the start flag."
+            ),
             formats=["%Y-%m-%d"],
         ),
     ] = None,
@@ -126,31 +128,9 @@ def report_project(
     The projects will be get by the configuration in the .trak folder.
     """
 
-    projects_in_config = get_projects_from_config(archived)
+    project_id = projects_picker(project_id=project_id, archived=archived, all=True)
 
-    projects_in_config.append(ALL_PROJECTS)
-
-    # Check if there are configured projects
-    if not len(projects_in_config):
-        print_no_projects()
-        return
-
-    # Provide the list of prjects to the user
-    if not project:
-        project = questionary.select(
-            "Select a project:",
-            choices=projects_in_config,
-            pointer="• ",
-            show_selected=True,
-            style=questionary_style_select,
-        ).ask()
-
-        if not project:
-            return
-
-    # Check if the project exists
-    if not project or project not in projects_in_config:
-        print_missing_project(projects_in_config)
+    if not project_id:
         return
 
     db_content = get_db_content()
@@ -162,16 +142,14 @@ def report_project(
         )
         return
 
-    report_table_title = get_table_title(
-        today, yesterday, week, month, year, start, end
-    )
+    report_table_title = create_title(today, yesterday, week, month, year, start, end)
 
     main_table = Table(title=report_table_title)
 
     main_table.add_column("Project", style="cyan", no_wrap=True)
     main_table.add_column("Time spent", style="magenta")
 
-    grouped = get_grouped_records(project, db_content, ALL_PROJECTS)
+    grouped = get_grouped_records(project_id, db_content)
 
     #
     # Accumulators
@@ -231,7 +209,7 @@ def report_project(
 
         if len(records):
             if details:
-                project_data["details"] = create_details_table(g, records)
+                project_data["details"] = create_details(g, records)
 
             if works:
                 project_works = get_project_works_from_config(g)
@@ -246,7 +224,7 @@ def report_project(
     rprint("")
 
     # Add Total if all projects
-    if project == ALL_PROJECTS:
+    if project_id == ALL_PROJECTS:
         m, _ = divmod(total_acc_seconds, 60)
         h, m = divmod(m, 60)
 

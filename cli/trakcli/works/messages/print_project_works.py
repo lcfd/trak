@@ -1,8 +1,9 @@
 from datetime import datetime
-from rich.table import Table
-from rich import print as rprint
 
-from trakcli.utils.messages.print_error import print_error
+from rich import print as rprint
+from rich.table import Table
+
+from trakcli.utils.messages import print_error
 from trakcli.works.models import Work
 
 

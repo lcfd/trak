@@ -14,6 +14,6 @@ def init_config(p: Path) -> int:
                 indent=2,
                 separators=(",", ": "),
             )
-        return 0
+        return True
     except OSError:
-        return 1
+        return False

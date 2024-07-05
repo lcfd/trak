@@ -7,7 +7,7 @@ from rich.table import Table
 from trakcli.projects.database import get_projects_from_config
 
 
-def command_project_list(
+def command_list_project(
     archived: Annotated[
         Optional[bool],
         typer.Option(

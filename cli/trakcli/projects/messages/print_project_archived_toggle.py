@@ -1,7 +1,7 @@
 from rich import print as rprint
 from rich.panel import Panel
 
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.messages import print_with_padding
 
 
 def print_project_archived_toggle(project_id: str, archived: bool):
@@ -14,7 +14,8 @@ def print_project_archived_toggle(project_id: str, archived: bool):
                     (
                         "From now on this project won't be accessible from lists.\n\n"
                         "[orange3]⭐Tip:[/orange3]\n"
-                        f"You can run trak [orange3]project archive {project_id}[/orange3] to unarchive it."
+                        "You can run trak [orange3]project "
+                        f"archive {project_id}[/orange3] to unarchive it."
                     )
                 ),
             )
@@ -27,7 +28,8 @@ def print_project_archived_toggle(project_id: str, archived: bool):
                     (
                         "From now on this project will be accessible from lists.\n\n"
                         "[orange3]⭐Tip:[/orange3]\n"
-                        f"You can run trak [orange3]project archive {project_id}[/orange3] to archive it."
+                        f"You can run trak [orange3]project archive "
+                        f"{project_id}[/orange3] to archive it."
                     )
                 ),
             )

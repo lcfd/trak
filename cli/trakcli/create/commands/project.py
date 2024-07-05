@@ -5,16 +5,16 @@ import typer
 from rich import print as rprint
 from rich.panel import Panel
 
-from trakcli.config.main import TRAK_FOLDER
+from trakcli.config.main import PROJECTS_FOLDER_PATH
 from trakcli.config.models import Project
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.messages import print_with_padding
 
 
 def create_project(
     project_id: str,
 ):
     rprint("")
-    path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
+    path = pathlib.Path(PROJECTS_FOLDER_PATH / project_id)
     files = ["details.json", "works.json", "archived_works.json"]
 
     path.mkdir(parents=True, exist_ok=True)

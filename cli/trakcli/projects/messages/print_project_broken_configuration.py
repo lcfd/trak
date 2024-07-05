@@ -1,7 +1,7 @@
 from rich import print as rprint
 from rich.panel import Panel
 
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.messages import print_with_padding
 
 
 def print_project_broken_configuration(project_id: str):
