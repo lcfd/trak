@@ -67,13 +67,14 @@ def paid_work(
 
     works = get_project_works_from_config(project_id)
     if works is not None:
-        works_ids = [w["id"] for w in works]
+        works_ids = [w.id for w in works]
         if work_id in works_ids:
-            filtered_works = [
-                {**w, "paid": True} if w["id"] == work_id else w for w in works
+            modified_works = [
+                {**w._asdict(), "paid": True} if w.id == work_id else w._asdict()
+                for w in works
             ]
 
-            set_project_works_in_config(project_id, filtered_works)
+            set_project_works_in_config(project_id, modified_works)
 
             print_success(
                 title="Success",
