@@ -2,8 +2,8 @@ import json
 
 import typer
 
-from trakcli.config.main import get_config
-from trakcli.utils.messages.print_info import print_info
+from trakcli.config.get_config import get_config
+from trakcli.utils.messages import print_info
 
 app = typer.Typer()
 

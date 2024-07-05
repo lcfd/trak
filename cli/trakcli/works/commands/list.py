@@ -3,9 +3,9 @@ from typing import Annotated, Optional
 import typer
 
 from trakcli.projects.database import db_get_project_details, get_projects_from_config
-from trakcli.projects.utils.get_existent_projects import get_existent_projects
-from trakcli.projects.utils.print_no_projects import print_no_projects
-from trakcli.utils.messages.print_error import print_error
+from trakcli.projects.utils.print import print_no_projects
+from trakcli.utils.messages import print_error
+from trakcli.utils.projects_picker import projects_picker
 from trakcli.works.database import get_project_works_from_config
 from trakcli.works.messages.print_project_works import print_project_works
 
@@ -27,8 +27,11 @@ def list_works(
     ] = False,
 ):
     """List the works in a project or all of them."""
+
+    project_id = projects_picker(project_id=project_id, archived=archived, all=True)
+
     if not project_id:
-        project_id = get_existent_projects(all_option=True, archived=archived)
+        return
 
     if project_id:
         if project_id != ALL_PROJECTS:
@@ -45,8 +48,10 @@ def list_works(
                 print_error(
                     title="Project's details",
                     text=(
-                        f"There is something wrong with the details of the project you have chosen.\n\n"
-                        f'Check the "{project_id}/details.json" file in your configuration.'
+                        f"There is something wrong with the details of"
+                        " the project you have chosen.\n\n"
+                        f'Check the "{project_id}/details.json '
+                        "file in your configuration."
                     ),
                 )
         else:
@@ -57,10 +62,10 @@ def list_works(
             if not len(projects_in_config):
                 print_no_projects()
             else:
-                for project in projects_in_config:
-                    works = get_project_works_from_config(project)
+                for project_id in projects_in_config:
+                    works = get_project_works_from_config(project_id)
 
                     if works is not None and len(works):
-                        print_project_works(works, project)
+                        print_project_works(works, project_id)
 
     return

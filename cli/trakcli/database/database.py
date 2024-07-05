@@ -3,42 +3,47 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import questionary
-from rich import padding
-from rich import print as rprint
+from rich import padding, print
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from trakcli.config.main import (
-    get_db_file_path,
-)
+from trakcli.config.get_db_file_path import get_db_file_path
+from trakcli.database.filesystem import read_json_file
 from trakcli.database.models import Record
-from trakcli.utils.format_date import format_date
-from trakcli.utils.print_with_padding import print_with_padding
-from trakcli.utils.same_week import same_week
-from trakcli.utils.styles_questionary import questionary_style_select
+from trakcli.utils.dates import format_date, same_week
+from trakcli.utils.messages import print_error
+from trakcli.utils.messages import print_with_padding
+from trakcli.utils.questionary import questionary_style_select
 
 #
 # Database operations
 #
 
 
-def init_database(p: Path, initial_value: str = "[]") -> int:
+def init_database(p: Path, initial_value: str = "[]") -> bool:
     """Initialize the trak database."""
 
+    print("here!1")
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("w", encoding="utf-8") as f:
             f.write(initial_value)
-        return 0
-    except OSError:
-        return 1
+        print("here!2")
+
+        return True
+    except OSError as error:
+        print(error)
+        return False
 
 
 def add_session(record: Record):
     """Add a new session to the database."""
 
     db_path = get_db_file_path()
+
+    if not db_path:
+        return False
 
     with open(db_path, "r") as db:
         db_content = db.read()
@@ -49,20 +54,25 @@ def add_session(record: Record):
     with open(db_path, "w") as db:
         json.dump(parsed_json, db, indent=2, separators=(",", ": "))
 
+    return True
+
 
 def stop_trak_session():
     """Stop tracking the current project."""
 
     db_path = get_db_file_path()
 
-    with open(db_path, "r") as db:
-        db_content = db.read()
+    if not db_path:
+        return False
 
-    parsed_json = json.loads(db_content)
+    db_content = read_json_file(db_path)
+
+    if not db_content:
+        return False
 
     # Create a list of the running sessions
     current_sessions_indexes = [
-        (index, record) for index, record in enumerate(parsed_json) if not record["end"]
+        (index, record) for index, record in enumerate(db_content) if not record["end"]
     ]
 
     session_index = -1
@@ -71,7 +81,7 @@ def stop_trak_session():
         # Support stopping a session when there are multiple running sessions
         choices = [
             questionary.Choice(title=record["project"], value=index)
-            for index, record in enumerate(parsed_json)
+            for index, record in enumerate(db_content)
             if not record["end"]
         ]
 
@@ -84,22 +94,24 @@ def stop_trak_session():
         ).ask()
 
         if session_index is None:
-            return
+            return False
 
     elif len(current_sessions_indexes) == 1:
         session_index = current_sessions_indexes[0][0]
 
     if session_index > -1:
-        parsed_json[session_index]["end"] = datetime.now().isoformat()
+        db_content[session_index]["end"] = datetime.now().isoformat()
 
         with open(db_path, "w") as db:
-            json.dump(parsed_json, db, indent=2, separators=(",", ": "))
+            json.dump(db_content, db, indent=2, separators=(",", ": "))
 
         # Return the stopped record
         try:
-            return Record(**parsed_json[session_index])
+            return Record(**db_content[session_index])
         except Exception:
-            return
+            return False
+    else:
+        return False
 
 
 def tracking_already_started() -> Record | bool:
@@ -110,13 +122,16 @@ def tracking_already_started() -> Record | bool:
 
     db_path = get_db_file_path()
 
-    with open(db_path, "r") as db:
-        db_content = db.read()
+    if not db_path:
+        return False
 
-    parsed_json = json.loads(db_content)
+    db_content = read_json_file(db_path)
+
+    if not db_content:
+        return False
 
     # Create a list of the running sessions
-    current_sessions = [record for record in parsed_json if not record["end"]]
+    current_sessions = [record for record in db_content if not record["end"]]
 
     try:
         last_record = current_sessions[-1]
@@ -142,13 +157,16 @@ def get_current_session_started() -> Record | bool:
 
     db_path = get_db_file_path()
 
-    with open(db_path, "r") as db:
-        db_content = db.read()
+    if not db_path:
+        return False
 
-    parsed_json = json.loads(db_content)
+    db_content = read_json_file(db_path)
+
+    if not db_content:
+        return False
 
     # Create a list of the running sessions
-    current_sessions = [record for record in parsed_json if not record["end"]]
+    current_sessions = [record for record in db_content if not record["end"]]
 
     try:
         last_record = current_sessions[-1]
@@ -163,18 +181,21 @@ def get_current_session_started() -> Record | bool:
     return False
 
 
-def get_current_session():
+def get_current_session() -> Record | bool:
     """Get the current session from records in database."""
 
     db_path = get_db_file_path()
 
-    with open(db_path, "r") as db:
-        db_content = db.read()
+    if not db_path:
+        return False
 
-    parsed_json = json.loads(db_content)
+    db_content = read_json_file(db_path)
+
+    if not db_content:
+        return False
 
     # Create a list of the running sessions
-    current_sessions = [record for record in parsed_json if not record["end"]]
+    current_sessions = [record for record in db_content if not record["end"]]
 
     try:
         last_record = current_sessions[-1]
@@ -184,7 +205,7 @@ def get_current_session():
         return False
 
     if last_record["end"] == "":
-        return last_record
+        return Record(**last_record)
 
     return False
 
@@ -200,14 +221,17 @@ def get_record_collection(
 
     db_path = get_db_file_path()
 
-    with open(db_path, "r") as db:
-        db_content = db.read()
+    if not db_path:
+        return False
 
-    parsed_json = json.loads(db_content)
+    db_content = read_json_file(db_path)
+
+    if not db_content:
+        return False
 
     records = [
         record
-        for record in parsed_json
+        for record in db_content
         if record["project"] == project and record["end"]
     ]
 
@@ -265,15 +289,13 @@ def get_record_collection(
                     == datetime.fromisoformat(when).date()
                 ]
             except Exception:
-                rprint(
-                    Panel(
-                        title="🔴 Invalid date",
-                        renderable=print_with_padding(
-                            """The provided date it's invalid.
-
-Try with a date like 2023-10-08, or the strings today, yesterday."""
-                        ),
-                    )
+                print_error(
+                    title="Invalid date",
+                    text=(
+                        "The provided date it's invalid.\n\n"
+                        "Try with a date like 2034-10-08,"
+                        " or the strings today, yesterday."
+                    ),
                 )
 
     table = Table(title=f"[bold]{project}[/bold]")
@@ -316,6 +338,6 @@ Try with a date like 2023-10-08, or the strings today, yesterday."""
     sum_panel = Panel(
         print_with_padding(f"[bold]{h}h {m}m[/bold]"), title="🧮 Total spent time"
     )
-    rprint(sum_panel)
+    print(sum_panel)
 
     return records

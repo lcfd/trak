@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from trakcli.database.models import Record
-from trakcli.utils.messages.print_info import print_info
+from trakcli.utils.messages import print_info
 
 
 def print_session_already_started(record: Record):

@@ -1,33 +1,21 @@
 import json
-from pathlib import Path
 import pathlib
 
 
-from trakcli.config.main import TRAK_FOLDER
+from trakcli.config.main import PROJECTS_FOLDER_PATH
 from trakcli.config.models import Project
 
 
 from trakcli.projects.messages.print_project_broken_configuration import (
     print_project_broken_configuration,
 )
-from trakcli.utils.messages.print_error import print_error
-
-
-def get_projects_from_db(db_path: Path):
-    """Deprecated. Get the projects in the database."""
-
-    with open(db_path, "r") as db:
-        db_content = db.read()
-
-    parsed_json = json.loads(db_content)
-
-    return {record.get("project", "") for record in parsed_json}
+from trakcli.utils.messages import print_error
 
 
 def get_projects_from_config(archived: bool | None = False):
     """Get the projects in the config."""
 
-    projects_path = pathlib.Path(TRAK_FOLDER / "projects")
+    projects_path = pathlib.Path(PROJECTS_FOLDER_PATH)
 
     projects: list[str] = []
 
@@ -53,7 +41,7 @@ def get_projects_from_config(archived: bool | None = False):
 def db_get_project_details(project_id: str) -> Project | None:
     """Get a project in the config by id."""
 
-    project_path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
+    project_path = pathlib.Path(PROJECTS_FOLDER_PATH / project_id)
 
     if project_path.exists() and project_path.is_dir():
         details_path = project_path / "details.json"
@@ -73,7 +61,7 @@ def db_get_project_details(project_id: str) -> Project | None:
 def db_get_project_details_path(project_id: str):
     """Get project config path."""
 
-    project_path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
+    project_path = pathlib.Path(PROJECTS_FOLDER_PATH / project_id)
 
     if project_path.exists() and project_path.is_dir():
         return project_path / "details.json"

@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from rich import print as rprint
+from rich import print
 from rich.padding import Padding
 
-from trakcli.config.main import get_config
-from trakcli.utils.PercentageBar import PercentageBar
+from trakcli.config.get_config import get_config
+from trakcli.ui import PercentageBar
 from trakcli.works.models import Work
 
 
@@ -22,7 +22,10 @@ def print_work(
 
     CONFIG = get_config()
 
-    currency = CONFIG["currency"] if CONFIG["currency"] else "M"
+    if not CONFIG or isinstance(CONFIG, list):
+        return
+
+    currency = CONFIG.get("currency", "M")
 
     # Closeness to deadline
     start = datetime.strptime(work.from_date, "%Y-%m-%dT%H:%M")
@@ -37,7 +40,7 @@ def print_work(
     paid = "✅" if work.paid else "❌"
 
     # Header
-    rprint(
+    print(
         Padding(
             (
                 "\n"
@@ -46,7 +49,8 @@ def print_work(
                 "--------------------------------------------------------------\n"
                 f"[green]{work.name}[/green] [blue]({work.id})[/blue]\n"
                 "---\n"
-                f"Start: {start_date.strftime('%y-%m-%d')} || End: {end_date.strftime('%y-%m-%d')}\n"
+                f"Start: {start_date.strftime('%y-%m-%d')} "
+                f"|| End: {end_date.strftime('%y-%m-%d')}\n"
                 f"project: {project} || Paid: {paid}\n"
                 "--------------------------------------------------------------\n"
                 # "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -64,9 +68,11 @@ def print_work(
                 "\n"
                 "\n"
                 "[blue]Workable hours (8h/day) until deadline:[/blue]\n"
-                f"{(today_to_deadline_days  *24) / 8} hours in {today_to_deadline_days} days\n"
+                f"{(today_to_deadline_days  *24) / 8} hours "
+                f"in {today_to_deadline_days} days\n"
                 "\n"
-                f"[blue]Value of your work so far at {work.rate}{currency} per hour:[/blue]\n"
+                f"[blue]Value of your work so far at {work.rate}{currency} "
+                "per hour:[/blue]\n"
                 f"[green]{work.rate*hours}{currency}[/green]\n"
                 # "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 "--------------------------------------------------------------\n"

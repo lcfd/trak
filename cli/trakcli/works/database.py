@@ -1,14 +1,14 @@
 import json
 import pathlib
 
-from trakcli.config.main import TRAK_FOLDER
+from trakcli.config.main import PROJECTS_FOLDER_PATH
 from trakcli.works.models import Work
 
 
 def get_project_works_from_config(project_id: str):
     """Get the project works in the config by id."""
 
-    project_path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
+    project_path = pathlib.Path(PROJECTS_FOLDER_PATH / project_id)
 
     if project_path.exists() and project_path.is_dir():
         works_path = project_path / "works.json"
@@ -29,7 +29,7 @@ def get_project_works_from_config(project_id: str):
 def set_project_works_in_config(project_id: str, works: list[Work]):
     """Get the project works in the config by id."""
 
-    project_path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
+    project_path = pathlib.Path(PROJECTS_FOLDER_PATH / project_id)
 
     if project_path.exists() and project_path.is_dir():
         works_path = project_path / "works.json"
