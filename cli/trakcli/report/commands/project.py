@@ -6,8 +6,9 @@ from rich import print as rprint
 from rich.table import Table
 
 from trakcli.database.basic import get_db_content
-from trakcli.report.commands.constants import ALL_PROJECTS
-from trakcli.report.commands.types import (
+from trakcli.report.constants import ALL_PROJECTS
+from trakcli.report.functions.print import print_details_and_works
+from trakcli.report.types import (
     ArchivedOption,
     BillableOption,
     DetailsOption,
@@ -27,7 +28,6 @@ from trakcli.report.functions.table import create_details, create_title
 from trakcli.utils.messages import print_error
 from trakcli.utils.projects_picker import projects_picker
 from trakcli.works.database import get_project_works_from_config
-from trakcli.works.messages.print_work import print_work
 
 
 def report_project(
@@ -49,13 +49,13 @@ def report_project(
     The projects will be get by the configuration in the .trak folder.
     """
 
+    # Get project id
     project_id = projects_picker(project_id=project_id, archived=archived, all=True)
-
     if not project_id:
         return
 
+    # Get database content
     db_content = get_db_content()
-
     if db_content is None:
         print_error(
             title="Corrupted database",
@@ -63,19 +63,17 @@ def report_project(
         )
         return
 
+    # Table
     report_table_title = create_title(today, yesterday, week, month, year, start, end)
-
     main_table = Table(title=report_table_title)
-
     main_table.add_column("Project", style="cyan", no_wrap=True)
     main_table.add_column("Time spent", style="magenta")
 
+    # Group data
     grouped = get_grouped_records(project_id, db_content)
 
     #
     # Accumulators
-    #
-
     projects_data: list[ProjectData] = []
     total_acc_seconds = 0
 
@@ -141,9 +139,6 @@ def report_project(
 
         projects_data.append(project_data)
 
-    # Spacing
-    rprint("")
-
     # Add Total if all projects
     if project_id == ALL_PROJECTS:
         m, _ = divmod(total_acc_seconds, 60)
@@ -153,56 +148,7 @@ def report_project(
         main_table.add_row("Total", f"[bold]{h}h {m}m[/bold]")
 
     # Print summary report table
+    rprint("")
     rprint(main_table)
 
-    # Details --details -d
-    # Print detailed data
-    for data in projects_data:
-        if data["details"] is not None:
-            rprint("")
-            rprint(data["details"])
-
-        project_works = data["works"]
-        if project_works is not None and works is True:
-            if len(project_works):
-                for pw in project_works:
-                    start_date_string = pw.from_date
-                    end_date_string = pw.to_date
-                    start_date = datetime.strptime(start_date_string, "%Y-%m-%dT%H:%M")
-                    end_date = datetime.strptime(end_date_string, "%Y-%m-%dT%H:%M")
-
-                    # Print the data for a work
-                    filtered_records = filter_records(
-                        records=data.get("records"), start=start_date, end=end_date
-                    )
-
-                    acc_seconds = 0
-
-                    for record in filtered_records:
-                        record_start = record.start
-                        record_end = record.end
-
-                        if record_start != "" and record_end != "":
-                            start_datetime = datetime.fromisoformat(record_start)
-                            end_datetime = datetime.fromisoformat(record_end)
-
-                            diff = end_datetime - start_datetime
-
-                            acc_seconds = acc_seconds + diff.seconds
-
-                            m, _ = divmod(diff.seconds, 60)
-                            h, m = divmod(m, 60)
-
-                    m, _ = divmod(acc_seconds, 60)
-                    h, m = divmod(m, 60)
-
-                    print_work(
-                        work=pw,
-                        start_date=start_date,
-                        end_date=end_date,
-                        project=data["project"],
-                        hours=h,
-                        minutes=m,
-                        work_time=pw.time,
-                        totSeconds=acc_seconds,
-                    )
+    print_details_and_works(projects_data, works)

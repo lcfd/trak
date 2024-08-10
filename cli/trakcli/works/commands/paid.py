@@ -3,7 +3,7 @@ from typing import Annotated, Optional
 import typer
 from rich.prompt import Confirm
 
-from trakcli.utils.works import change_value
+from trakcli.utils.works import change_work_field
 from trakcli.utils.projects_picker import projects_picker
 from trakcli.utils.messages import print_error, print_success, print_warning
 from trakcli.works.database import (
@@ -57,7 +57,7 @@ def paid_work(
         if work_id in works_ids:
             modified_works = list(
                 map(
-                    lambda w: change_value(work=w, parameter="paid", value=True)
+                    lambda w: change_work_field(work=w, parameter="paid", value=True)
                     if w.id == work_id
                     else w,
                     works,
