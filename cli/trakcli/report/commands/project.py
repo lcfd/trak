@@ -1,12 +1,26 @@
 from datetime import datetime
-from typing import Annotated, Optional, TypedDict
+from typing import Annotated, Optional
 
 import typer
 from rich import print as rprint
 from rich.table import Table
 
 from trakcli.database.basic import get_db_content
-from trakcli.database.models import Record
+from trakcli.report.commands.constants import ALL_PROJECTS
+from trakcli.report.commands.types import (
+    ArchivedOption,
+    BillableOption,
+    DetailsOption,
+    EndOption,
+    MonthOption,
+    ProjectData,
+    StartOption,
+    TodayOption,
+    WeekOption,
+    WorksOption,
+    YearOption,
+    YesterdayOption,
+)
 from trakcli.report.functions.filter_records import filter_records
 from trakcli.report.functions.get_grouped_records import get_grouped_records
 from trakcli.report.functions.table import create_details, create_title
@@ -14,114 +28,21 @@ from trakcli.utils.messages import print_error
 from trakcli.utils.projects_picker import projects_picker
 from trakcli.works.database import get_project_works_from_config
 from trakcli.works.messages.print_work import print_work
-from trakcli.works.models import Work
-
-ALL_PROJECTS = "all"
-
-
-class ProjectData(TypedDict):
-    project: str
-    details: Table | None
-    works: list[Work]
-    records: list[Record]
 
 
 def report_project(
     project_id: Annotated[Optional[str], typer.Argument()] = None,
-    billable: Annotated[
-        bool,
-        typer.Option(
-            "--billable",
-            "-b",
-            help="Consider only the billable records.",
-        ),
-    ] = False,
-    works: Annotated[
-        bool,
-        typer.Option(
-            "--works",
-            help="Show the works related to the project.",
-        ),
-    ] = False,
-    details: Annotated[
-        bool,
-        typer.Option(
-            "--details",
-            "-d",
-            help="Show all sessions that occurred in the chosen period in detail.",
-        ),
-    ] = False,
-    today: Annotated[
-        bool,
-        typer.Option(
-            "--today",
-            help="Consider only today's records.",
-        ),
-    ] = False,
-    yesterday: Annotated[
-        bool,
-        typer.Option(
-            "--yesterday",
-            "-y",
-            help="Consider only this month's records.",
-        ),
-    ] = False,
-    week: Annotated[
-        bool,
-        typer.Option(
-            "--week",
-            "-w",
-            help="Consider only this week's records.",
-        ),
-    ] = False,
-    month: Annotated[
-        bool,
-        typer.Option(
-            "--month",
-            "-m",
-            help="Consider only this month's records.",
-        ),
-    ] = False,
-    year: Annotated[
-        bool,
-        typer.Option(
-            "--year",
-            help="Consider only this year's records.",
-        ),
-    ] = False,
-    start: Annotated[
-        Optional[datetime],
-        typer.Option(
-            "--start",
-            "-s",
-            help=(
-                "Start date (e.g. 2023-10-08) for the time range. "
-                "If --end is not provided, trak will report the data "
-                "for the provided date."
-            ),
-            formats=["%Y-%m-%d"],
-        ),
-    ] = None,
-    end: Annotated[
-        Optional[datetime],
-        typer.Option(
-            "--end",
-            "-e",
-            help=(
-                "End date (e.g. 2023-11-24) for the time range. "
-                "Won't work without the start flag."
-            ),
-            formats=["%Y-%m-%d"],
-        ),
-    ] = None,
-    archived: Annotated[
-        Optional[bool],
-        typer.Option(
-            "--archived",
-            "-a",
-            help="Show archived projects in lists.",
-        ),
-    ] = False,
+    billable: BillableOption = False,
+    works: WorksOption = False,
+    details: DetailsOption = False,
+    today: TodayOption = False,
+    yesterday: YesterdayOption = False,
+    week: WeekOption = False,
+    month: MonthOption = False,
+    year: YearOption = False,
+    start: StartOption = None,
+    end: EndOption = None,
+    archived: ArchivedOption = False,
 ):
     """
     Get reports for your projects.
