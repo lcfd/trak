@@ -1,9 +1,18 @@
-from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
+from trakcli.create.types import (
+    DescriptionOption,
+    FromDateOption,
+    NameOption,
+    ProjectIdOption,
+    RateOption,
+    TimeOption,
+    ToDateOption,
+)
 from trakcli.projects.database import db_get_project_details
+from trakcli.report.types import ArchivedOption
 from trakcli.utils.dates import datetime_to_string
 from trakcli.utils.messages import print_error, print_success, print_warning
 from trakcli.utils.projects_picker import projects_picker
@@ -19,67 +28,14 @@ def create_work(
         str,
         typer.Argument(help="The id for the new work."),
     ],
-    name: Annotated[
-        str,
-        typer.Option(
-            "--name",
-            "-n",
-            help="A readable name for the new work.",
-        ),
-    ],
-    time: Annotated[
-        int,
-        typer.Option(
-            "--time",
-            "-t",
-            help="Budgeted time.",
-        ),
-    ],
-    from_date: Annotated[
-        datetime,
-        typer.Option(
-            "--from",
-            help="Start date of the work.",
-            formats=["%Y-%m-%dT%H:%M"],
-        ),
-    ],
-    to_date: Annotated[
-        datetime,
-        typer.Option(
-            "--to",
-            help="End date of the work.",
-            formats=["%Y-%m-%dT%H:%M"],
-        ),
-    ],
-    description: Annotated[
-        str,
-        typer.Option(
-            "--description",
-            "-d",
-            help="",
-        ),
-    ] = "",
-    rate: Annotated[
-        int,
-        typer.Option(
-            "--rate",
-            "-r",
-            help="The rate you want to be paid per hour.",
-        ),
-    ] = 1,
-    # Optional
-    project_id: Annotated[
-        Optional[str],
-        typer.Argument(help="The id of the project."),
-    ] = None,
-    archived: Annotated[
-        Optional[bool],
-        typer.Option(
-            "--archived",
-            "-a",
-            help="Show archived projects in lists.",
-        ),
-    ] = False,
+    name: NameOption,
+    time: TimeOption,
+    from_date: FromDateOption,
+    to_date: ToDateOption,
+    description: DescriptionOption = "",
+    rate: RateOption = 1,
+    project_id: ProjectIdOption = None,
+    archived: ArchivedOption = False,
 ):
     project_id = projects_picker(project_id=project_id, archived=archived)
 

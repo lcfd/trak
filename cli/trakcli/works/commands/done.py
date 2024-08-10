@@ -7,7 +7,7 @@ from trakcli.utils.messages import print_error, print_success, print_warning
 from trakcli.utils.projects_picker import (
     projects_picker,
 )
-from trakcli.utils.works import change_value
+from trakcli.utils.works import change_work_field
 from trakcli.works.database import (
     get_project_works_from_config,
     set_project_works_in_config,
@@ -58,7 +58,7 @@ def done_work(
         if work_id in works_ids:
             modified_works = list(
                 map(
-                    lambda w: change_value(work=w, parameter="done", value=True)
+                    lambda w: change_work_field(work=w, parameter="done", value=True)
                     if w.id == work_id
                     else w,
                     works,

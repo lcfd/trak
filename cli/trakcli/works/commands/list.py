@@ -7,7 +7,7 @@ from trakcli.projects.utils.print import print_no_projects
 from trakcli.utils.messages import print_error
 from trakcli.utils.projects_picker import projects_picker
 from trakcli.works.database import get_project_works_from_config
-from trakcli.works.messages.print_project_works import print_project_works
+from trakcli.works.messages import print_project_works
 
 ALL_PROJECTS = "all"
 
