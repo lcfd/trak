@@ -17,8 +17,8 @@ from trakcli.utils.dates import datetime_to_string
 from trakcli.utils.messages import print_error, print_success, print_warning
 from trakcli.utils.projects_picker import projects_picker
 from trakcli.works.database import (
-    get_project_works_from_config,
-    set_project_works_in_config,
+    get_project_works_from_config_folder,
+    set_project_works_in_config_folder,
 )
 from trakcli.works.models import Work
 
@@ -47,7 +47,7 @@ def create_work(
 
     # Check if project esists
     if details:
-        works = get_project_works_from_config(project_id)
+        works = get_project_works_from_config_folder(project_id)
 
         # Check if id already exists
         if works is not None:
@@ -84,7 +84,7 @@ def create_work(
         else:
             works = [new_work]
 
-        set_project_works_in_config(project_id, works)
+        set_project_works_in_config_folder(project_id, works)
 
         print_success(
             title="Work created",

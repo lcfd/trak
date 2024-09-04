@@ -8,8 +8,8 @@ from trakcli.utils.projects_picker import (
     projects_picker,
 )
 from trakcli.works.database import (
-    get_project_works_from_config,
-    set_project_works_in_config,
+    get_project_works_from_config_folder,
+    set_project_works_in_config_folder,
 )
 
 
@@ -48,11 +48,11 @@ def delete_work(
     if not project_id:
         return
 
-    works = get_project_works_from_config(project_id)
+    works = get_project_works_from_config_folder(project_id)
     if works is not None:
         filtered_works = [w for w in works if w.id != work_id]
 
-        set_project_works_in_config(project_id, filtered_works)
+        set_project_works_in_config_folder(project_id, filtered_works)
 
         print_success(
             title="Success",
