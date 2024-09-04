@@ -3,7 +3,7 @@ import questionary
 from trakcli.utils.questionary import questionary_style_select
 
 from trakcli.projects.database import get_projects_from_config
-from trakcli.projects.utils.print import print_missing_project, print_no_projects
+from trakcli.projects.utils.print import print_missing_project, print_error_no_projects
 
 
 def projects_picker(
@@ -22,7 +22,7 @@ def projects_picker(
 
     # Check if there are configured projects in config
     if not len(projects_in_config):
-        print_no_projects()
+        print_error_no_projects()
         return
 
     # project_id not provided, show the picker
