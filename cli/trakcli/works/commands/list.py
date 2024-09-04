@@ -3,10 +3,10 @@ from typing import Annotated, Optional
 import typer
 
 from trakcli.projects.database import db_get_project_details, get_projects_from_config
-from trakcli.projects.utils.print import print_no_projects
+from trakcli.projects.utils.print import print_error_no_projects
 from trakcli.utils.messages import print_error
 from trakcli.utils.projects_picker import projects_picker
-from trakcli.works.database import get_project_works_from_config
+from trakcli.works.database import get_project_works_from_config_folder
 from trakcli.works.messages import print_project_works
 
 ALL_PROJECTS = "all"
@@ -33,39 +33,41 @@ def list_works(
     if not project_id:
         return
 
-    if project_id:
-        if project_id != ALL_PROJECTS:
-            details = db_get_project_details(project_id)
+    if project_id != ALL_PROJECTS:
+        details = db_get_project_details(project_id)
 
-            if details:
-                works = get_project_works_from_config(project_id)
+        if details:
+            works = get_project_works_from_config_folder(project_id)
 
-                if works is not None and done is False:
-                    works = [w for w in works if w.done is False]
+            # Filter by --done
+            if works is not None and done is False:
+                works = [w for w in works if not w.done]
 
-                print_project_works(works, project_id)
-            else:
-                print_error(
-                    title="Project's details",
-                    text=(
-                        f"There is something wrong with the details of"
-                        " the project you have chosen.\n\n"
-                        f'Check the "{project_id}/details.json '
-                        "file in your configuration."
-                    ),
-                )
+            print_project_works(works, project_id)
         else:
-            # Show all current projects
-            projects_in_config = get_projects_from_config(archived)
+            print_error(
+                title="Project's details",
+                text=(
+                    f"There is something wrong with the details of"
+                    " the project you have chosen.\n\n"
+                    f'Check the "{project_id}/details.json '
+                    "file in your configuration."
+                ),
+            )
+    else:
+        # Show all current projects
+        projects_in_config = get_projects_from_config(archived)
 
-            # Check if there are configured projects
-            if not len(projects_in_config):
-                print_no_projects()
-            else:
-                for project_id in projects_in_config:
-                    works = get_project_works_from_config(project_id)
+        # Check if there are configured projects
+        if not len(projects_in_config):
+            print_error_no_projects()
+        else:
+            for project_id in projects_in_config:
+                works = get_project_works_from_config_folder(project_id)
 
-                    if works is not None and len(works):
-                        print_project_works(works, project_id)
+                # Filter by --done
+                if works is not None and done is False:
+                    works = [w for w in works if not w.done]
 
-    return
+                if works is not None and len(works):
+                    print_project_works(works, project_id)
