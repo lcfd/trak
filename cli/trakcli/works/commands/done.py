@@ -9,8 +9,8 @@ from trakcli.utils.projects_picker import (
 )
 from trakcli.utils.works import change_work_field
 from trakcli.works.database import (
-    get_project_works_from_config,
-    set_project_works_in_config,
+    get_project_works_from_config_folder,
+    set_project_works_in_config_folder,
 )
 
 
@@ -52,7 +52,7 @@ def done_work(
     if not project_id:
         return
 
-    works = get_project_works_from_config(project_id)
+    works = get_project_works_from_config_folder(project_id)
     if works is not None:
         works_ids = [w.id for w in works]
         if work_id in works_ids:
@@ -65,7 +65,7 @@ def done_work(
                 )
             )
 
-            set_project_works_in_config(project_id, modified_works)
+            set_project_works_in_config_folder(project_id, modified_works)
 
             print_success(
                 title="Success",
