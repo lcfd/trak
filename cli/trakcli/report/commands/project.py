@@ -27,7 +27,8 @@ from trakcli.report.functions.get_grouped_records import get_grouped_records
 from trakcli.report.functions.table import create_details, create_title
 from trakcli.utils.messages import print_error
 from trakcli.utils.projects_picker import projects_picker
-from trakcli.works.database import get_project_works_from_config
+from trakcli.utils.time import get_hours_minutes_from_seconds
+from trakcli.works.database import get_project_works_from_config_folder
 
 
 def report_project(
@@ -72,24 +73,23 @@ def report_project(
     # Group data
     grouped = get_grouped_records(project_id, db_content)
 
-    #
     # Accumulators
+
     projects_data: list[ProjectData] = []
     total_acc_seconds = 0
 
     for g in grouped:
         if works:
             # If works is passed only billable records are considered.
-            # All the time filters are ignored since they already are in the work.
             records = filter_records(
                 records=grouped[g],
                 billable=True,
+                start=start,
+                end=end,
                 yesterday=None,
                 today=None,
                 week=None,
                 month=None,
-                start=None,
-                end=None,
             )
         else:
             records = filter_records(
@@ -110,12 +110,10 @@ def report_project(
 
                 acc_seconds = acc_seconds + diff.seconds
 
-                m, _ = divmod(diff.seconds, 60)
-                h, m = divmod(m, 60)
+                h, m = get_hours_minutes_from_seconds(diff.seconds)
 
         total_acc_seconds += acc_seconds
-        m, _ = divmod(acc_seconds, 60)
-        h, m = divmod(m, 60)
+        h, m = get_hours_minutes_from_seconds(acc_seconds)
 
         main_table.add_row(g, f"[bold]{h}h {m}m[/bold]")
 
@@ -127,11 +125,13 @@ def report_project(
         }
 
         if len(records):
+            # Add details to output
             if details:
                 project_data["details"] = create_details(g, records)
 
+            # Add works to output
             if works:
-                project_works = get_project_works_from_config(g)
+                project_works = get_project_works_from_config_folder(g)
                 if project_works is not None:
                     for work in project_works:
                         if work.done is not True:
@@ -139,10 +139,9 @@ def report_project(
 
         projects_data.append(project_data)
 
-    # Add Total if all projects
+    # Add Total of timings if project id is `all`
     if project_id == ALL_PROJECTS:
-        m, _ = divmod(total_acc_seconds, 60)
-        h, m = divmod(m, 60)
+        h, m = get_hours_minutes_from_seconds(total_acc_seconds)
 
         main_table.add_section()
         main_table.add_row("Total", f"[bold]{h}h {m}m[/bold]")
