@@ -1,7 +1,7 @@
 from trakcli.utils.messages import print_error
 
 
-def print_no_projects():
+def print_error_no_projects():
     print_error(
         title="You don't have available projects",
         text=(
