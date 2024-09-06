@@ -15,13 +15,14 @@ def print_error_no_projects():
 
     return
 
-def print_error_work_field(work_id: str, project_id:str, field:str):
+
+def print_error_work_field(work_id: str, project_id: str, field: str):
     print_error(
-        title="Error",
-        text=f"Error in {work_id}'s {field} of {project_id} project."
+        title="Error", text=f"Error in {work_id}'s {field} of {project_id} project."
     )
 
     return
+
 
 def print_missing_project(projects_in_config):
     renderable_projects_list = "\n • ".join(projects_in_config)

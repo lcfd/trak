@@ -86,15 +86,19 @@ def print_work(
         f"[green]{work.rate*hours}{currency}[/green]\n"
     )
 
-    work_card = Card(title="W O R K", header=header, body=(
-        f"{used_time_budget}"
-        "\n\n"
-        f"{closeness_to_deadline}"
-        "\n\n"
-        f"{workable_hours}"
-        "\n"
-        f"{value_so_far}"
-    ))
+    work_card = Card(
+        title="W O R K",
+        header=header,
+        body=(
+            f"{used_time_budget}"
+            "\n\n"
+            f"{closeness_to_deadline}"
+            "\n\n"
+            f"{workable_hours}"
+            "\n"
+            f"{value_so_far}"
+        ),
+    )
 
     # Header
     print(
