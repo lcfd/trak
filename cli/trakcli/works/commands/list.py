@@ -63,7 +63,7 @@ def list_works(
         # Check if there are configured projects
         if not len(projects_in_config):
             return
-       
+
         for project_id in projects_in_config:
             works = get_project_works_from_config_folder(project_id)
 
