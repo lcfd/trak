@@ -1,118 +1,75 @@
-from datetime import datetime
 from typing import Annotated, Optional
 
 import typer
-from rich import print as rprint
-from rich.table import Table
 
-from trakcli.projects.database import db_get_project_details, get_projects_from_config
-from trakcli.utils.messages.print_error import print_error
-from trakcli.works.database import get_project_works_from_config
+from trakcli.utils.base_messages import print_error
+from trakcli.utils.projects import (
+    db_get_project_details,
+    get_projects_from_config,
+    projects_picker,
+)
+from trakcli.works.database import get_project_works_from_config_folder
+from trakcli.works.messages import print_project_works
 
 ALL_PROJECTS = "all"
 
 
-def print_project_works(works, project_id):
-    """Print a table of works by project."""
-    works_table = Table(title=f"Works for project {project_id}")
-
-    works_table.add_column("Id", no_wrap=True)
-    works_table.add_column("Name", no_wrap=True)
-    works_table.add_column("Description")
-    works_table.add_column("Time")
-    works_table.add_column("Rate")
-    works_table.add_column("From")
-    works_table.add_column("To")
-    works_table.add_column("Done")
-    works_table.add_column("Paid")
-
-    if works is not None and len(works):
-        for w in works:
-            time = w.get("time", "Missin time!")
-            rate = w.get("rate", "0")
-
-            from_date = w.get("from_date", None)
-            if from_date is not None:
-                try:
-                    from_date = datetime.fromisoformat(from_date).strftime("%Y-%m-%d")
-                except ValueError:
-                    rprint(
-                        f"[red]Error in {w['id']}'s from_date of {project_id} project.[/red]"
-                    )
-
-            to_date = w.get("to_date", None)
-            if to_date is not None:
-                try:
-                    to_date = datetime.fromisoformat(to_date).strftime("%Y-%m-%d")
-                except ValueError:
-                    rprint(
-                        f"[red]Error in {w['id']}'s to_date of {project_id} project.[/red]"
-                    )
-
-            works_table.add_row(
-                w.get("id", "Missing id!"),
-                w.get("name", "Missing name!"),
-                w.get("description", ""),
-                f"{time}",
-                f"{rate}",
-                from_date,
-                to_date,
-                "✅" if w.get("done", False) else "🏃",
-                "✅" if w.get("paid", False) else "❌",
-            )
-
-        rprint("")
-        rprint(works_table)
-
-        return
-    else:
-        print_error(
-            title="No works",
-            text=(
-                "You do not have any active work currently for this project.\n\n"
-                "You can create one with the command:\n"
-                "trak create work <work_id> -p <project_id> -n <name> -t <hours> --from 2024-01-01 --to 2024-02-01"
-            ),
-        )
-
-
 def list_works(
-    project_id: Annotated[str, typer.Argument()] = ALL_PROJECTS,
+    project_id: Annotated[Optional[str], typer.Argument()] = None,
     done: Annotated[
-        bool, typer.Option("--done", "-d", help="Show also done works.")
+        bool, typer.Option("--done", "-d", help="Show done works in lists.")
     ] = False,
     archived: Annotated[
         Optional[bool],
         typer.Option(
             "--archived",
             "-a",
-            help="Show archived projects in lists.",
+            help="Show archived works in lists.",
         ),
     ] = False,
 ):
     """List the works in a project or all of them."""
 
+    project_id = projects_picker(project_id=project_id, archived=archived, all=True)
+
+    if not project_id:
+        return
+
     if project_id != ALL_PROJECTS:
         details = db_get_project_details(project_id)
 
-        # Check if project esists
         if details:
-            works = get_project_works_from_config(project_id)
+            works = get_project_works_from_config_folder(project_id)
 
+            # Filter by --done
             if works is not None and done is False:
-                works = [w for w in works if w.get("done", False) is False]
+                works = [w for w in works if not w.done]
 
             print_project_works(works, project_id)
-
-            return
+        else:
+            print_error(
+                title="Project's details",
+                text=(
+                    f"There is something wrong with the details of"
+                    " the project you have chosen.\n\n"
+                    f'Check the "{project_id}/details.json '
+                    "file in your configuration."
+                ),
+            )
     else:
         # Show all current projects
-        projects = get_projects_from_config(archived)
+        projects_in_config = get_projects_from_config(archived)
 
-        for project in projects:
-            works = get_project_works_from_config(project)
+        # Check if there are configured projects
+        if not len(projects_in_config):
+            return
 
-            if works is not None:
-                print_project_works(works, project)
+        for project_id in projects_in_config:
+            works = get_project_works_from_config_folder(project_id)
 
-        return
+            # Filter by --done
+            if works is not None and done is False:
+                works = [w for w in works if not w.done]
+
+            if works is not None and len(works):
+                print_project_works(works, project_id)

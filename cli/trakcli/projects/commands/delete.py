@@ -5,14 +5,14 @@ import typer
 from rich import print as rprint
 from rich.panel import Panel
 
-from trakcli.config.main import TRAK_FOLDER
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.paths import PROJECTS_FOLDER_PATH
+from trakcli.utils.base_messages import print_with_padding
 
 
-def command_project_delete(project_id: str):
+def command_delete_project(project_id: str):
     """Delete a project."""
 
-    project_path = pathlib.Path(TRAK_FOLDER / "projects" / project_id)
+    project_path = pathlib.Path(PROJECTS_FOLDER_PATH / project_id)
 
     rprint("")
     if project_path.exists():

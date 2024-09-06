@@ -3,19 +3,29 @@ from datetime import datetime, timedelta
 from random import randrange
 
 import typer
-from rich import print as rprint
+from rich import print
 from rich.padding import Padding
 from rich.prompt import Confirm
 
-from trakcli.config.main import CONFIG_FILE_PATH, DEV_DB_FILE_PATH, get_config
-from trakcli.database.basic import (
+from trakcli.config import (
+    CONFIG_FILE_PATH,
+    DEV_DB_FILE_PATH,
+    get_config,
+    get_db_file_path,
+)
+from trakcli.database import (
+    init_database,
     manage_field_in_json_file,
     overwrite_json_file,
     show_json_file_content,
 )
-from trakcli.database.database import init_database
-from trakcli.database.models import Record
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.models import Record
+from trakcli.utils.base_messages import (
+    print_error,
+    print_info,
+    print_success,
+    print_with_padding,
+)
 
 app = typer.Typer()
 
@@ -26,7 +36,10 @@ app = typer.Typer()
 def init():
     """Initialize the development mode."""
 
-    rprint(print_with_padding("▶️  Init dev mode!"))
+    print_info(
+        title="Init dev mode",
+        text="Developer mode is initializing.",
+    )
 
     confirm_reset_development_database = Confirm.ask(
         """Are you sure you want to init your development database?
@@ -38,7 +51,7 @@ def init():
         # Create the development database (dev_db.json)
         init_database(DEV_DB_FILE_PATH, "[]")
 
-        rprint(
+        print(
             Padding(
                 f"✅ Create development database at {DEV_DB_FILE_PATH}", (2, 0, 0, 0)
             )
@@ -47,12 +60,16 @@ def init():
         # Add the development parameter to config.json
         manage_field_in_json_file(CONFIG_FILE_PATH, "development", True)
 
-        rprint(f"✅ Add the development parameter to {CONFIG_FILE_PATH}")
+        print(f"✅ Add the development parameter to {CONFIG_FILE_PATH}")
 
-        rprint(print_with_padding("⚙️  Here is your new configuration", x=0))
+        print(print_with_padding("⚙️  Here is your new configuration", x=0))
         show_json_file_content(CONFIG_FILE_PATH)
 
-        rprint(print_with_padding("🟢 You are ready to develop on trak!"))
+        print(print_with_padding("🟢 You are ready to develop on trak!"))
+        print_success(
+            title="Dev mode ready",
+            text="You are ready to develop on trak!",
+        )
 
 
 @app.command(help="Toggle the development mode.")
@@ -61,26 +78,25 @@ def toggle():
 
     CONFIG = get_config()
 
-    if "development" in CONFIG:
+    if not CONFIG:
+        return
+
+    if isinstance(CONFIG, dict) and "development" in CONFIG:
         manage_field_in_json_file(
             CONFIG_FILE_PATH, "development", not CONFIG["development"]
         )
         if not CONFIG["development"]:
-            rprint(print_with_padding("🟢 You are ready to develop on trak!"))
+            print_info(
+                title="Start dev mode",
+                text="You are ready to develop on trak!",
+            )
         else:
-            rprint(
-                print_with_padding(
-                    """👋 You exited the development mode. 
-
-Thanks for your help 🙏"""
-                )
+            print_info(
+                title="Stop dev mode",
+                text="👋 You exited the development mode.\n\n Thanks for your help 🙏",
             )
     else:
-        rprint(
-            print_with_padding(
-                "🔴 You have to run the [bold]trak dev init[/bold] command."
-            )
-        )
+        return
 
 
 @app.command(help="Produces mock data for testing purposes.")
@@ -89,7 +105,10 @@ def fake(amount: int):
 
     CONFIG = get_config()
 
-    if CONFIG["development"]:
+    if not CONFIG:
+        return
+
+    if isinstance(CONFIG, dict) and CONFIG.get("development", False):
         fake_records = []
 
         today = datetime.now()
@@ -117,14 +136,24 @@ def fake(amount: int):
                 )._asdict()
             )
 
-        overwrite_json_file(file_path=DEV_DB_FILE_PATH, content=fake_records)
+        db_path = get_db_file_path()
 
-        rprint(print_with_padding(f"🟢 {amount} fake sessions have been created."))
-    else:
-        rprint(
-            print_with_padding(
-                "🔴 This command works only if the developer mode is enabled."
+        if db_path:
+            overwrite_json_file(file_path=db_path, content=fake_records)
+        else:
+            print_error(
+                title="Dev db is missing or broken",
+                text="Try to run the [bold]trak dev init[/bold] command.",
             )
+
+        print_success(
+            title="Created",
+            text=f"{amount} fake sessions have been created.",
+        )
+    else:
+        print_error(
+            title="Dev mode not enabled",
+            text="This command works only if the developer mode is enabled.",
         )
 
 

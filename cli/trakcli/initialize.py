@@ -1,14 +1,13 @@
-from rich import print as rprint
-from rich.panel import Panel
-
-from trakcli.config.init_config import init_config
-from trakcli.config.main import (
+from trakcli.config import (
+    init_config,
+)
+from trakcli.database import init_database
+from trakcli.paths import (
     CONFIG_FILE_PATH,
     DB_FILE_PATH,
-    PROJECT_FOLDER_PATH,
+    PROJECTS_FOLDER_PATH,
 )
-from trakcli.database.database import init_database
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.base_messages import print_success
 
 
 def initialize_trak():
@@ -21,38 +20,46 @@ def initialize_trak():
     projects_folder_initialized = False
     messages = []
 
-    #
-
     if not DB_FILE_PATH.is_file():
         try:
-            init_database(DB_FILE_PATH)
-            messages.append(f"✅ Database created at {DB_FILE_PATH}.")
-            db_initialized = True
+            result = init_database(DB_FILE_PATH)
+            if result:
+                messages.append(f"✅ Database created at {DB_FILE_PATH}.")
+                db_initialized = True
+            else:
+                messages.append(f"❌ Database NOT created at {DB_FILE_PATH}.")
         except Exception as e:
+            messages.append(f"❌ Database NOT created at {DB_FILE_PATH}.")
             raise e
 
     if not CONFIG_FILE_PATH.is_file():
         try:
-            init_config(CONFIG_FILE_PATH)
-            messages.append(f"✅ Config file created at {CONFIG_FILE_PATH}.")
-            config_initialized = True
+            result = init_config(CONFIG_FILE_PATH)
+            if result:
+                messages.append(f"✅ Config file created at {CONFIG_FILE_PATH}.")
+                config_initialized = True
+            else:
+                messages.append(f"❌ Config file NOT created at {CONFIG_FILE_PATH}.")
         except Exception as e:
+            messages.append(f"❌ Config file NOT created at {CONFIG_FILE_PATH}.")
             raise e
 
-    if not PROJECT_FOLDER_PATH.is_dir():
+    if not PROJECTS_FOLDER_PATH.is_dir():
         try:
-            PROJECT_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
-            messages.append(f"✅ Projects folder created at {PROJECT_FOLDER_PATH}.")
+            PROJECTS_FOLDER_PATH.mkdir(parents=True, exist_ok=True)
+            messages.append(f"✅ Projects folder created at {PROJECTS_FOLDER_PATH}.")
             projects_folder_initialized = True
         except Exception as e:
+            messages.append(f"❌ Config file NOT created at {CONFIG_FILE_PATH}.")
             raise e
 
     if db_initialized or config_initialized or projects_folder_initialized:
-        rprint(print_with_padding(text="\n".join(messages), y=1))
-        initialized_message = "Trak has created all the files it needs to work."
-        rprint(
-            Panel(
-                print_with_padding(initialized_message, y=2),
-                title="Trak initalized",
-            )
+        print_success(
+            title="Trak initalized",
+            text=(
+                f"{'\n'.join(messages)}"
+                "\n\nTrak has created all the files it needs to work."
+            ),
         )
+    else:
+        return
