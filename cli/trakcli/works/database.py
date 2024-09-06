@@ -1,7 +1,7 @@
 import json
 import pathlib
 
-from trakcli.config.main import PROJECTS_FOLDER_PATH
+from trakcli.paths import PROJECTS_FOLDER_PATH
 from trakcli.works.models import Work
 
 

@@ -1,8 +1,9 @@
 from datetime import datetime
+
 from rich import print
 
-from trakcli.report.functions.filter_records import filter_records
-from trakcli.report.types import ProjectData, WorksOption
+from trakcli.report.annotations import ProjectData, WorksOption
+from trakcli.utils.filters import filter_records
 from trakcli.works.messages import print_work
 
 

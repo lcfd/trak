@@ -4,69 +4,79 @@ from typing import Annotated, Optional
 import typer
 from rich import print
 
-from trakcli.create.create_sessions_methods import add_method, sub_method
-from trakcli.create.messages.print_missing_duration import print_missing_duration
-from trakcli.create.messages.print_missing_timings_error import (
+from trakcli.create.create_session_methods import add_method, sub_method
+from trakcli.create.messages import (
+    print_missing_duration,
     print_missing_timings_error,
+    print_new_created_session,
 )
-from trakcli.create.messages.print_new_created_session import print_new_created_session
-from trakcli.database.database import add_session
-from trakcli.database.models import Record
-from trakcli.utils.messages import print_error
-from trakcli.utils.projects_picker import projects_picker
+from trakcli.database import add_session
+from trakcli.models import Record
+from trakcli.utils.base_messages import print_error
+from trakcli.utils.projects import projects_picker
+
+CreateSessionDateOption = Annotated[
+    Optional[datetime],
+    typer.Option(
+        "--date",
+        "-d",
+        help="Give the date and time of when you have started the session.",
+        formats=["%Y-%m-%dT%H:%M"],
+    ),
+]
+
+CreateSessionHoursOption = Annotated[
+    Optional[int],
+    typer.Option(
+        "--hours",
+        "-h",
+        help="Hours spent in sessions.",
+    ),
+]
+
+CreateSessionMinutesOption = Annotated[
+    Optional[int],
+    typer.Option(
+        "--minutes",
+        "-m",
+        help="Minutes spent in the session.",
+    ),
+]
+
+CreateSessionStartOption = Annotated[
+    Optional[datetime],
+    typer.Option(
+        "--start",
+        "-s",
+        help=(
+            "The date and time you began the session. "
+            "Incompatible with --when/--today."
+        ),
+        formats=["%Y-%m-%dT%H:%M"],
+    ),
+]
+
+CreateSessionEndOption = Annotated[
+    Optional[datetime],
+    typer.Option(
+        "--end",
+        "-e",
+        help=(
+            "The date and time you ended the session. "
+            "Incompatible with --when/--today."
+        ),
+        formats=["%Y-%m-%dT%H:%M"],
+    ),
+]
 
 
 def create_session(
     project_id: Annotated[Optional[str], typer.Argument()] = None,
-    date: Annotated[
-        Optional[datetime],
-        typer.Option(
-            "--date",
-            "-d",
-            help="Give the date and time of when you have started the session.",
-            formats=["%Y-%m-%dT%H:%M"],
-        ),
-    ] = None,
-    hours: Annotated[
-        Optional[int],
-        typer.Option(
-            "--hours",
-            "-h",
-            help="Hours spent in sessions.",
-        ),
-    ] = None,
-    minutes: Annotated[
-        Optional[int],
-        typer.Option(
-            "--minutes",
-            "-m",
-            help="Minutes spent in the session.",
-        ),
-    ] = None,
-    start: Annotated[
-        Optional[datetime],
-        typer.Option(
-            "--start",
-            "-s",
-            help=(
-                "The date and time you began the session. "
-                "Incompatible with --when/--today."
-            ),
-            formats=["%Y-%m-%dT%H:%M"],
-        ),
-    ] = None,
-    end: Annotated[
-        Optional[datetime],
-        typer.Option(
-            "--end",
-            "-e",
-            help=(
-                "The date and time you ended the session. "
-                "Incompatible with --when/--today."
-            ),
-            formats=["%Y-%m-%dT%H:%M"],
-        ),
-    ] = None,
+    date: CreateSessionDateOption = None,
+    hours: CreateSessionHoursOption = None,
+    minutes: CreateSessionMinutesOption = None,
+    start: CreateSessionStartOption = None,
+    end: CreateSessionEndOption = None,
     ####################################
     # Properties
     category: Annotated[
@@ -114,8 +124,7 @@ def create_session(
 ):
     """Create a session."""
 
-    project_id = projects_picker(project_id=project_id, archived=archived)
-
+    project_id = projects_picker(project_id=project_id, archived=archived, all=True)
     if not project_id:
         return
 

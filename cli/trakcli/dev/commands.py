@@ -7,17 +7,25 @@ from rich import print
 from rich.padding import Padding
 from rich.prompt import Confirm
 
-from trakcli.config.get_config import get_config
-from trakcli.config.get_db_file_path import get_db_file_path
-from trakcli.config.main import CONFIG_FILE_PATH, DEV_DB_FILE_PATH
-from trakcli.database.basic import (
-    manage_field_in_json_file,
+from trakcli.config import (
+    CONFIG_FILE_PATH,
+    DEV_DB_FILE_PATH,
+    get_config,
+    get_db_file_path,
 )
-from trakcli.database.database import init_database
-from trakcli.database.filesystem import overwrite_json_file, show_json_file_content
-from trakcli.database.models import Record
-from trakcli.utils.messages import print_error, print_info, print_success
-from trakcli.utils.messages import print_with_padding
+from trakcli.database import (
+    init_database,
+    manage_field_in_json_file,
+    overwrite_json_file,
+    show_json_file_content,
+)
+from trakcli.models import Record
+from trakcli.utils.base_messages import (
+    print_error,
+    print_info,
+    print_success,
+    print_with_padding,
+)
 
 app = typer.Typer()
 

@@ -1,10 +1,5 @@
 from pathlib import Path
 
-
-#
-# Paths
-#
-
 TRAK_FOLDER = Path.home() / ".trak"
 
 DB_FILE_PATH = TRAK_FOLDER / "db.json"

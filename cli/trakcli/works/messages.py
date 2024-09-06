@@ -2,15 +2,13 @@ from datetime import datetime
 
 from rich import print
 from rich.padding import Padding
-
-from trakcli.config.get_config import get_config
-from trakcli.ui import PercentageBar
-from trakcli.works.models import Work
-
-from rich import print as rprint
 from rich.table import Table
 
-from trakcli.utils.messages import print_error
+from trakcli.config import get_config
+from trakcli.messages import print_error_work_field
+from trakcli.ui import Card, PercentageBar
+from trakcli.utils.base_messages import print_error
+from trakcli.works.models import Work
 
 
 def print_work(
@@ -51,46 +49,57 @@ def print_work(
     else:
         remaininga_exceeded = f"Remaining: {today_to_deadline_days} days\n"
 
+    #
+    # Card sections
+    header = (
+        f"[green]{work.name}[/green] [blue]({work.id})[/blue]\n"
+        "---\n"
+        f"Start: {start_date.strftime('%y-%m-%d')} "
+        f"|| End: {end_date.strftime('%y-%m-%d')}\n"
+        f"project: {project} || Paid: {paid}\n"
+    )
+
+    used_time_budget = (
+        "[blue]Used time budget:[/blue]\n"
+        f"Total: {work.time} hours\n"
+        f"Used: {hours} hours {minutes} minutes\n"
+        f"{PercentageBar(work_time * 3600, totSeconds)}"
+    )
+
+    closeness_to_deadline = (
+        "[blue]Closeness to the deadline:[/blue]\n"
+        f"Total: {work_duration_days} days\n"
+        # Remaining / Overtime
+        f"{remaininga_exceeded}"
+        f"{PercentageBar(work_duration_days, today_from_start_days)}\n"
+    )
+
+    workable_hours = (
+        "[blue]Workable hours (8h/day) until deadline:[/blue]\n"
+        f"{(today_to_deadline_days  *24) / 8} hours "
+        f"in {today_to_deadline_days} days\n"
+    )
+
+    value_so_far = (
+        f"[blue]Value of your work so far at {work.rate}{currency} "
+        "per hour:[/blue]\n"
+        f"[green]{work.rate*hours}{currency}[/green]\n"
+    )
+
+    work_card = Card(title="W O R K", header=header, body=(
+        f"{used_time_budget}"
+        "\n\n"
+        f"{closeness_to_deadline}"
+        "\n\n"
+        f"{workable_hours}"
+        "\n"
+        f"{value_so_far}"
+    ))
+
     # Header
     print(
         Padding(
-            (
-                "\n"
-                "⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿ W O R K ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦\n"
-                # "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "--------------------------------------------------------------\n"
-                f"[green]{work.name}[/green] [blue]({work.id})[/blue]\n"
-                "---\n"
-                f"Start: {start_date.strftime('%y-%m-%d')} "
-                f"|| End: {end_date.strftime('%y-%m-%d')}\n"
-                f"project: {project} || Paid: {paid}\n"
-                "--------------------------------------------------------------\n"
-                # "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "\n"
-                "[blue]Used time budget:[/blue]\n"
-                f"Total: {work.time} hours\n"
-                f"Used: {hours} hours {minutes} minutes\n"
-                f"{PercentageBar(work_time * 3600, totSeconds)}"
-                "\n"
-                "\n"
-                "[blue]Closeness to the deadline:[/blue]\n"
-                f"Total: {work_duration_days} days\n"
-                # Remaining / Overtime
-                f"{remaininga_exceeded}"
-                f"{PercentageBar(work_duration_days, today_from_start_days)}\n"
-                "\n"
-                "\n"
-                "[blue]Workable hours (8h/day) until deadline:[/blue]\n"
-                f"{(today_to_deadline_days  *24) / 8} hours "
-                f"in {today_to_deadline_days} days\n"
-                "\n"
-                f"[blue]Value of your work so far at {work.rate}{currency} "
-                "per hour:[/blue]\n"
-                f"[green]{work.rate*hours}{currency}[/green]\n"
-                # "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "--------------------------------------------------------------\n"
-                "⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟\n"
-            ),
+            work_card,
             (0, 2),
         )
     )
@@ -121,8 +130,8 @@ def print_project_works(works: list[Work] | None, project_id: str):
                 try:
                     from_date = datetime.fromisoformat(from_date).strftime("%Y-%m-%d")
                 except ValueError:
-                    rprint(
-                        f"[red]Error in {w.id}'s from_date of {project_id} project.[/red]"
+                    print_error_work_field(
+                        work_id=w.id, project_id=project_id, field="from_date"
                     )
 
             to_date = w.to_date
@@ -130,8 +139,8 @@ def print_project_works(works: list[Work] | None, project_id: str):
                 try:
                     to_date = datetime.fromisoformat(to_date).strftime("%Y-%m-%d")
                 except ValueError:
-                    rprint(
-                        f"[red]Error in {w.id}'s to_date of {project_id} project.[/red]"
+                    print_error_work_field(
+                        work_id=w.id, project_id=project_id, field="to_date"
                     )
 
             works_table.add_row(
@@ -146,8 +155,8 @@ def print_project_works(works: list[Work] | None, project_id: str):
                 "✅" if w.paid else "❌",
             )
 
-        rprint("")
-        rprint(works_table)
+        print("")
+        print(works_table)
     else:
         print_error(title="No works", text="Check your configuration.")
 

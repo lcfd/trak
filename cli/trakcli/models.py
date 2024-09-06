@@ -1,6 +1,15 @@
 from typing import NamedTuple
 
 
+class Record(NamedTuple):
+    project: str = ""
+    start: str = ""
+    end: str = ""
+    billable: bool = False
+    category: str = ""
+    tag: str = ""
+
+
 class Project(NamedTuple):
     id: str
     name: str = ""

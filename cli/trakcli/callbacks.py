@@ -5,14 +5,14 @@ from rich.panel import Panel
 
 from trakcli.__init__ import (
     __app_name__,
+    __docs__,
     __git_repository__,
     __version__,
     __website__,
-    __docs__,
 )
 
 
-def version_callback(value: bool) -> None:
+def main_version_callback(value: bool) -> None:
     """
     Print the application version.
     """
@@ -28,7 +28,7 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-def website_callback(value: bool) -> None:
+def main_website_callback(value: bool) -> None:
     """
     Launch the usetrak.com website.
     """
@@ -37,7 +37,7 @@ def website_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-def repository_callback(value: bool) -> None:
+def main_repository_callback(value: bool) -> None:
     """
     Launch the usetrak.com website.
     """
@@ -46,7 +46,7 @@ def repository_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-def issues_callback(value: bool) -> None:
+def main_issues_callback(value: bool) -> None:
     """
     Launch issues page.
     """
@@ -55,7 +55,7 @@ def issues_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-def report_bug_callback(value: bool) -> None:
+def main_report_bug_callback(value: bool) -> None:
     """
     Launch report bug page.
     """
@@ -64,7 +64,7 @@ def report_bug_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-def docs_callback(value: bool) -> None:
+def main_docs_callback(value: bool) -> None:
     """
     Launch the docs.usetrak.com website.
     """

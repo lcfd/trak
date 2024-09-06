@@ -2,10 +2,12 @@ from typing import Annotated, Optional
 
 import typer
 
-from trakcli.projects.database import db_get_project_details, get_projects_from_config
-from trakcli.projects.utils.print import print_error_no_projects
-from trakcli.utils.messages import print_error
-from trakcli.utils.projects_picker import projects_picker
+from trakcli.utils.base_messages import print_error
+from trakcli.utils.projects import (
+    db_get_project_details,
+    get_projects_from_config,
+    projects_picker,
+)
 from trakcli.works.database import get_project_works_from_config_folder
 from trakcli.works.messages import print_project_works
 
@@ -60,14 +62,14 @@ def list_works(
 
         # Check if there are configured projects
         if not len(projects_in_config):
-            print_error_no_projects()
-        else:
-            for project_id in projects_in_config:
-                works = get_project_works_from_config_folder(project_id)
+            return
+       
+        for project_id in projects_in_config:
+            works = get_project_works_from_config_folder(project_id)
 
-                # Filter by --done
-                if works is not None and done is False:
-                    works = [w for w in works if not w.done]
+            # Filter by --done
+            if works is not None and done is False:
+                works = [w for w in works if not w.done]
 
-                if works is not None and len(works):
-                    print_project_works(works, project_id)
+            if works is not None and len(works):
+                print_project_works(works, project_id)

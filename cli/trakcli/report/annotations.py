@@ -3,7 +3,7 @@ from typing import Annotated, Optional, TypedDict
 
 import typer
 from trakcli.works.models import Work
-from trakcli.database.models import Record
+from trakcli.models import Record
 from rich.table import Table
 
 BillableOption = Annotated[

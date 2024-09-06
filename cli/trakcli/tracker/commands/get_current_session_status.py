@@ -5,10 +5,10 @@ import typer
 from rich import print as rprint
 from rich.panel import Panel
 
-from trakcli.config.get_config import get_config
-from trakcli.database.database import get_current_session
-from trakcli.database.models import Record
-from trakcli.utils.messages import print_with_padding
+from trakcli.config import get_config
+from trakcli.database import get_current_session
+from trakcli.models import Record
+from trakcli.utils.base_messages import print_with_padding
 
 
 def get_current_session_status(

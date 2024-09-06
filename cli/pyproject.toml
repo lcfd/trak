@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "trakcli"
-version = "0.0.5"
+version = "0.0.6"
 description = "Keep a record of the time you dedicate to your projects."
 authors = ["Luca Fedrizzi <9001053+fedriz@users.noreply.github.com>"]
 license = "AGPL-3.0"
@@ -11,13 +11,15 @@ keywords = ["cli", "timetraker", "time", "traker", "tool"]
 
 
 [tool.poetry.urls]
-"Trak on X" = "https://twitter.com/usetrakcom"
+"Website" = "https://usetrak.com"
+"Docs" = "https://docs.usetrak.com"
+"Trak on X" = "https://x.com/usetrakcom"
 "Luca Fedrizzi's website" = "https://lucafedrizzi.com/"
-"Luca Fedrizzi on X" = "https://twitter.com/lc_fd"
+"Luca Fedrizzi on X" = "https://x.com/lc_fd"
 
 
 [tool.poetry.scripts]
-trak = "trakcli.main:app"
+trak = "trakcli.__main__:app"
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -26,7 +28,7 @@ questionary = ">=2.0.1"
 
 [tool.poetry.group.dev.dependencies]
 black = ">=23.9.1"
-ruff = "^0.0.292"
+ruff = ">=0.6.4"
 pytest = ">=7.4.4"
 
 
