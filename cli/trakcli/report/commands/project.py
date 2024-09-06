@@ -5,10 +5,8 @@ import typer
 from rich import print as rprint
 from rich.table import Table
 
-from trakcli.database.basic import get_db_content
-from trakcli.report.constants import ALL_PROJECTS
-from trakcli.report.functions.print import print_details_and_works
-from trakcli.report.types import (
+from trakcli.database import get_db_content
+from trakcli.report.annotations import (
     ArchivedOption,
     BillableOption,
     DetailsOption,
@@ -22,11 +20,13 @@ from trakcli.report.types import (
     YearOption,
     YesterdayOption,
 )
-from trakcli.report.functions.filter_records import filter_records
-from trakcli.report.functions.get_grouped_records import get_grouped_records
-from trakcli.report.functions.table import create_details, create_title
-from trakcli.utils.messages import print_error
-from trakcli.utils.projects_picker import projects_picker
+from trakcli.report.constants import ALL_PROJECTS
+from trakcli.report.messages import print_details_and_works
+from trakcli.report.utils.get_grouped_records import get_grouped_records
+from trakcli.report.utils.table import create_table_details, create_table_title
+from trakcli.utils.base_messages import print_error
+from trakcli.utils.filters import filter_records
+from trakcli.utils.projects import projects_picker
 from trakcli.utils.time import get_hours_minutes_from_seconds
 from trakcli.works.database import get_project_works_from_config_folder
 
@@ -65,7 +65,9 @@ def report_project(
         return
 
     # Table
-    report_table_title = create_title(today, yesterday, week, month, year, start, end)
+    report_table_title = create_table_title(
+        today, yesterday, week, month, year, start, end
+    )
     main_table = Table(title=report_table_title)
     main_table.add_column("Project", style="cyan", no_wrap=True)
     main_table.add_column("Time spent", style="magenta")
@@ -127,7 +129,7 @@ def report_project(
         if len(records):
             # Add details to output
             if details:
-                project_data["details"] = create_details(g, records)
+                project_data["details"] = create_table_details(g, records)
 
             # Add works to output
             if works:

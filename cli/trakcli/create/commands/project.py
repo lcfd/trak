@@ -5,9 +5,9 @@ import typer
 from rich import print as rprint
 from rich.panel import Panel
 
-from trakcli.config.main import PROJECTS_FOLDER_PATH
-from trakcli.config.models import Project
-from trakcli.utils.messages import print_with_padding
+from trakcli.paths import PROJECTS_FOLDER_PATH
+from trakcli.models import Project
+from trakcli.utils.base_messages import print_with_padding
 
 
 def create_project(

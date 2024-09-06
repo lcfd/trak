@@ -1,4 +1,4 @@
-from trakcli.database.models import Record
+from trakcli.models import Record
 
 
 def get_grouped_records(

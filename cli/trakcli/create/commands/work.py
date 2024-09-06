@@ -2,7 +2,7 @@ from typing import Annotated
 
 import typer
 
-from trakcli.create.types import (
+from trakcli.create.annotations import (
     DescriptionOption,
     FromDateOption,
     NameOption,
@@ -11,11 +11,10 @@ from trakcli.create.types import (
     TimeOption,
     ToDateOption,
 )
-from trakcli.projects.database import db_get_project_details
-from trakcli.report.types import ArchivedOption
+from trakcli.report.annotations import ArchivedOption
 from trakcli.utils.dates import datetime_to_string
-from trakcli.utils.messages import print_error, print_success, print_warning
-from trakcli.utils.projects_picker import projects_picker
+from trakcli.utils.base_messages import print_error, print_success, print_warning
+from trakcli.utils.projects import db_get_project_details, projects_picker
 from trakcli.works.database import (
     get_project_works_from_config_folder,
     set_project_works_in_config_folder,

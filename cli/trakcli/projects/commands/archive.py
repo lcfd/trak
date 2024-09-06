@@ -3,17 +3,13 @@ from typing import Annotated, Optional
 
 import typer
 
-from trakcli.projects.database import (
+
+from trakcli.messages import print_project_archived_toggle
+from trakcli.utils.projects import (
     db_get_project_details,
     db_get_project_details_path,
+    projects_picker,
 )
-from trakcli.projects.messages.print_project_archived_toggle import (
-    print_project_archived_toggle,
-)
-from trakcli.projects.messages.print_project_broken_configuration import (
-    print_project_broken_configuration,
-)
-from trakcli.utils.projects_picker import projects_picker
 
 
 def command_archive_project(
@@ -24,25 +20,25 @@ def command_archive_project(
     """Archive a project."""
 
     project_id = projects_picker(project_id=project_id, archived=False)
-
     if not project_id:
         return
 
     details_path = db_get_project_details_path(project_id)
-    details = db_get_project_details(project_id)
-
-    if details_path and details:
-        # Toggle the value of archived
-        details = details._replace(archived=not details.archived)
-
-        with open(details_path, "w") as details_file:
-            json.dump(
-                details._asdict(),
-                details_file,
-                indent=2,
-                separators=(",", ": "),
-            )
-        print_project_archived_toggle(project_id, details.archived)
-    else:
-        print_project_broken_configuration(project_id)
+    if not details_path:
         return
+
+    details = db_get_project_details(project_id)
+    if not details:
+        return
+
+    # Toggle the value of archived
+    details = details._replace(archived=not details.archived)
+
+    with open(details_path, "w") as details_file:
+        json.dump(
+            details._asdict(),
+            details_file,
+            indent=2,
+            separators=(",", ": "),
+        )
+    print_project_archived_toggle(project_id, details.archived)

@@ -2,11 +2,11 @@ from datetime import datetime
 
 from rich.table import Table
 
-from trakcli.database.models import Record
+from trakcli.models import Record
 from trakcli.utils.dates import format_date
 
 
-def create_details(project: str, records: list[Record]):
+def create_table_details(project: str, records: list[Record]):
     details_table = Table(title=f"Sessions for {project}")
 
     details_table.add_column("Start", style="green", no_wrap=True)
@@ -46,7 +46,7 @@ def create_details(project: str, records: list[Record]):
     return details_table
 
 
-def create_title(
+def create_table_title(
     today: bool | None = None,
     yesterday: bool | None = None,
     week: bool | None = None,

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from trakcli.database.models import Record
+from trakcli.models import Record
 from trakcli.utils.dates import same_week
 
 

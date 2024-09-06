@@ -3,13 +3,11 @@ from typing import Annotated, Optional
 
 import typer
 
-from trakcli.database.database import add_session, tracking_already_started
-from trakcli.database.models import Record
-from trakcli.tracker.messages.print_session_already_started import (
-    print_session_already_started,
-)
-from trakcli.utils.messages import print_success
-from trakcli.utils.projects_picker import projects_picker
+from trakcli.database import add_session, tracking_already_started
+from trakcli.models import Record
+from trakcli.tracker.messages import print_session_already_started
+from trakcli.utils.base_messages import print_success
+from trakcli.utils.projects import projects_picker
 
 
 def start_tracker(

@@ -5,8 +5,8 @@ import typer
 from rich import print as rprint
 from rich.panel import Panel
 
-from trakcli.config.main import PROJECTS_FOLDER_PATH
-from trakcli.utils.messages import print_with_padding
+from trakcli.paths import PROJECTS_FOLDER_PATH
+from trakcli.utils.base_messages import print_with_padding
 
 
 def command_delete_project(project_id: str):

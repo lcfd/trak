@@ -3,8 +3,8 @@ from typing import Annotated, Optional
 import typer
 from rich.prompt import Confirm
 
-from trakcli.utils.messages import print_error, print_success, print_warning
-from trakcli.utils.projects_picker import (
+from trakcli.utils.base_messages import print_error, print_success, print_warning
+from trakcli.utils.projects import (
     projects_picker,
 )
 from trakcli.utils.works import change_work_field

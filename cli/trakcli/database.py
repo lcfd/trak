@@ -8,13 +8,47 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from trakcli.config.get_db_file_path import get_db_file_path
-from trakcli.database.filesystem import read_json_file
-from trakcli.database.models import Record
+from trakcli.config import get_db_file_path
+from trakcli.models import Record
 from trakcli.utils.dates import format_date, same_week
-from trakcli.utils.messages import print_error
-from trakcli.utils.messages import print_with_padding
+from trakcli.utils.filesystem import read_json_file
+from trakcli.utils.base_messages import print_error, print_with_padding
 from trakcli.utils.questionary import questionary_style_select
+
+
+def get_db_content() -> list[Record] | None:
+    db_path = get_db_file_path()
+
+    if not db_path:
+        return None
+
+    sessions_list = read_json_file(db_path)
+
+    if not sessions_list:
+        return None
+
+    try:
+        sessions_list = list(map(lambda session: Record(**session), sessions_list))
+        return sessions_list
+    except Exception:
+        return None
+
+
+def manage_field_in_json_file(
+    file_path: Path, field_name: str, field_value: str | int | float | bool
+):
+    """Manage the content of a single object JSON file."""
+
+    with open(file_path, "r") as db:
+        db_content = db.read()
+
+    parsed_json = json.loads(db_content)
+    if field_name:
+        parsed_json[field_name] = field_value
+
+    with open(file_path, "w") as db:
+        json.dump(parsed_json, db, indent=2, separators=(",", ": "))
+
 
 #
 # Database operations
@@ -341,3 +375,20 @@ def get_record_collection(
     print(sum_panel)
 
     return records
+
+
+def show_json_file_content(file_path: Path):
+    """Show the content of a JSON file."""
+
+    with open(file_path, "r") as db:
+        json_file_content = db.read()
+
+    parsed_json = json.loads(json_file_content)
+    print(parsed_json)
+
+
+def overwrite_json_file(file_path: Path, content: dict | list[dict]):
+    """Fill a JSON file with the provided content. It's a complete overwrite."""
+
+    with open(file_path, "w+") as db:
+        json.dump(content, db, indent=2, separators=(",", ": "))

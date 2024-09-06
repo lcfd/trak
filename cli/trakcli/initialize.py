@@ -1,11 +1,13 @@
-from trakcli.config.init_config import init_config
-from trakcli.config.main import (
+from trakcli.config import (
+    init_config,
+)
+from trakcli.database import init_database
+from trakcli.paths import (
     CONFIG_FILE_PATH,
     DB_FILE_PATH,
     PROJECTS_FOLDER_PATH,
 )
-from trakcli.database.database import init_database
-from trakcli.utils.messages import print_success
+from trakcli.utils.base_messages import print_success
 
 
 def initialize_trak():
