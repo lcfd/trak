@@ -4,10 +4,10 @@ import typer
 from rich import print as rprint
 from rich.table import Table
 
-from trakcli.projects.database import get_projects_from_config
+from trakcli.utils.projects import get_projects_from_config
 
 
-def command_project_list(
+def command_list_project(
     archived: Annotated[
         Optional[bool],
         typer.Option(
@@ -29,10 +29,11 @@ def command_project_list(
     )
 
     table.add_column("id", style="green", no_wrap=True)
-    table.add_column("from", style="cyan", no_wrap=True)
+    # table.add_column("from", style="cyan", no_wrap=True)
 
     for project in projects_in_config:
-        table.add_row(project, "config")
+        # table.add_row(project, "config")
+        table.add_row(project)
 
     rprint("")
     rprint(table)

@@ -1,81 +1,89 @@
 from typing import Annotated, Optional
 
 import typer
-from rich import print as rprint
-from rich.panel import Panel
 from rich.prompt import Confirm
 
-from trakcli.projects.database import get_projects_from_config
-from trakcli.projects.utils.print_missing_project import print_missing_project
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.utils.works import change_work_field
+from trakcli.utils.projects import projects_picker
+from trakcli.utils.base_messages import print_error, print_success, print_warning
 from trakcli.works.database import (
-    get_project_works_from_config,
-    set_project_works_in_config,
+    get_project_works_from_config_folder,
+    set_project_works_in_config_folder,
 )
 
 
 def paid_work(
-    work_id: Annotated[str, typer.Argument()],
-    project_id: Annotated[
-        str,
-        typer.Option(
-            "--in", "--of", "-p", help="The project's id in which the work is located."
-        ),
+    work_id: Annotated[
+        str, typer.Argument(help="The id of the work you want to mark as paid.")
     ],
+    project_id: Annotated[
+        Optional[str], typer.Argument(help="The id of the work's project.")
+    ] = None,
     archived: Annotated[
         Optional[bool],
         typer.Option(
             "--archived",
             "-a",
-            help="Show archived projects in lists.",
+            help="Consider also archived works.",
         ),
     ] = False,
 ):
-    """Mark a work of a project as paid."""
+    """Mark a work as paid."""
 
-    projects = get_projects_from_config(archived)
+    # Action confirm
+    confirm_paid = Confirm.ask(
+        (
+            f"\nAre you sure you want to mark the [green]{work_id}[/green] "
+            f"work of [green]{project_id}[/green] project as paid?"
+        ),
+        default=False,
+    )
 
-    if project_id in projects:
-        confirm_done = Confirm.ask(
-            f"Are you sure you want to mark the [green]{work_id}[/green] work from [green]{project_id}[/green] project as paid?",
-            default=False,
+    if not confirm_paid:
+        print_warning(
+            title="Cancelled",
+            text=f"The {work_id} work hasn't been marked as paid.",
         )
-        if not confirm_done:
-            rprint("")
-            rprint("[yellow]Not marked as paid.[/yellow]")
-            raise typer.Abort()
+        raise typer.Abort()
 
-        works = get_project_works_from_config(project_id)
-        if works is not None:
-            works_ids = [w["id"] for w in works]
-            if work_id in works_ids:
-                filtered_works = [
-                    {**w, "paid": True} if w["id"] == work_id else w for w in works
-                ]
+    project_id = projects_picker(project_id=project_id, archived=archived)
 
-                set_project_works_in_config(project_id, filtered_works)
+    if not project_id:
+        return
 
-                rprint("")
-                rprint(
-                    Panel.fit(
-                        title="[green]Success[/green]",
-                        renderable=f"Work {work_id} successfully from {project_id} project marked as paid.",
-                    )
+    works = get_project_works_from_config_folder(project_id)
+    if works is not None:
+        works_ids = [w.id for w in works]
+        if work_id in works_ids:
+            modified_works = list(
+                map(
+                    lambda w: change_work_field(work=w, parameter="paid", value=True)
+                    if w.id == work_id
+                    else w,
+                    works,
                 )
-            else:
-                rprint("")
-                rprint(
-                    Panel.fit(
-                        title="[red]The work doesn't exist[/red]",
-                        renderable=print_with_padding(
-                            (
-                                "You can create a new work with the command:\n"
-                                "trak create work <work_id> -p <project_id> -n <name> -t <hours> --from 2024-01-01 --to 2024-02-01"
-                            )
-                        ),
-                    )
-                )
+            )
 
-                return
-    else:
-        print_missing_project(projects)
+            set_project_works_in_config_folder(project_id, modified_works)
+
+            print_success(
+                title="Success",
+                text=(
+                    f"Work {work_id} successfully from {project_id}"
+                    " project marked as paid."
+                ),
+            )
+
+            return
+
+        else:
+            print_error(
+                title="The work doesn't exist",
+                text=(
+                    "You can create a new work with the command:\n"
+                    "trak create work <work_id> -p <project_id> -n <name> -t <hours>"
+                    " --from 2024-01-01 --to 2024-02-01"
+                ),
+            )
+
+            return

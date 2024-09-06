@@ -1,156 +1,100 @@
-from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
-from rich import print as rprint
-from rich.panel import Panel
 
-from trakcli.projects.database import db_get_project_details, get_projects_from_config
-from trakcli.projects.utils.print_missing_project import print_missing_project
-from trakcli.utils.print_with_padding import print_with_padding
+from trakcli.create.annotations import (
+    DescriptionOption,
+    FromDateOption,
+    NameOption,
+    ProjectIdOption,
+    RateOption,
+    TimeOption,
+    ToDateOption,
+)
+from trakcli.report.annotations import ArchivedOption
+from trakcli.utils.dates import datetime_to_string
+from trakcli.utils.base_messages import print_error, print_success, print_warning
+from trakcli.utils.projects import db_get_project_details, projects_picker
 from trakcli.works.database import (
-    get_project_works_from_config,
-    set_project_works_in_config,
+    get_project_works_from_config_folder,
+    set_project_works_in_config_folder,
 )
 from trakcli.works.models import Work
 
 
 def create_work(
-    id: Annotated[
+    work_id: Annotated[
         str,
         typer.Argument(help="The id for the new work."),
     ],
-    project_id: Annotated[
-        str,
-        typer.Option(
-            "--project-id",
-            "-p",
-            help="The id of the project where the new work will be placed.",
-        ),
-    ],
-    name: Annotated[
-        str,
-        typer.Option(
-            "--name",
-            "-n",
-            help="A readable name for the new work.",
-        ),
-    ],
-    time: Annotated[
-        int,
-        typer.Option(
-            "--time",
-            "-t",
-            help="",
-        ),
-    ],
-    from_date: Annotated[
-        datetime,
-        typer.Option(
-            "--from",
-            help="",
-            formats=["%Y-%m-%d"],
-        ),
-    ],
-    to_date: Annotated[
-        datetime,
-        typer.Option(
-            "--to",
-            help="",
-            formats=["%Y-%m-%d"],
-        ),
-    ],
-    description: Annotated[
-        str,
-        typer.Option(
-            "--description",
-            "-d",
-            help="",
-        ),
-    ] = "",
-    rate: Annotated[
-        int,
-        typer.Option(
-            "--rate",
-            "-r",
-            help="",
-        ),
-    ] = 1,
-    archived: Annotated[
-        Optional[bool],
-        typer.Option(
-            "--archived",
-            "-a",
-            help="Show archived projects in lists.",
-        ),
-    ] = False,
+    name: NameOption,
+    time: TimeOption,
+    from_date: FromDateOption,
+    to_date: ToDateOption,
+    description: DescriptionOption = "",
+    rate: RateOption = 1,
+    project_id: ProjectIdOption = None,
+    archived: ArchivedOption = False,
 ):
-    projects_in_config = get_projects_from_config(archived)
+    project_id = projects_picker(project_id=project_id, archived=archived)
 
-    if project_id in projects_in_config:
-        details = db_get_project_details(project_id)
+    if not project_id:
+        return
 
-        # Check if project esists
-        if details:
-            works = get_project_works_from_config(project_id)
+    # if project_id in projects_in_config:
+    details = db_get_project_details(project_id)
 
-            # Check if id already exists
-            if works is not None:
-                work_ids = [w["id"] for w in works]
-                if id in work_ids:
-                    rprint("")
-                    rprint(
-                        Panel.fit(
-                            title="[yellow]This work id already exists[/yellow]",
-                            renderable=print_with_padding(
-                                "You should change the id parameter or you can just use the work already in the configuration."
-                            ),
-                        )
-                    )
+    # Check if project esists
+    if details:
+        works = get_project_works_from_config_folder(project_id)
 
-                    return
-
-            new_work = Work(
-                id=id,
-                name=name,
-                time=time,
-                rate=rate,
-                from_date=from_date.strftime("%Y-%d-%m"),
-                to_date=to_date.strftime("%Y-%d-%m"),
-                description=description,
-                done=False,
-                paid=False,
-            )
-
-            if works is not None:
-                works.append(new_work._asdict())
-            else:
-                works = [new_work._asdict()]
-
-            set_project_works_in_config(project_id, works)
-
-            rprint("")
-            rprint(
-                Panel.fit(
-                    title="[green]Work created[/green]",
-                    renderable=print_with_padding(f"Work {id} created."),
-                )
-            )
-
-            return
-        else:
-            rprint("")
-            rprint(
-                Panel.fit(
-                    title="[red]Error in config[/red]",
-                    renderable=print_with_padding(
-                        "Error in/with details file in project's configuration."
+        # Check if id already exists
+        if works is not None:
+            work_ids = [w.id for w in works]
+            if work_id in work_ids:
+                print_warning(
+                    title="This work already exists",
+                    text=(
+                        f'The id "{work_id}" has already been used in the '
+                        f'"{project_id}" project.\n\n'
+                        f'You can check ALL the works in the project "{project_id}" '
+                        "by using the command:\n"
+                        f"trak works list {project_id} --done\n\n"
+                        "Use a different value for work_id."
                     ),
                 )
-            )
 
-            return
+                return
+
+        new_work = Work(
+            id=work_id,
+            name=name,
+            time=time,
+            rate=rate,
+            from_date=datetime_to_string(from_date),
+            to_date=datetime_to_string(to_date),
+            description=description,
+            done=False,
+            paid=False,
+        )
+
+        if works is not None:
+            works.append(new_work)
+        else:
+            works = [new_work]
+
+        set_project_works_in_config_folder(project_id, works)
+
+        print_success(
+            title="Work created",
+            text=f"Work [green]{work_id}[/green] created.",
+        )
+
+        return
     else:
-        print_missing_project(projects_in_config)
+        print_error(
+            title="Error in config",
+            text="Error in details file in project's configuration.",
+        )
 
         return

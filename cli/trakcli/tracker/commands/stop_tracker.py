@@ -1,10 +1,8 @@
 from datetime import datetime
 
-from trakcli.database.database import stop_trak_session, tracking_already_started
-from trakcli.database.models import Record
-from trakcli.utils.messages.print_error import print_error
-from trakcli.utils.messages.print_info import print_info
-from trakcli.utils.messages.print_success import print_success
+from trakcli.database import stop_trak_session, tracking_already_started
+from trakcli.models import Record
+from trakcli.utils.base_messages import print_info, print_success, print_error
 
 
 def stop_tracker():
@@ -29,18 +27,16 @@ def stop_tracker():
             print_success(
                 title="⏹️ Stop",
                 text=(
-                    f"The [bold green]{stopped_record.project}[/bold green] session is over.\n\n"
+                    f"The [bold green]{stopped_record.project}[/bold green]"
+                    " session is over.\n\n"
                     f"This session lasted [bold green]{h}h {m}m[/bold green].\n\n"
                     "Good job!"
                 ),
             )
         else:
             print_error(
-                title="Project not provided",
-                text=(
-                    "There are multiple sessions running.\n\n"
-                    "You need to pick a project from the list."
-                ),
+                title="No session to stop",
+                text=("At the moment you don't have any session to stop"),
             )
     else:
         print_info(

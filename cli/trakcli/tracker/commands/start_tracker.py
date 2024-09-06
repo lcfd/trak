@@ -1,22 +1,22 @@
 from datetime import datetime
 from typing import Annotated, Optional
 
-import questionary
 import typer
 
-from trakcli.database.database import add_session, tracking_already_started
-from trakcli.database.models import Record
-from trakcli.projects.database import get_projects_from_config
-from trakcli.projects.utils.print_missing_project import print_missing_project
-from trakcli.tracker.messages.print_session_already_started import (
-    print_session_already_started,
-)
-from trakcli.utils.messages.print_success import print_success
-from trakcli.utils.styles_questionary import questionary_style_select
+from trakcli.database import add_session, tracking_already_started
+from trakcli.models import Record
+from trakcli.tracker.messages import print_session_already_started
+from trakcli.utils.base_messages import print_success
+from trakcli.utils.projects import projects_picker
 
 
 def start_tracker(
-    project: Annotated[Optional[str], typer.Argument()] = None,
+    project_id: Annotated[
+        Optional[str],
+        typer.Argument(
+            help="The id of the project you want to start tracking.",
+        ),
+    ] = None,
     billable: Annotated[
         bool,
         typer.Option(
@@ -55,23 +55,9 @@ def start_tracker(
     Start tracking a project by project_id.
     """
 
-    projects_in_config = get_projects_from_config(archived)
+    project_id = projects_picker(project_id=project_id, archived=archived)
 
-    if not project:
-        project = questionary.select(
-            "Select a project:",
-            choices=projects_in_config,
-            pointer="• ",
-            show_selected=True,
-            style=questionary_style_select,
-        ).ask()
-
-        if not project:
-            return
-
-    if project not in projects_in_config:
-        print_missing_project(projects_in_config)
-
+    if not project_id:
         return
 
     record = tracking_already_started()
@@ -79,7 +65,7 @@ def start_tracker(
     if not isinstance(record, Record):
         add_session(
             Record(
-                project=project,
+                project=project_id,
                 start=datetime.now().isoformat(),
                 billable=billable,
                 category=category,
@@ -88,7 +74,7 @@ def start_tracker(
         )
         print_success(
             title="▶️  Start",
-            text=(f"[green]{project}[/green] started.\n\n" "Have a good session!"),
+            text=(f"[green]{project_id}[/green] started.\n\n" "Have a good session!"),
         )
     else:
         print_session_already_started(record)
