@@ -108,54 +108,49 @@ def fake(amount: int):
     if not CONFIG:
         return
 
-    if isinstance(CONFIG, dict) and CONFIG.get("development", False):
-        fake_records = []
-
-        today = datetime.now()
-        past_date = today
-
-        projects = ["pokemon", "digimon", "yugioh"]
-        categories = ["frontend", "backend", "meeting"]
-        tags = ["solo", "multi"]
-
-        for _ in range(0, amount):
-            delta = timedelta(hours=randrange(1, 6), minutes=randrange(1, 40))
-            delta_plus = timedelta(hours=randrange(1, 3))
-
-            past_date = past_date - delta
-            past_date_after = past_date + delta_plus
-
-            fake_records.append(
-                Record(
-                    project=random.choice(projects),
-                    start=past_date.isoformat(),
-                    end=past_date_after.isoformat(),
-                    category=random.choice(categories),
-                    tag=random.choice(tags),
-                    billable=random.choice([True, False]),
-                )._asdict()
-            )
-
-        db_path = get_db_file_path()
-
-        if db_path:
-            overwrite_json_file(file_path=db_path, content=fake_records)
-        else:
-            print_error(
-                title="Dev db is missing or broken",
-                text="Try to run the [bold]trak dev init[/bold] command.",
-            )
-
-        print_success(
-            title="Created",
-            text=f"{amount} fake sessions have been created.",
-        )
-    else:
+    if not isinstance(CONFIG, dict) or not CONFIG.get("development", False):
         print_error(
             title="Dev mode not enabled",
             text="This command works only if the developer mode is enabled.",
         )
+        return
 
+    fake_records = []
+    now = datetime.now()
 
-if __name__ == "__main__":
-    app()
+    PROJECTS = ["pokemon", "digimon", "yugioh"]
+    CATEGORIES = ["frontend", "backend", "meeting"]
+    TAGS = ["solo", "multi"]
+
+    for _ in range(0, amount):
+        delta = timedelta(hours=randrange(1, 6), minutes=randrange(1, 40))
+        delta_plus = timedelta(hours=randrange(1, 3))
+
+        now = now - delta
+        today_end = now + delta_plus
+
+        fake_records.append(
+            Record(
+                project=random.choice(PROJECTS),
+                start=now.isoformat(),
+                end=today_end.isoformat(),
+                category=random.choice(CATEGORIES),
+                tag=random.choice(TAGS),
+                billable=random.choice([True, False]),
+            )._asdict()
+        )
+
+    db_path = get_db_file_path()
+    if not db_path:
+        print_error(
+            title="Dev db is missing or broken",
+            text="Try to run the [bold]trak dev init[/bold] command.",
+        )
+        return
+
+    overwrite_json_file(file_path=db_path, content=fake_records)
+
+    print_success(
+        title="Created",
+        text=f"{amount} fake sessions have been created.",
+    )
