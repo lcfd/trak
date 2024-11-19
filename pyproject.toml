@@ -19,7 +19,7 @@ keywords = ["cli", "timetraker", "time", "traker", "tool"]
 
 
 [tool.poetry.scripts]
-trak = "trakcli.__main__:app"
+trak = "trak.__main__:app"
 
 [tool.poetry.dependencies]
 python = "^3.11"
