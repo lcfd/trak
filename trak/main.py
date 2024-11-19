@@ -22,10 +22,13 @@ from trak.tracker.commands.get_current_session_status import (
 from trak.tracker.commands.start_tracker import start_tracker
 from trak.tracker.commands.stop_tracker import stop_tracker
 from trak.works import app as works_app
+from trak.doctor import app as doctor_app
 
 app = typer.Typer()
 
 # Initialize trak required files and settings
+# TODO: It may be better to execute it just once
+
 initialize_trak()
 
 
@@ -47,6 +50,7 @@ app.add_typer(report_app, name="report", help="Get useful insights from your rec
 app.add_typer(
     dev_app, name="dev", help="Utils for developers who wants to work on trak."
 )
+app.add_typer(doctor_app, name="doctor", help="Utils for keeping trak in shape.")
 
 
 @app.callback()

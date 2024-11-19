@@ -19,10 +19,10 @@ def init_config(p: Path) -> int:
 
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
-        with p.open("w", encoding="utf-8") as db:
+        with p.open("w", encoding="utf-8") as config_file:
             json.dump(
                 {"development": False, "currency": "€"},
-                db,
+                config_file,
                 indent=2,
                 separators=(",", ": "),
             )
