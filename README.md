@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/lcfd/trak">
-    <img src="./assets/banner.png" alt="Trak banner">
+    <img src="https://raw.githubusercontent.com/lcfd/trak/main/assets/banner.png" alt="Trak banner">
   </a>
 
   <h1 align="center">trak</h1>
@@ -17,7 +17,7 @@
     ·
     <a href="https://github.com/lcfd/trak/issues">Issues</a>
     ·
-    <a href="https://usetrak.com/docs/">Documentation</a>
+    <a href="https://docs.usetrak.com">Documentation (🏗️)</a>
     •
     <a href="https://github.com/lcfd/trak/discussions">Feedback</a>
   </p>
