@@ -1,6 +1,11 @@
 from typing import NamedTuple
 
 
+class Config(NamedTuple):
+    development: bool
+    currency: str
+
+
 class Record(NamedTuple):
     project: str = ""
     start: str = ""
