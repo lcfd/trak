@@ -101,8 +101,8 @@ def stop_trak_session() -> Record | None:
 
     session_index = -1
 
+    # Support multiple running sessions
     if len(current_sessions_indexes) > 1:
-        # Support stopping a session when there are multiple running sessions
         choices = [
             questionary.Choice(title=record.project, value=index)
             for index, record in enumerate(db_content)
@@ -125,7 +125,7 @@ def stop_trak_session() -> Record | None:
 
     if session_index > -1:
         db_content[session_index] = db_content[session_index]._replace(
-            end=datetime.now().isoformat()
+            end=datetime.now().isoformat(timespec="seconds")
         )
 
         save_db(content=db_content)
@@ -139,33 +139,7 @@ def stop_trak_session() -> Record | None:
         return
 
 
-def tracking_already_started() -> Record | bool:
-    """
-    Check if there already is a record that is running.
-    If it's already running return the record.
-    """
-
-    db_content = get_db_content()
-    if not db_content:
-        return False
-
-    # Create a list of the running sessions
-    current_sessions = [record for record in db_content if not record.end]
-
-    try:
-        last_record = current_sessions[-1]
-    except IndexError:
-        return False
-    except KeyError:
-        return False
-
-    if last_record.end == "":
-        return True
-
-    return False
-
-
-def get_current_session_started() -> Record | None:
+def get_running_session() -> Record | None:
     """
     Check if there already is a record that is running.
     If it's already running return the record.
@@ -191,25 +165,20 @@ def get_current_session_started() -> Record | None:
     return
 
 
-def get_current_session() -> Record | None:
-    """Get the current session from records in database."""
+def delete_project_sessions(project_id: str) -> Record | None:
+    """
+    Delete all sessions of a project.
+    """
 
     db_content = get_db_content()
     if not db_content:
         return
 
-    # Create a list of running sessions
-    current_sessions = [record for record in db_content if not record.end]
+    project_sessions = [
+        record for record in db_content if not record.project == project_id
+    ]
 
-    try:
-        last_record = current_sessions[-1]
-    except IndexError:
-        return
-    except KeyError:
-        return
-
-    if last_record.end == "":
-        return last_record
+    save_db(project_sessions)
 
     return
 
