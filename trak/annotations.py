@@ -9,7 +9,7 @@ from trak.callbacks import (
 )
 
 MainVersionOption = Option(
-    None,
+    False,
     "--version",
     "-v",
     help="Show the application's version.",
@@ -18,7 +18,7 @@ MainVersionOption = Option(
 )
 
 MainWebsiteOption = Option(
-    None,
+    False,
     "--website",
     "-w",
     help="Launch the usetrak.com website.",
@@ -27,7 +27,7 @@ MainWebsiteOption = Option(
 )
 
 MainRepositoryOption = Option(
-    None,
+    False,
     "--repository",
     "-r",
     help="Launch the trak repository.",
@@ -37,7 +37,7 @@ MainRepositoryOption = Option(
 
 
 MainIssuesOption = Option(
-    None,
+    False,
     "--issues",
     "-i",
     help="Launch the trak issues page on Github.",
@@ -46,7 +46,7 @@ MainIssuesOption = Option(
 )
 
 MainBugOption = Option(
-    None,
+    False,
     "--bug",
     "-b",
     help="Report a bug on Github.",
@@ -55,8 +55,9 @@ MainBugOption = Option(
 )
 
 MainDocsOption = Option(
-    None,
+    False,
     "--docs",
+    "-d",
     help="Launch the documentation website.",
     callback=main_docs_callback,
     is_eager=True,
