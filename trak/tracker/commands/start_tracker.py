@@ -3,7 +3,7 @@ from typing import Annotated, Optional
 
 import typer
 
-from trak.database import add_session, tracking_already_started
+from trak.database import add_session, get_running_session
 from trak.models import Record
 from trak.tracker.messages import print_session_already_started
 from trak.utils.base_messages import print_success
@@ -60,13 +60,13 @@ def start_tracker(
     if not project_id:
         return
 
-    record = tracking_already_started()
+    record = get_running_session()
 
     if not isinstance(record, Record):
         add_session(
             Record(
                 project=project_id,
-                start=datetime.now().isoformat(),
+                start=datetime.now().isoformat(timespec="seconds"),
                 billable=billable,
                 category=category,
                 tag=tag,
