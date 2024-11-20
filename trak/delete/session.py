@@ -11,7 +11,7 @@ SessionIdOption = Annotated[
     Optional[int],
     typer.Option(
         "--id",
-        help="The id of the annotation you want to delete.",
+        help="The id of the session you want to delete.",
     ),
 ]
 SessionLatestOption = Annotated[
