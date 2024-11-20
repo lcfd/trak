@@ -119,3 +119,11 @@ def db_get_project_details_path(project_id: str):
     else:
         print_project_broken_configuration(project_id)
         return None
+
+
+def project_exists(project_id: str):
+    """Check if project exists."""
+
+    project_path = pathlib.Path(PROJECTS_FOLDER_PATH / project_id)
+
+    return project_path.exists() and project_path.is_dir()

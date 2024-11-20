@@ -3,19 +3,20 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import questionary
+import typer
 from rich import padding, print
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-import typer
 
-from trak.config import get_db_file_path
+from trak.config import get_db_file_path, get_works_path
 from trak.models import Record
+from trak.utils.base_messages import print_error, print_info, print_with_padding
 from trak.utils.dates import format_date, same_week
 from trak.utils.filesystem import read_json_file
-from trak.utils.base_messages import print_error, print_info, print_with_padding
 from trak.utils.projects import db_get_project_details
 from trak.utils.questionary import questionary_style_select
+from trak.works.models import Work
 
 
 def get_db_content() -> list[Record] | None:
@@ -406,3 +407,29 @@ def save_db(content: list[Record]):
 
         with open(db_path, "w") as db:
             json.dump(content_dicts, db, indent=2, separators=(",", ": "))
+
+
+def get_project_works(project_id: str):
+    """Get the project works in the config by id."""
+
+    works_path = get_works_path(project_id)
+
+    if works_path is not None and works_path.exists() and works_path.is_file():
+        with open(works_path, "r") as f:
+            try:
+                works_from_json = json.load(f)
+                works_list: list[Work] = list(map(lambda w: Work(**w), works_from_json))
+                return works_list
+            except Exception:
+                return None
+
+
+def save_project_works(project_id: str, works: list[Work]):
+    """Get the project works in the config by id."""
+
+    works_path = get_works_path(project_id)
+
+    if works_path is not None and works_path.exists() and works_path.is_file():
+        with open(works_path, "w") as works_file:
+            works_dicts = [w._asdict() for w in works]
+            json.dump(works_dicts, works_file, indent=2, separators=(",", ": "))

@@ -8,6 +8,7 @@ from trak.paths import (
     DB_FILE_PATH,
     DEV_DB_FILE_PATH,
     CONFIG_FILE_PATH,
+    PROJECTS_FOLDER_PATH,
 )
 
 #
@@ -57,3 +58,12 @@ def get_db_file_path():
         )
 
         return None
+
+
+def get_works_path(project_id: str):
+    project_path = Path(PROJECTS_FOLDER_PATH / project_id)
+
+    if not project_path.exists() or not project_path.is_dir():
+        return None
+
+    return project_path / "works.json"

@@ -5,7 +5,7 @@ import typer
 from rich import print as rprint
 from rich.table import Table
 
-from trak.database import get_db_content
+from trak.database import get_db_content, get_project_works
 from trak.report.annotations import (
     ArchivedOption,
     BillableOption,
@@ -28,7 +28,6 @@ from trak.utils.base_messages import print_error
 from trak.utils.filters import filter_records
 from trak.utils.projects import projects_picker
 from trak.utils.time import get_hours_minutes_from_seconds
-from trak.works.database import get_project_works_from_config_folder
 
 
 def report_project(
@@ -133,7 +132,7 @@ def report_project(
 
             # Add works to output
             if works:
-                project_works = get_project_works_from_config_folder(g)
+                project_works = get_project_works(g)
                 if project_works is not None:
                     for work in project_works:
                         if work.done is not True:
