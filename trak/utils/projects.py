@@ -35,13 +35,14 @@ def get_projects_from_config(archived: bool | None = False):
                 continue
 
             project_id = details.get("id", None)
-            if project_id:
-                projects.append(project_id)
-            else:
+
+            if not project_id:
                 print_error(
-                    title="Missing id",
-                    text=f"The project {str(x)} doesn't have an id.",
+                    title="Missing id", text=f"The project {str(x)} doesn't have an id."
                 )
+                continue
+
+            projects.append(project_id)
 
     return projects
 
@@ -83,8 +84,8 @@ def projects_picker(
     if project_id not in projects_in_config:
         print_missing_project(projects_in_config)
         return
-
-    return project_id
+    else:
+        return project_id
 
 
 def db_get_project_details(project_id: str) -> Project | None:
