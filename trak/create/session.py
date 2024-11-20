@@ -4,8 +4,8 @@ from typing import Annotated, Optional
 import typer
 from rich import print
 
-from trak.create.create_session_methods import add_method, sub_method
-from trak.create.messages import (
+from trak.utils.sessions import add_method, sub_method
+from trak.messages import (
     print_missing_duration,
     print_missing_timings_error,
     print_new_created_session,
