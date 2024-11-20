@@ -132,8 +132,8 @@ def fake(amount: int):
         fake_records.append(
             Record(
                 project=random.choice(PROJECTS),
-                start=now.isoformat(),
-                end=today_end.isoformat(),
+                start=now.isoformat(timespec="seconds"),
+                end=today_end.isoformat(timespec="seconds"),
                 category=random.choice(CATEGORIES),
                 tag=random.choice(TAGS),
                 billable=random.choice([True, False]),
