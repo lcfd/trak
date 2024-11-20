@@ -6,12 +6,12 @@ from rich import print as rprint
 from rich.panel import Panel
 
 from trak.config import get_config
-from trak.database import get_current_session
+from trak.database import get_running_session
 from trak.models import Record
 from trak.utils.base_messages import print_with_padding
 
 
-def get_current_session_status(
+def command_status(
     starship: Annotated[
         bool,
         typer.Option(
@@ -27,7 +27,7 @@ def get_current_session_status(
 
     CONFIG = get_config()
 
-    current_session = get_current_session()
+    current_session = get_running_session()
 
     if current_session and isinstance(current_session, Record):
         start_datetime = datetime.fromisoformat(current_session.start)
@@ -43,8 +43,8 @@ def get_current_session_status(
             dev_mode = isinstance(CONFIG, dict) and CONFIG["development"]
             print(
                 (
-                    f"⏰ {'( DEV MODE) ' if dev_mode else ''}"
-                    f"{current_session.project} ⌛ {h}h {m}m"
+                    f"[: {current_session.project} ⌛{h}h {m}m"
+                    f" {'( DEV MODE)' if dev_mode else ''} :]"
                 )
             )
         else:
@@ -64,7 +64,7 @@ def get_current_session_status(
     else:
         if starship:
             dev_mode = isinstance(CONFIG, dict) and CONFIG["development"]
-            print((f"⏰ {'( DEV MODE) ' if dev_mode else ''} " "No active session"))
+            print((f"[: No active session {'( DEV MODE)' if dev_mode else ''} :]"))
         else:
             rprint(
                 Panel.fit(
