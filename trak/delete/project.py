@@ -1,84 +1,50 @@
-import json
 import pathlib
+import shutil
+from typing import Annotated, Optional
 
 import typer
 from rich import print as rprint
-from rich.panel import Panel
 
+from trak.database import delete_project_sessions
 from trak.paths import PROJECTS_FOLDER_PATH
-from trak.models import Project
-from trak.utils.base_messages import print_with_padding
+from trak.utils.base_messages import print_error, print_success
+from trak.utils.projects import projects_picker
+
+ProjectIdOption = Annotated[
+    Optional[str],
+    typer.Option(
+        "--id",
+        help="The id of the project you want to delete.",
+    ),
+]
 
 
-def create_project(
-    project_id: str,
-):
+def delete_project(id: ProjectIdOption = None):
+    """Delete a project."""
+
+    id = projects_picker(project_id=id, archived=False)
+    if not id:
+        return
+
+    project_path = pathlib.Path(PROJECTS_FOLDER_PATH / id)
+
     rprint("")
-    path = pathlib.Path(PROJECTS_FOLDER_PATH / project_id)
-    files = ["details.json", "works.json", "archived_works.json"]
+    if not project_path.exists():
+        print_error(title="Error", text="This project doesn't exists.")
+        return
 
-    path.mkdir(parents=True, exist_ok=True)
-    details_path = path / "details.json"
-    details_path_exists = details_path.exists()
-
-    # Create files if not exists
-    for f in files:
-        try:
-            with open(path / f, "x") as file:
-                file.write("")
-        except FileExistsError:
-            rprint(f"The file {path / f} already exists, so it won't be created.")
-
-    if not details_path_exists:
-        name = typer.prompt(text="Readable name", default="")
-        description = typer.prompt("Description", default="")
-        categories = typer.prompt(
-            "Categories (CSV format)",
-            default="",
+    if project_path.exists():
+        delete = typer.confirm(
+            f"Are you sure you want to delete the {id} project?\n"
+            "The project's folder and sessions will be deleted."
         )
-        tags = typer.prompt("Tags (CSV format)", default="")
-        customer = typer.prompt("Customer", default="")
-        hour_rate = typer.prompt("Hour rate", default=1, show_default=True)
-        archived = typer.prompt("Archived", default=False, show_default=True)
+        if not delete:
+            raise typer.Abort()
 
-        if project_id:
-            new_project = Project(
-                id=project_id,
-                name=name,
-                description=description,
-                categories=[c.strip() for c in categories.split(",")]
-                if categories != ""
-                else [],
-                tags=[t.strip() for t in tags.split(",")] if tags != "" else [],
-                customer=customer,
-                rate=hour_rate,
-                archived=archived,
-            )
+        delete_project_sessions(id)
+        shutil.rmtree(project_path)
 
-            with open(details_path, "w") as details_file:
-                json.dump(
-                    new_project._asdict(),
-                    details_file,
-                    indent=2,
-                    separators=(",", ": "),
-                )
-
-            rprint("")
-            rprint(
-                Panel.fit(
-                    title="[green]Success[/green]",
-                    renderable=print_with_padding(f"Project {project_id} created."),
-                )
-            )
-
-            return
-    else:
-        rprint("")
-        rprint(
-            Panel.fit(
-                title="[yellow]Already exists[/yellow]",
-                renderable=print_with_padding(
-                    f"Project {project_id} already has a configuration."
-                ),
-            )
+        print_success(
+            title="Deleted",
+            text=f"The project {id} has been delete correctly.",
         )
