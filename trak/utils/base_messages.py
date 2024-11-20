@@ -8,7 +8,7 @@ def print_with_padding(text: str, x: int = 2, y: int = 2):
 
 
 def print_error(title: str | None = None, text: str | None = None):
-    shown_title = title if title else "Something went wrong"
+    shown_title = title if title else "Error"
     shown_text = (
         text
         if text

@@ -7,8 +7,8 @@ from trak.utils.works import change_work_field
 from trak.utils.projects import projects_picker
 from trak.utils.base_messages import print_error, print_success, print_warning
 from trak.works.database import (
-    get_project_works_from_config_folder,
-    set_project_works_in_config_folder,
+    get_project_works,
+    save_project_works,
 )
 
 
@@ -51,7 +51,7 @@ def paid_work(
     if not project_id:
         return
 
-    works = get_project_works_from_config_folder(project_id)
+    works = get_project_works(project_id)
     if works is not None:
         works_ids = [w.id for w in works]
         if work_id in works_ids:
@@ -64,7 +64,7 @@ def paid_work(
                 )
             )
 
-            set_project_works_in_config_folder(project_id, modified_works)
+            save_project_works(project_id, modified_works)
 
             print_success(
                 title="Success",
