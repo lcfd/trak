@@ -20,7 +20,7 @@ WorkIdOption = Annotated[
     Optional[int],
     typer.Option(
         "--id",
-        help="The id of work.",
+        help="The id of the work you want to delete.",
     ),
 ]
 
