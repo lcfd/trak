@@ -1,7 +1,6 @@
 from rich import print
-from rich.panel import Panel
 
-from trak.utils.base_messages import print_error, print_with_padding
+from trak.utils.base_messages import print_error, print_success
 
 
 def print_error_no_projects():
@@ -41,42 +40,79 @@ def print_missing_project(projects_in_config):
 def print_project_archived_toggle(project_id: str, archived: bool):
     print("")
     if archived:
-        print(
-            Panel.fit(
-                title=f"[green] The project {project_id} has been archived",
-                renderable=print_with_padding(
-                    (
-                        "From now on this project won't be accessible from lists.\n\n"
-                        "[orange3]⭐Tip:[/orange3]\n"
-                        "You can run trak [orange3]project "
-                        f"archive {project_id}[/orange3] to unarchive it."
-                    )
-                ),
-            )
+        print_success(
+            title=f"[green] The project {project_id} has been archived",
+            text=(
+                "From now on this project won't be accessible from lists.\n\n"
+                "[orange3]⭐Tip:[/orange3]\n"
+                "You can run trak [orange3]project "
+                f"archive {project_id}[/orange3] to unarchive it."
+            ),
         )
     else:
-        print(
-            Panel.fit(
-                title=f"[green]󱝢 The project {project_id} has been unarchived",
-                renderable=print_with_padding(
-                    (
-                        "From now on this project will be accessible from lists.\n\n"
-                        "[orange3]⭐Tip:[/orange3]\n"
-                        f"You can run trak [orange3]project archive "
-                        f"{project_id}[/orange3] to archive it."
-                    )
-                ),
-            )
+        print_success(
+            title=f"[green]󱝢 The project {project_id} has been unarchived",
+            text=(
+                "From now on this project will be accessible from lists.\n\n"
+                "[orange3]⭐Tip:[/orange3]\n"
+                f"You can run trak [orange3]project archive "
+                f"{project_id}[/orange3] to archive it."
+            ),
         )
 
 
 def print_project_broken_configuration(project_id: str):
     print("")
-    print(
-        Panel.fit(
-            title=f"[red]The project {project_id} has broken configuration",
-            renderable=print_with_padding(
-                ("Please, check the details.json file in your project folder.")
-            ),
-        )
+    print_error(
+        title=f"The project {project_id} has broken configuration",
+        text="Please, check the details.json file in your project folder.",
+    )
+
+
+def print_missing_duration():
+    print("")
+    print_error(
+        title="Missing duration",
+        text=(
+            "You need to provide the duration of the session, "
+            "in hours or/and minutes (--minutes or/and --hours)."
+        ),
+    )
+
+
+def print_missing_timings_error():
+    print("")
+    print_error(
+        title="[red]Missing timings[/red]",
+        text=(
+            "You need to provide the timings for your session. \n"
+            "You different options: \n"
+            "• Use the --today or --date flags as starting moment in combination "
+            "with --minutes / --hours flags to add to the starting moment.\n"
+            "• Use just --minutes / --hours flags to subract from now.\n"
+            "• Use the --start and --end flags.\n\n"
+            "[yellow1]⭐Tip[/yellow1]: All flags come with short versions. \n"
+            '       For example, "--minutes" can be written as "-m".\n'
+            "       You can see them using --help."
+        ),
+    )
+
+
+def print_new_created_session(project_id: str, new_session: Record):
+    start, _, _ = new_session.start.replace("T", " ").partition(".")
+    end, _, _ = new_session.end.replace("T", " ").partition(".")
+    billable = "Yes" if new_session.billable else "No"
+
+    print("")
+    print_success(
+        title=f"New session created for project {project_id}",
+        text=(
+            f"[yellow1]Timings[/yellow1]\n"
+            f"start: {start}\n"
+            f"end: {end}\n\n"
+            f"[yellow1]Properties[/yellow1]\n"
+            f"billable: {billable}\n"
+            f"category: {new_session.category or 'No category'}\n"
+            f"tag: {new_session.tag or 'No tag'}"
+        ),
     )
