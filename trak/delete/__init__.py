@@ -7,6 +7,6 @@ from trak.delete.work import delete_work
 app = typer.Typer()
 
 
-app.command("session", help="Delete a new session")(delete_session)
-app.command("work", help="Delete a new work")(delete_work)
-app.command("project", help="Delete a new project")(delete_project)
+app.command("session", help="Delete a session.")(delete_session)
+app.command("work", help="Delete a work.")(delete_work)
+app.command("project", help="Delete a project.")(delete_project)
