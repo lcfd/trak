@@ -40,8 +40,8 @@ def sub_method(
     # Add hours and minutes
     if hours or minutes:
         if hours:
-            end_timedate = end_timedate - timedelta(hours=hours)
+            start_timedate = start_timedate - timedelta(hours=hours)
         if minutes:
-            end_timedate = end_timedate - timedelta(minutes=minutes)
+            start_timedate = start_timedate - timedelta(minutes=minutes)
 
     return start_timedate, end_timedate
