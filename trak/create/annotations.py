@@ -5,7 +5,7 @@ import typer
 
 
 NameOption = Annotated[
-    str,
+    Optional[str],
     typer.Option(
         "--name",
         "-n",
@@ -14,16 +14,12 @@ NameOption = Annotated[
 ]
 
 TimeOption = Annotated[
-    int,
-    typer.Option(
-        "--time",
-        "-t",
-        help="Budgeted time.",
-    ),
+    Optional[int],
+    typer.Option("--time", "-t", help="Budgeted time.", min=0),
 ]
 
 FromDateOption = Annotated[
-    datetime,
+    Optional[datetime],
     typer.Option(
         "--from",
         help="Start date of the work.",
@@ -32,7 +28,7 @@ FromDateOption = Annotated[
 ]
 
 ToDateOption = Annotated[
-    datetime,
+    Optional[datetime],
     typer.Option(
         "--to",
         help="End date of the work.",
