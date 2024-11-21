@@ -23,7 +23,11 @@ Docs = "https://docs.usetrak.com"
 trak = "trak.__main__:app"
 
 [dependency-groups]
-dev = ["ruff>=0.6.4", "pytest >= 8.3.2"]
+dev = [
+    "ruff>=0.6.4",
+    "pytest >= 8.3.2",
+    "pdbpp>=0.10.3",
+]
 
 [build-system]
 requires = ["hatchling"]
