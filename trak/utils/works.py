@@ -25,7 +25,9 @@ def works_picker(
     if not isinstance(work_id, int):
         work_id = questionary.select(
             "Select the work to delete:",
-            choices=[Choice(title=w.name, value=i) for i, w in enumerate(works)],
+            choices=[
+                Choice(title=f"({i}) {w.name}", value=i) for i, w in enumerate(works)
+            ],
             pointer="• ",
             show_selected=True,
             style=questionary_style_select,
