@@ -70,3 +70,54 @@ ArchivedOption = Annotated[
         help="Show archived projects in lists.",
     ),
 ]
+
+#
+# Create Session Options
+
+CreateSessionDateOption = Annotated[
+    Optional[datetime],
+    typer.Option(
+        "--date",
+        "-d",
+        help="Give the date and time of when you have started the session.",
+        formats=["%Y-%m-%dT%H:%M"],
+    ),
+]
+
+CreateSessionHoursOption = Annotated[
+    Optional[int],
+    typer.Option(
+        "--hours",
+        "-h",
+        help="Hours spent in sessions.",
+    ),
+]
+
+CreateSessionMinutesOption = Annotated[
+    Optional[int],
+    typer.Option(
+        "--minutes",
+        "-m",
+        help="Minutes spent in the session.",
+    ),
+]
+
+CreateSessionStartOption = Annotated[
+    Optional[datetime],
+    typer.Option(
+        "--start",
+        "-s",
+        help=("The date and time you began the session. "),
+        formats=["%Y-%m-%dT%H:%M"],
+    ),
+]
+
+CreateSessionEndOption = Annotated[
+    Optional[datetime],
+    typer.Option(
+        "--end",
+        "-e",
+        help=("The date and time you ended the session. "),
+        formats=["%Y-%m-%dT%H:%M"],
+    ),
+]
