@@ -1,40 +1,33 @@
 from datetime import datetime
-from typing import Annotated, Optional
 
-import typer
 from rich import print as rprint
 from rich.table import Table
 
-from trak.database import get_db_content, get_project_works
+from trak.database import get_db_content
 from trak.report.annotations import (
     ArchivedOption,
     BillableOption,
-    DetailsOption,
     EndOption,
     MonthOption,
-    ProjectData,
+    ProjectIdOption,
     StartOption,
     TodayOption,
     WeekOption,
-    WorksOption,
     YearOption,
     YesterdayOption,
 )
 from trak.report.constants import ALL_PROJECTS
-from trak.report.messages import print_details_and_works
 from trak.report.utils.get_grouped_records import get_grouped_records
-from trak.report.utils.table import create_table_details, create_table_title
+from trak.report.utils.table import create_table_title
 from trak.utils.base_messages import print_error
 from trak.utils.filters import filter_records
-from trak.utils.projects import projects_picker
+from trak.utils.projects import project_exists, projects_picker
 from trak.utils.time import get_hours_minutes_from_seconds
 
 
 def report_project(
-    project_id: Annotated[Optional[str], typer.Argument()] = None,
+    project_id: ProjectIdOption = None,
     billable: BillableOption = False,
-    works: WorksOption = False,
-    details: DetailsOption = False,
     today: TodayOption = False,
     yesterday: YesterdayOption = False,
     week: WeekOption = False,
@@ -45,9 +38,12 @@ def report_project(
     archived: ArchivedOption = False,
 ):
     """
-    Get reports for your projects.
-    The projects will be get by the configuration in the .trak folder.
+    Show reports for your projects.
     """
+
+    if isinstance(project_id, str) and not project_exists(project_id):
+        print_error(text=f'The project "{project_id}" doesn\'t exist.')
+        return
 
     # Get project id
     project_id = projects_picker(project_id=project_id, archived=archived, all=True)
@@ -76,26 +72,20 @@ def report_project(
 
     # Accumulators
 
-    projects_data: list[ProjectData] = []
     total_acc_seconds = 0
 
     for g in grouped:
-        if works:
-            # If works is passed only billable records are considered.
-            records = filter_records(
-                records=grouped[g],
-                billable=True,
-                start=start,
-                end=end,
-                yesterday=None,
-                today=None,
-                week=None,
-                month=None,
-            )
-        else:
-            records = filter_records(
-                grouped[g], billable, yesterday, today, week, month, start, end
-            )
+        records = filter_records(
+            records=grouped[g],
+            billable=billable,
+            yesterday=yesterday,
+            today=today,
+            week=week,
+            month=month,
+            year=year,
+            start=start,
+            end=end,
+        )
 
         acc_seconds = 0
 
@@ -118,29 +108,7 @@ def report_project(
 
         main_table.add_row(g, f"[bold]{h}h {m}m[/bold]")
 
-        project_data: ProjectData = {
-            "project": g,
-            "details": None,
-            "works": [],
-            "records": records,
-        }
-
-        if len(records):
-            # Add details to output
-            if details:
-                project_data["details"] = create_table_details(g, records)
-
-            # Add works to output
-            if works:
-                project_works = get_project_works(g)
-                if project_works is not None:
-                    for work in project_works:
-                        if work.done is not True:
-                            project_data["works"].append(work)
-
-        projects_data.append(project_data)
-
-    # Add Total of timings if project id is `all`
+    # Add Total of timings if project project_id is `all`
     if project_id == ALL_PROJECTS:
         h, m = get_hours_minutes_from_seconds(total_acc_seconds)
 
@@ -150,5 +118,3 @@ def report_project(
     # Print summary report table
     rprint("")
     rprint(main_table)
-
-    print_details_and_works(projects_data, works)
