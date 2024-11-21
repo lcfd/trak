@@ -3,7 +3,7 @@ from datetime import datetime
 
 from trak.database import get_db_content, get_project_works
 from trak.report.annotations import ProjectIdOption, WorkIdOption
-from trak.report.utils.get_grouped_records import get_grouped_records
+from trak.utils.get_grouped_records import get_grouped_records
 from trak.utils.base_messages import print_error
 from trak.utils.filters import filter_records
 from trak.utils.projects import project_exists, projects_picker
