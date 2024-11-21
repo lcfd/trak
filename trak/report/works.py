@@ -16,7 +16,7 @@ def report_works(
     work_id: WorkIdOption = None,
 ):
     """
-    Show reports for your sessions.
+    Show reports for your works.
     """
 
     if isinstance(project_id, str) and not project_exists(project_id):
