@@ -84,17 +84,14 @@ def print_missing_duration():
 def print_missing_timings_error():
     print("")
     print_error(
-        title="[red]Missing timings[/red]",
+        title="Missing timings",
         text=(
             "You need to provide the timings for your session. \n"
-            "You different options: \n"
-            "• Use the --today or --date flags as starting moment in combination "
-            "with --minutes / --hours flags to add to the starting moment.\n"
-            "• Use just --minutes / --hours flags to subract from now.\n"
-            "• Use the --start and --end flags.\n\n"
-            "[yellow1]⭐Tip[/yellow1]: All flags come with short versions. \n"
-            '       For example, "--minutes" can be written as "-m".\n'
-            "       You can see them using --help."
+            "There are some options:\n"
+            "• Use the --date flags as starting moment in combination "
+            "with --minutes and/or --hours to add to --date.\n"
+            "• Use just --minutes and/or --hours flags to subract from now.\n"
+            "• Use the --start and --end flags."
         ),
     )
 
