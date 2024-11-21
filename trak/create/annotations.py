@@ -9,7 +9,7 @@ NameOption = Annotated[
     typer.Option(
         "--name",
         "-n",
-        help="A readable name for the new work.",
+        help="A readable name.",
     ),
 ]
 
@@ -56,7 +56,10 @@ RateOption = Annotated[
 
 ProjectIdOption = Annotated[
     Optional[str],
-    typer.Argument(help="The id of the project."),
+    typer.Option(
+        "--project-id",
+        help="The id of the project.",
+    ),
 ]
 
 ArchivedOption = Annotated[

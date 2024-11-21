@@ -48,7 +48,7 @@ def create_work(
         new_work_name = name
     else:
         try:
-            new_work_name = str(questionary.text("Name?").ask())
+            new_work_name = str(questionary.text("Readable name?").ask())
         except Exception:
             print_error(text="Invalid value inserted.")
             return
