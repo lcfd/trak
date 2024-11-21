@@ -1,5 +1,6 @@
 from rich import print
 
+from trak.models import Record
 from trak.utils.base_messages import print_error, print_success
 
 
