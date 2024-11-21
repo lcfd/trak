@@ -71,7 +71,6 @@ def report_project(
     grouped = get_grouped_records(project_id, db_content)
 
     # Accumulators
-
     total_acc_seconds = 0
 
     for g in grouped:
