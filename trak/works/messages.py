@@ -52,7 +52,7 @@ def print_work(
     #
     # Card sections
     header = (
-        f"[green]{work.name}[/green] [blue]({work.id})[/blue]\n"
+        f"[green]{work.name}[/green]\n"
         "---\n"
         f"Start: {start_date.strftime('%y-%m-%d')} "
         f"|| End: {end_date.strftime('%y-%m-%d')}\n"
