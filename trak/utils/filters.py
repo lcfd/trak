@@ -11,6 +11,7 @@ def filter_records(
     today=None,
     week=None,
     month=None,
+    year: int | None = None,
     start=None,
     end=None,
 ) -> list[Record]:
@@ -53,6 +54,12 @@ def filter_records(
             if record.start
             and datetime.fromisoformat(record.start).month == actual_month
             and datetime.fromisoformat(record.start).year == actual_year
+        ]
+    elif year:
+        records = [
+            record
+            for record in records
+            if record.start and datetime.fromisoformat(record.start).year == actual_year
         ]
     elif start is not None and end is None:
         records = [

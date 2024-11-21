@@ -6,6 +6,14 @@ from trak.works.models import Work
 from trak.models import Record
 from rich.table import Table
 
+ProjectIdOption = Annotated[
+    Optional[str],
+    typer.Option(
+        "--project-id",
+        help="The id of the project.",
+    ),
+]
+
 BillableOption = Annotated[
     bool,
     typer.Option(
@@ -36,7 +44,7 @@ TodayOption = Annotated[
     bool,
     typer.Option(
         "--today",
-        help="Consider only today's records.",
+        help="Consider only today.",
     ),
 ]
 
@@ -45,7 +53,7 @@ YesterdayOption = Annotated[
     typer.Option(
         "--yesterday",
         "-y",
-        help="Consider only this month's records.",
+        help="Consider only yesterday.",
     ),
 ]
 
@@ -54,7 +62,7 @@ WeekOption = Annotated[
     typer.Option(
         "--week",
         "-w",
-        help="Consider only this week's records.",
+        help="Consider only the current week.",
     ),
 ]
 
@@ -63,7 +71,7 @@ MonthOption = Annotated[
     typer.Option(
         "--month",
         "-m",
-        help="Consider only this month's records.",
+        help="Consider only the current month.",
     ),
 ]
 
@@ -71,7 +79,7 @@ YearOption = Annotated[
     bool,
     typer.Option(
         "--year",
-        help="Consider only this year's records.",
+        help="Consider only the current year.",
     ),
 ]
 
@@ -83,7 +91,7 @@ StartOption = Annotated[
         help=(
             "Start date (e.g. 2023-10-08) for the time range. "
             "If --end is not provided, trak will report the data "
-            "for the provided date."
+            "for --start day."
         ),
         formats=["%Y-%m-%d"],
     ),
