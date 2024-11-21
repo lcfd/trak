@@ -23,9 +23,6 @@ from trak.tracker.commands.get_current_session_status import (
 from trak.tracker.commands.start_tracker import start_tracker
 from trak.tracker.commands.stop_tracker import stop_tracker
 
-# from trak.projects import app as projects_app
-# from trak.works import app as works_app
-
 app = typer.Typer(rich_markup_mode="markdown")
 
 # Initialize trak required files and settings
@@ -71,28 +68,22 @@ app.add_typer(
     create_app,
     name="create",
     help="Create something.",
-    rich_help_panel="Operate on data",
+    rich_help_panel="Operate on your data",
 )
 app.add_typer(
     delete_app,
     name="delete",
     help="Delete something.",
-    rich_help_panel="Operate on data",
+    rich_help_panel="Operate on your data",
 )
 # app.add_typer(
-#     create_app, name="edit", help="Edit something.", rich_help_panel="Operate on data"
+#     xxx, name="edit", help="Edit something.", rich_help_panel="Operate on data"
 # )
 
 # Read actions
-app.add_typer(
-    create_app,
-    name="list",
-    help="Get the list of something.",
-    rich_help_panel="Read your data",
-)
 # TODO: TBA
 # app.add_typer(
-#     create_app,
+#     xxx,
 #     name="find",
 #     help="Find something.",
 #     rich_help_panel="Read your data",
@@ -123,8 +114,3 @@ app.add_typer(
     help="Utils for trak developers.",
     rich_help_panel="Other",
 )
-
-
-# Add subcommands
-# app.add_typer(projects_app, name="projects", help="Interact with your projects.")
-# app.add_typer(works_app, name="works", help="Interact with your works.")
