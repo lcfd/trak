@@ -119,6 +119,14 @@ ArchivedOption = Annotated[
     ),
 ]
 
+WorkIdOption = Annotated[
+    Optional[int],
+    typer.Option(
+        "--id",
+        help="The id of the work.",
+    ),
+]
+
 
 class ProjectData(TypedDict):
     project: str
