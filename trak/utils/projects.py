@@ -3,6 +3,7 @@ import pathlib
 
 import questionary
 
+from trak.constants import ALL_PROJECTS
 from trak.messages import (
     print_error_no_projects,
     print_missing_project,
@@ -53,8 +54,6 @@ def projects_picker(
     all: bool | None = False,
 ) -> str | None:
     """Check if the provided project_id is in config."""
-
-    ALL_PROJECTS = "all"
 
     projects_in_config = get_projects_from_config(archived)
 

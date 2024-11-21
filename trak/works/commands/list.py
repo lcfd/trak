@@ -11,7 +11,6 @@
 # from trak.works.database import get_project_works
 # from trak.works.messages import print_project_works
 #
-# ALL_PROJECTS = "all"
 #
 #
 # def list_works(
