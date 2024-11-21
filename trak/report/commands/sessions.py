@@ -13,7 +13,7 @@ from trak.report.annotations import (
     YearOption,
     YesterdayOption,
 )
-from trak.report.constants import ALL_PROJECTS
+from trak.constants import ALL_PROJECTS
 from trak.report.utils.get_grouped_records import get_grouped_records
 from trak.report.utils.table import create_table_details
 from trak.utils.base_messages import print_error

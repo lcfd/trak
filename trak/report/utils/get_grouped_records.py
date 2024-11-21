@@ -1,3 +1,4 @@
+from trak.constants import ALL_PROJECTS
 from trak.models import Record
 
 
@@ -9,8 +10,6 @@ def get_grouped_records(
     Get a list of records and group them by project name.
     In other words it filters the records by project.
     """
-
-    ALL_PROJECTS = "all"
 
     grouped = {}
     for record in records:
