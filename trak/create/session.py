@@ -4,6 +4,15 @@ from typing import Annotated, Optional
 import typer
 from rich import print
 
+from trak.create.annotations import (
+    CreateSessionDateOption,
+    CreateSessionHoursOption,
+    CreateSessionMinutesOption,
+    CreateSessionStartOption,
+    CreateSessionEndOption,
+    ProjectIdOption,
+)
+
 from trak.utils.sessions import add_method, sub_method
 from trak.messages import (
     print_missing_duration,
@@ -13,71 +22,16 @@ from trak.messages import (
 from trak.database import add_session
 from trak.models import Record
 from trak.utils.base_messages import print_error
-from trak.utils.projects import projects_picker
-
-CreateSessionDateOption = Annotated[
-    Optional[datetime],
-    typer.Option(
-        "--date",
-        "-d",
-        help="Give the date and time of when you have started the session.",
-        formats=["%Y-%m-%dT%H:%M"],
-    ),
-]
-
-CreateSessionHoursOption = Annotated[
-    Optional[int],
-    typer.Option(
-        "--hours",
-        "-h",
-        help="Hours spent in sessions.",
-    ),
-]
-
-CreateSessionMinutesOption = Annotated[
-    Optional[int],
-    typer.Option(
-        "--minutes",
-        "-m",
-        help="Minutes spent in the session.",
-    ),
-]
-
-CreateSessionStartOption = Annotated[
-    Optional[datetime],
-    typer.Option(
-        "--start",
-        "-s",
-        help=(
-            "The date and time you began the session. "
-            "Incompatible with --when/--today."
-        ),
-        formats=["%Y-%m-%dT%H:%M"],
-    ),
-]
-
-CreateSessionEndOption = Annotated[
-    Optional[datetime],
-    typer.Option(
-        "--end",
-        "-e",
-        help=(
-            "The date and time you ended the session. "
-            "Incompatible with --when/--today."
-        ),
-        formats=["%Y-%m-%dT%H:%M"],
-    ),
-]
+from trak.utils.projects import project_exists, projects_picker
 
 
 def create_session(
-    project_id: Annotated[Optional[str], typer.Argument()] = None,
+    project_id: ProjectIdOption = None,
     date: CreateSessionDateOption = None,
     hours: CreateSessionHoursOption = None,
     minutes: CreateSessionMinutesOption = None,
     start: CreateSessionStartOption = None,
     end: CreateSessionEndOption = None,
-    ####################################
     # Properties
     category: Annotated[
         str,
@@ -103,7 +57,6 @@ def create_session(
             help="The project is billable.",
         ),
     ] = False,
-    ####################################
     # Meta
     dryrun: Annotated[
         bool,
@@ -122,9 +75,22 @@ def create_session(
         ),
     ] = False,
 ):
-    """Create a session."""
+    """
+    Create a new session.
 
-    project_id = projects_picker(project_id=project_id, archived=archived, all=True)
+
+    - *Add method*: date + hours and minutes, add some time today, not precise.
+
+    - *Sub method*: hours and/or minutes, add a session backwards starting from the now.
+
+    - *Precise method*: start and end, use the two dates, precise.
+    """
+
+    if isinstance(project_id, str) and not project_exists(project_id):
+        print_error(text=f'The project "{project_id}" doesn\'t exist.')
+        return
+
+    project_id = projects_picker(project_id=project_id, archived=archived)
     if not project_id:
         return
 
@@ -171,21 +137,18 @@ def create_session(
     # Create the session
     new_session = Record(
         project=project_id,
-        start=start_timedate.isoformat(),
-        end=end_timedate.isoformat(),
+        start=start_timedate.isoformat(timespec="seconds"),
+        end=end_timedate.isoformat(timespec="seconds"),
         billable=billable,
         category=category,
         tag=tag,
     )
 
-    #
-    # Handle dryrun
-    if not dryrun:
-        if add_session(new_session):
-            print_new_created_session(project_id=project_id, new_session=new_session)
-        else:
-            print_error(title="Session not created", text="Check your configuration.")
-    else:
+    if dryrun:
         print("\n[bold orange3] 󰙨 DRY RUN[bold orange3]")
+        return
 
-    return
+    if add_session(new_session):
+        print_new_created_session(project_id=project_id, new_session=new_session)
+    else:
+        print_error(title="Session not created", text="Check your configuration.")
