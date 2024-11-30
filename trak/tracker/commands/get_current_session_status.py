@@ -64,7 +64,7 @@ def command_status(
     else:
         if starship:
             dev_mode = isinstance(CONFIG, dict) and CONFIG["development"]
-            print((f"[: No active session {'( DEV MODE)' if dev_mode else ''} :]"))
+            print((f"[: No active session{' ( DEV MODE)' if dev_mode else ''} :]"))
         else:
             rprint(
                 Panel.fit(
