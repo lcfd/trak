@@ -10,3 +10,15 @@ class Work(NamedTuple):
     description: str = ""
     done: bool = False
     paid: bool = False
+
+
+WORK_FIELDS_TYPES = {
+    "name": "str",
+    "time": "int",
+    "rate": "int",
+    "from_date": "datetime",
+    "to_date": "datetime",
+    "description": "str",
+    "done": "bool",
+    "paid": "bool",
+}
