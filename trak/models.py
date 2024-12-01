@@ -16,7 +16,6 @@ class Record(NamedTuple):
 
 
 class Project(NamedTuple):
-    id: str
     name: str = ""
     description: str = ""
     categories: list[str] = []
