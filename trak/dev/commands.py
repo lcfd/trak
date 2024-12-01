@@ -148,9 +148,10 @@ def fake(amount: int):
         )
         return
 
-    overwrite_json_file(file_path=db_path, content=fake_records)
+    saved = overwrite_json_file(file_path=db_path, content=fake_records)
 
-    print_success(
-        title="Created",
-        text=f"{amount} fake sessions have been created.",
-    )
+    if saved:
+        print_success(
+            title="Created",
+            text=f"{amount} fake sessions have been created.",
+        )
