@@ -14,6 +14,7 @@ from trak.configs.commands import app as config_app
 from trak.create import app as create_app
 from trak.delete import app as delete_app
 from trak.dev.commands import app as dev_app
+from trak.edit import app as edit_app
 from trak.doctor import app as doctor_app
 from trak.initialize import initialize_trak
 from trak.report import app as report_app
@@ -76,9 +77,12 @@ app.add_typer(
     help="Delete something.",
     rich_help_panel="Operate on your data",
 )
-# app.add_typer(
-#     xxx, name="edit", help="Edit something.", rich_help_panel="Operate on data"
-# )
+app.add_typer(
+    edit_app,
+    name="edit",
+    help="Edit something.",
+    rich_help_panel="Operate on your data",
+)
 
 # Read actions
 # TODO: TBA
