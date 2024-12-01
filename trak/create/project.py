@@ -1,7 +1,6 @@
 import json
 import pathlib
 
-import questionary
 import typer
 from rich import print as rprint
 
@@ -9,6 +8,7 @@ from trak.create.annotations import NameOption, ProjectIdOption
 from trak.models import Project
 from trak.paths import PROJECTS_FOLDER_PATH
 from trak.utils.base_messages import print_success, print_warning
+from trak.utils.rich_toolkit import rich_toolkit_input
 
 
 def create_project(
@@ -20,9 +20,9 @@ def create_project(
         new_project_id = project_id
     else:
         while not isinstance(new_project_id, str):
-            new_project_id = questionary.text(
-                "Project id? It will be also the name of the folder."
-            ).ask()
+            new_project_id = rich_toolkit_input(
+                title="Project id? It will be also the name of the folder."
+            )
 
     path = pathlib.Path(PROJECTS_FOLDER_PATH / new_project_id)
     files_to_create = ["details.json", "works.json", "archived_works.json"]
@@ -65,7 +65,6 @@ def create_project(
 
     if new_project_id:
         new_project = Project(
-            id=new_project_id,
             name=new_project_name,
             description=description,
             categories=[c.strip() for c in categories.split(",")]
