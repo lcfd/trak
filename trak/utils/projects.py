@@ -1,7 +1,7 @@
 import json
 import pathlib
 
-import questionary
+from rich_toolkit.menu import Option
 
 from trak.constants import ALL_PROJECTS
 from trak.messages import (
@@ -12,7 +12,7 @@ from trak.messages import (
 from trak.models import Project
 from trak.paths import PROJECTS_FOLDER_PATH
 from trak.utils.base_messages import print_error
-from trak.utils.questionary import questionary_style_select
+from trak.utils.rich_toolkit import create_rich_toolkit_app
 
 
 def get_projects_from_config(archived: bool | None = False):
@@ -27,6 +27,8 @@ def get_projects_from_config(archived: bool | None = False):
         if not x.is_dir():
             continue
 
+        project_id = x.name
+
         # A folder is a project only if contains details.json
         details_path = x / "details.json"
         with open(details_path, "r") as f:
@@ -34,8 +36,6 @@ def get_projects_from_config(archived: bool | None = False):
 
             if details.get("archived") and not archived:
                 continue
-
-            project_id = details.get("id", None)
 
             if not project_id:
                 print_error(
@@ -65,16 +65,18 @@ def projects_picker(
         print_error_no_projects()
         return
 
-    # project_id not provided, show the picker
-    # TODO: replace with searchable list
     if not project_id:
-        project_id = questionary.select(
-            "Select a project:",
-            choices=projects_in_config,
-            pointer="• ",
-            show_selected=True,
-            style=questionary_style_select,
-        ).ask()
+        rt_app = create_rich_toolkit_app()
+
+        projects_options: list[Option] = [
+            {"name": project, "value": project} for project in projects_in_config
+        ]
+
+        project_id = rt_app.ask(
+            title="Select a project:",
+            options=projects_options,
+            allow_filtering=True,
+        )
 
         if not project_id:
             return
@@ -85,6 +87,22 @@ def projects_picker(
         return
     else:
         return project_id
+
+
+def project_properties_picker():
+    """Returns a Project class property selected by the user."""
+
+    project_propeties_options: list[Option] = [
+        {"name": property.capitalize(), "value": property}
+        for property in Project.__dict__.keys()
+        if not (property.startswith("__") and property.endswith("__"))
+        and not property.startswith("_")
+    ]
+
+    rt_app = create_rich_toolkit_app()
+    return rt_app.ask(
+        title="Property", options=project_propeties_options, allow_filtering=True
+    )
 
 
 def db_get_project_details(project_id: str) -> Project | None:

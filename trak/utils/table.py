@@ -3,7 +3,7 @@ from datetime import datetime
 from rich.table import Table
 
 from trak.models import Record
-from trak.utils.dates import format_date
+from trak.utils.dates import format_datetime_readable
 
 
 def create_table_details(project: str, records: list[Record]):
@@ -35,8 +35,8 @@ def create_table_details(project: str, records: list[Record]):
             h, m = divmod(m, 60)
 
         details_table.add_row(
-            format_date(record.start),
-            format_date(record.end) if record.end != "" else "🏃 Ongoing",
+            format_datetime_readable(record.start),
+            format_datetime_readable(record.end) if record.end != "" else "🏃 Ongoing",
             record.category or "---",
             record.tag or "---",
             f"{h}h {m}m" if record_start != "" else "",
