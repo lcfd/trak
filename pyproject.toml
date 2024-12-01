@@ -7,7 +7,10 @@ authors = [
 ]
 readme = "README.md"
 keywords = ["cli", "timetraker", "time", "traker", "tool"]
-dependencies = ["questionary == 2.0.1", "typer == 0.13.1"]
+dependencies = [
+    "rich-toolkit>=0.11.0",
+    "typer == 0.13.1",
+]
 requires-python = ">=3.11"
 
 license = { text = "AGPL-3.0" }
