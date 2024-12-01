@@ -2,24 +2,28 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import questionary
 import typer
 from rich import padding, print
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich_toolkit.menu import Option
 
 from trak.config import get_db_file_path, get_works_path
 from trak.models import Record
 from trak.utils.base_messages import print_error, print_info, print_with_padding
-from trak.utils.dates import format_date, same_week
+from trak.utils.dates import format_datetime_readable, same_week
 from trak.utils.filesystem import read_json_file
 from trak.utils.projects import db_get_project_details
-from trak.utils.questionary import questionary_style_select
+from trak.utils.rich_toolkit import create_rich_toolkit_app
 from trak.works.models import Work
 
 
 def get_db_content() -> list[Record] | None:
+    """
+    Get the content in the database.
+    """
+
     db_path = get_db_file_path()
 
     if not db_path:
@@ -40,7 +44,9 @@ def get_db_content() -> list[Record] | None:
 def manage_field_in_json_file(
     file_path: Path, field_name: str, field_value: str | int | float | bool
 ):
-    """Manage the content of a single object JSON file."""
+    """
+    Manage the content of a single object JSON file.
+    """
 
     with open(file_path, "r") as db:
         db_content = db.read()
@@ -59,7 +65,9 @@ def manage_field_in_json_file(
 
 
 def init_database(p: Path, initial_value: str = "[]") -> bool:
-    """Initialize the trak database."""
+    """
+    Initialize the trak database.
+    """
 
     print("here!1")
     try:
@@ -75,7 +83,9 @@ def init_database(p: Path, initial_value: str = "[]") -> bool:
 
 
 def add_session(record: Record):
-    """Add a new session to the database."""
+    """
+    Add a new session to the database.
+    """
 
     db_content = get_db_content()
     if not db_content:
@@ -89,7 +99,9 @@ def add_session(record: Record):
 
 
 def stop_trak_session() -> Record | None:
-    """Stop tracking the current project."""
+    """
+    Stop tracking the current project.
+    """
 
     db_content = get_db_content()
     if not db_content:
@@ -104,19 +116,16 @@ def stop_trak_session() -> Record | None:
 
     # Support multiple running sessions
     if len(current_sessions_indexes) > 1:
-        choices = [
-            questionary.Choice(title=record.project, value=index)
+        project_propeties_options: list[Option] = [
+            {"name": record.project, "value": index}
             for index, record in enumerate(db_content)
             if not record.end
         ]
 
-        session_index = questionary.select(
-            "Select a session:",
-            choices=choices,
-            pointer="• ",
-            show_selected=True,
-            style=questionary_style_select,
-        ).ask()
+        rt_app = create_rich_toolkit_app()
+        session_index = rt_app.ask(
+            title="Property", options=project_propeties_options, allow_filtering=True
+        )
 
         if session_index is None:
             return
@@ -359,8 +368,8 @@ def get_record_collection(
         h, m = divmod(m, 60)
 
         table.add_row(
-            format_date(record.start),
-            format_date(record.end),
+            format_datetime_readable(record.start),
+            format_datetime_readable(record.end),
             record.category or "---",
             record.tag or "---",
             f"{h}h {m}m",
@@ -395,7 +404,12 @@ def overwrite_json_file(file_path: Path, content: dict | list[dict]):
     """Fill a JSON file with the provided content. It's a complete overwrite."""
 
     with open(file_path, "w+") as db:
-        json.dump(content, db, indent=2, separators=(",", ": "))
+        try:
+            json.dump(content, db, indent=2, separators=(",", ": "))
+            return True
+        except Exception:
+            print_error(text="Can't save the file.")
+            return False
 
 
 def save_db(content: list[Record]):
