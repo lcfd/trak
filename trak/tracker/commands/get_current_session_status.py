@@ -44,7 +44,7 @@ def command_status(
             print(
                 (
                     f"[: {current_session.project} ⌛{h}h {m}m"
-                    f" {'( DEV MODE)' if dev_mode else ''} :]"
+                    f"{' ( DEV MODE)' if dev_mode else ''} :]"
                 )
             )
         else:
