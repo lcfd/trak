@@ -46,7 +46,7 @@ DescriptionOption = Annotated[
 ]
 
 RateOption = Annotated[
-    int,
+    Optional[int],
     typer.Option(
         "--rate",
         "-r",

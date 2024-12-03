@@ -28,7 +28,7 @@ def create_work(
     to_datetime: ToDateOption = None,
     # Optional
     description: DescriptionOption = "",
-    rate: RateOption = 1,
+    rate: RateOption = None,
     archived: ArchivedOption = False,
 ):
     if isinstance(project_id, str) and not project_exists(project_id):
@@ -66,6 +66,17 @@ def create_work(
             except Exception:
                 print_error(text="Invalid value inserted, it should be a number.")
 
+    new_rate = None
+    if isinstance(rate, int):
+        new_rate = rate
+    else:
+        while not isinstance(new_rate, int):
+            question_answer = rt_app.input(title="Hourly rate?")
+            try:
+                new_rate = int(question_answer)
+            except Exception:
+                print_error(text="Invalid value inserted, it should be a number.")
+
     new_work_from_datetime = datetime_field(
         title="From when (eg: 2024-12-12T09:00)?", value=from_datetime
     )
@@ -82,7 +93,7 @@ def create_work(
         time=new_work_time,
         from_date=datetime_to_string(new_work_from_datetime),
         to_date=datetime_to_string(new_work_to_datetime),
-        rate=rate,
+        rate=new_rate,
         description=description,
         done=False,
         paid=False,
