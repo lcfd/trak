@@ -49,39 +49,37 @@ def main(
         raise typer.Exit()
 
 
-# issue-89
-
 # On the actions
-app.command(name="start", help="Start a session.", rich_help_panel="Quick usage")(
-    start_tracker
-)
-app.command(
-    name="stop", help="Stop the current session.", rich_help_panel="Quick usage"
-)(stop_tracker)
-app.command(
-    name="status",
-    help="Show the status of the current session.",
-    rich_help_panel="Quick usage",
-)(command_status)
+# app.command(name="start", help="Start a session.", rich_help_panel="Quick usage")(
+#     start_tracker
+# )
+# app.command(
+#     name="stop", help="Stop the current session.", rich_help_panel="Quick usage"
+# )(stop_tracker)
+# app.command(
+#     name="status",
+#     help="Show the status of the current session.",
+#     rich_help_panel="Quick usage",
+# )(command_status)
 
 # Write actions
-app.add_typer(
-    create_app,
-    name="create",
-    help="Create something.",
-    rich_help_panel="Operate on your data",
-)
-app.add_typer(
-    delete_app,
-    name="delete",
-    help="Delete something.",
-    rich_help_panel="Operate on your data",
-)
-app.add_typer(
-    edit_app,
-    name="edit",
-    help="Edit something.",
-    rich_help_panel="Operate on your data",
+# app.add_typer(
+#     create_app,
+#     name="create",
+#     help="Create something.",
+#     rich_help_panel="Operate on your data",
+# )
+# app.add_typer(
+#     delete_app,
+#     name="delete",
+#     help="Delete something.",
+#     rich_help_panel="Operate on your data",
+# )
+# app.add_typer(
+#     edit_app,
+#     name="edit",
+#     help="Edit something.",
+#     rich_help_panel="Operate on your data",
 )
 
 # Read actions
@@ -92,29 +90,29 @@ app.add_typer(
 #     help="Find something.",
 #     rich_help_panel="Read your data",
 # )
-app.add_typer(
-    report_app,
-    name="report",
-    help="Get useful insights from your records.",
-    rich_help_panel="Read your data",
-)
-
-# Other
-app.add_typer(
-    config_app,
-    name="config",
-    help="Interact with your configuration.",
-    rich_help_panel="Other",
-)
-app.add_typer(
-    doctor_app,
-    name="doctor",
-    help="Keep your trak instance in shape.",
-    rich_help_panel="Other",
-)
-app.add_typer(
-    dev_app,
-    name="dev",
-    help="Utils for trak developers.",
-    rich_help_panel="Other",
-)
+# app.add_typer(
+#     report_app,
+#     name="report",
+#     help="Get useful insights from your records.",
+#     rich_help_panel="Read your data",
+# )
+#
+# # Other
+# app.add_typer(
+#     config_app,
+#     name="config",
+#     help="Interact with your configuration.",
+#     rich_help_panel="Other",
+# )
+# app.add_typer(
+#     doctor_app,
+#     name="doctor",
+#     help="Keep your trak instance in shape.",
+#     rich_help_panel="Other",
+# )
+# app.add_typer(
+#     dev_app,
+#     name="dev",
+#     help="Utils for trak developers.",
+#     rich_help_panel="Other",
+# )
