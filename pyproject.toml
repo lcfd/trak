@@ -7,10 +7,7 @@ authors = [
 ]
 readme = "README.md"
 keywords = ["cli", "timetraker", "time", "traker", "tool"]
-dependencies = [
-    "rich-toolkit>=0.11.0",
-    "typer == 0.13.1",
-]
+dependencies = ["rich-toolkit>=0.11.0", "typer>=0.19"]
 requires-python = ">=3.11"
 
 license = { text = "AGPL-3.0" }
@@ -20,17 +17,12 @@ Homepage = "https://usetrak.com/"
 Repository = "https://github.com/lcfd/trak"
 Website = "https://usetrak.com"
 Docs = "https://docs.usetrak.com"
-"Trak on X" = "https://x.com/usetrakcom"
 
 [project.scripts]
 trak = "trak.__main__:app"
 
 [dependency-groups]
-dev = [
-    "ruff>=0.6.4",
-    "pytest >= 8.3.2",
-    "pdbpp>=0.10.3",
-]
+dev = ["ruff", "pytest>=8.4", "pdbpp>=0.11"]
 
 [build-system]
 requires = ["hatchling"]
