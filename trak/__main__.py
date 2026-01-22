@@ -1,4 +1,4 @@
-from trak import __app_name__
-from trak.main import app
+from trak.config import APP_NAME
+from trak.typer_app import app
 
-app(prog_name=__app_name__)
+app(prog_name=APP_NAME)
