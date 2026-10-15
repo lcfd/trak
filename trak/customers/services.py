@@ -4,8 +4,9 @@ from sqlmodel import Session as DBSession
 from sqlmodel import col, func, select
 
 from trak.customers.models import Customer
+from trak.labels.links import set_tags
 
-EDITABLE_FIELDS = {"name"}
+EDITABLE_FIELDS = {"name", "category_fk", "tag_fks"}
 
 
 def get_customers(db: DBSession, *, name: str | None = None) -> list[Customer]:
@@ -26,11 +27,19 @@ def check_customer(db: DBSession, name: str, customer_id: int | None = None) -> 
         raise ValueError(f'There\'s already a customer called "{name}".')
 
 
-def create_customer(db: DBSession, *, name: str) -> Customer:
+def create_customer(
+    db: DBSession,
+    *,
+    name: str,
+    category_fk: int | None = None,
+    tag_fks: list[int] | None = None,
+) -> Customer:
     name = name.strip()
     check_customer(db, name)
-    customer = Customer(name=name)
+    customer = Customer(name=name, category_fk=category_fk)
     db.add(customer)
+    db.flush()
+    set_tags(db, customer, tag_fks or [])
     db.commit()
     db.refresh(customer)
     return customer
@@ -45,6 +54,8 @@ def update_customer(db: DBSession, customer: Customer, **changes: Any) -> Custom
         changes["name"] = changes["name"].strip()
         check_customer(db, changes["name"], customer_id=customer.id)
 
+    if "tag_fks" in changes:
+        set_tags(db, customer, changes.pop("tag_fks"))
     for field, value in changes.items():
         setattr(customer, field, value)
     db.add(customer)

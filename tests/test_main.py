@@ -4,7 +4,6 @@ from typer.testing import CliRunner
 
 from trak import config, dev_bar
 from trak.db import migrations
-from trak.db.engine import get_engine
 from trak.db.migrations import LATEST_VERSION, get_version
 from trak.main.routes import is_dev_mode, main
 
@@ -108,17 +107,23 @@ def test_fresh_database_creation_is_announced(app):
     assert f"schema v{LATEST_VERSION}" in result.output
 
 
-def test_upgrade_is_announced(app):
-    engine = get_engine(config.DB_PATH)
-    with engine.begin() as conn:
-        migrations.MIGRATIONS[0](conn)
-        conn.exec_driver_sql("PRAGMA user_version = 1")
-    engine.dispose()
+def test_upgrade_is_announced(app, monkeypatch):
+    runner.invoke(app, ["probe"])
+
+    def added(conn):
+        conn.exec_driver_sql("CREATE TABLE added (id INTEGER)")
+
+    latest = LATEST_VERSION + 1
+    monkeypatch.setattr(migrations, "MIGRATIONS", [*migrations.MIGRATIONS, added])
+    monkeypatch.setattr(migrations, "LATEST_VERSION", latest)
 
     result = runner.invoke(app, ["probe"])
 
     assert result.exit_code == 0, result.output
-    assert f"Upgraded the database from schema v1 to v{LATEST_VERSION}" in result.output
+    assert (
+        f"Upgraded the database from schema v{LATEST_VERSION} to v{latest}"
+        in result.output
+    )
 
 
 def test_up_to_date_database_is_silent(app):

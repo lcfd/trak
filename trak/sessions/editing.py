@@ -11,12 +11,20 @@ from trak import entities, forms
 from trak.customers.models import Customer
 from trak.customers.services import get_customers
 from trak.forms import current
+from trak.labels.links import WithTags, with_tags
 from trak.projects.models import Project
 from trak.projects.services import get_projects
 from trak.sessions import commands, listing
-from trak.sessions.commands import CategoryOption, CustomerOption, TagOption
+from trak.sessions.commands import CategoryOption, CustomerOption, TagsOption
 from trak.sessions.display import session_json, session_label
-from trak.sessions.guided import Prompter, input_validator, parse_start, pick
+from trak.sessions.guided import (
+    Prompter,
+    ask_category,
+    ask_tags,
+    input_validator,
+    parse_start,
+    pick,
+)
 from trak.sessions.models import Category, Session, Tag
 from trak.sessions.services import update_session
 
@@ -56,10 +64,42 @@ def row_name(db: DBSession, model: type, fk: int | None) -> str:
     return row.name or f"#{fk}"
 
 
+def tag_list(db: DBSession, tag_fks: list[int]) -> str:
+    names = [row_name(db, Tag, fk) for fk in tag_fks]
+    return ", ".join(sorted(names)) or "—"
+
+
+def label_rows(
+    db: DBSession, category_fk: int | None, tag_fks: list[int]
+) -> list[tuple[str, str, str]]:
+    """The Category and Tags rows of a form, when there's something to pick."""
+
+    rows = []
+    if category_fk is not None or db.exec(select(Category)).first():
+        rows.append(("category_fk", "Category", row_name(db, Category, category_fk)))
+    if tag_fks or db.exec(select(Tag)).first():
+        rows.append(("tag_fks", "Tags", tag_list(db, tag_fks)))
+    return rows
+
+
+def ask_label(
+    db: DBSession, prompter: Prompter, changes: dict[str, Any], field: str, value: Any
+) -> None:
+    """Ask for the Category or the Tags of a form."""
+
+    if field == "category_fk":
+        changes["category_fk"] = ask_category(db, prompter, value)
+    else:
+        changes["tag_fks"] = ask_tags(db, prompter, value)
+
+
 def field_rows(
     db: DBSession, session: Session, changes: dict[str, Any]
 ) -> list[tuple[str, str, str]]:
     """(field, label, value) for every field the user can edit right now."""
+
+    if not isinstance(session, WithTags):
+        session = with_tags(db, session)  # type: ignore[assignment]
 
     def value(field: str) -> Any:
         return current(session, changes, field)
@@ -79,9 +119,7 @@ def field_rows(
             ("customer_fk", "Customer", row_name(db, Customer, value("customer_fk")))
         )
 
-    for model, field in ((Category, "category_fk"), (Tag, "tag_fk")):
-        if value(field) is not None or db.exec(select(model)).first():
-            rows.append((field, model.__name__, row_name(db, model, value(field))))
+    rows += label_rows(db, value("category_fk"), value("tag_fks"))
 
     end = value("end")
     rows.append(("start", "Start", format_time(value("start"))))
@@ -119,10 +157,8 @@ def ask_field(
             prompter, "Customer", get_customers(db), default=value
         )
 
-    elif field in ("category_fk", "tag_fk"):
-        model = Category if field == "category_fk" else Tag
-        rows = list(db.exec(select(model).order_by(model.name)))
-        changes[field] = pick(prompter, model.__name__, rows, default=value)
+    elif field in ("category_fk", "tag_fks"):
+        ask_label(db, prompter, changes, field, value)
 
     elif field == "start":
         end = current(session, changes, "end")
@@ -166,13 +202,14 @@ def ask_edits(db: DBSession, prompter: Prompter, session: Session) -> dict[str, 
     going back from a single field keeps its value.
     """
 
+    original: Any = with_tags(db, session)
     return forms.ask_changes(
         prompter,
         f"Edit session #{session.id}",
-        session,
-        rows=lambda changes: field_rows(db, session, changes),
+        original,
+        rows=lambda changes: field_rows(db, original, changes),
         ask_field=lambda changes, field: ask_field(
-            db, prompter, session, changes, field
+            db, prompter, original, changes, field
         ),
     )
 
@@ -185,7 +222,7 @@ def flag_changes(
     project: str | None = None,
     customer: str | None = None,
     category: str | None = None,
-    tag: str | None = None,
+    tags: list[str] | None = None,
     start: str | None = None,
     end: str | None = None,
 ) -> dict[str, Any]:
@@ -195,8 +232,11 @@ def flag_changes(
     """
 
     changes: dict[str, Any] = commands.association_fks(
-        db, project=project, customer=customer, category=category, tag=tag
+        db, project=project, customer=customer, category=category
     )
+    tag_fks = commands.find_tags(db, tags)
+    if tag_fks is not None:
+        changes["tag_fks"] = tag_fks
     if name is not None:
         changes["name"] = name.strip()
     try:
@@ -238,7 +278,7 @@ def edit_command(
     ] = None,
     customer: CustomerOption = None,
     category: CategoryOption = None,
-    tag: TagOption = None,
+    tags: TagsOption = None,
     start: Annotated[
         str | None,
         typer.Option("--start", "-s", help=f"When it started: {TIME_PLACEHOLDER}."),
@@ -253,7 +293,8 @@ def edit_command(
     ] = None,
 ) -> None:
     """
-    Edit a session: its name, project, customer, category, tag, start and end.
+    Edit a session: its name, project, customer, category, tags, start and end.
+    --tag replaces the tags.
     With options, saves them right away; without, opens the form (terminal).
     """
 
@@ -262,7 +303,7 @@ def edit_command(
         "project": project,
         "customer": customer,
         "category": category,
-        "tag": tag,
+        "tags": tags,
         "start": start,
         "end": end,
     }
@@ -275,7 +316,7 @@ def edit_command(
 
         if given:
             changes = forms.effective_changes(
-                session, flag_changes(db, session, **flags)
+                with_tags(db, session), flag_changes(db, session, **flags)
             )
         else:
             changes = commands.run_prompts(

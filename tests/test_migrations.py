@@ -91,18 +91,3 @@ def test_foreign_keys_are_enforced(engine):
             "INSERT INTO project (customer_fk, name, description, rate, archived)"
             " VALUES (999, 'x', '', 0, 0)"
         )
-
-
-def test_0002_names_existing_sessions_with_an_empty_string(tmp_path):
-    engine = get_engine(tmp_path / "db.sqlite3")
-    with engine.begin() as conn:
-        migrations.MIGRATIONS[0](conn)
-        conn.exec_driver_sql("PRAGMA user_version = 1")
-        conn.exec_driver_sql(
-            "INSERT INTO session (start, active) VALUES ('2026-10-14 09:00:00', 0)"
-        )
-
-    migrate(engine)
-
-    with engine.connect() as conn:
-        assert conn.exec_driver_sql("SELECT name FROM session").scalar_one() == ""

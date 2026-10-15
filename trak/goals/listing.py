@@ -7,13 +7,12 @@ from typing import Annotated
 
 import typer
 from rich.markup import escape
-from rich.table import Table
 from sqlmodel import Session as DBSession
 
-from trak import browser, entities
+from trak import browser, entities, tables, tui
 from trak.goals.display import days_text, goal_json, to_go_text, tracked_text
 from trak.goals.models import Goal
-from trak.goals.services import goal_progress, list_goals
+from trak.goals.services import Progress, goal_progress, list_goals
 from trak.projects.models import Project
 from trak.sessions import commands
 from trak.sessions.guided import Prompter
@@ -25,7 +24,7 @@ class GoalFilters:
     project: Project | None = None
     past: bool = False
     page: int = 1
-    per_page: int = 20
+    per_page: int = browser.PER_PAGE
 
     @property
     def active(self) -> bool:
@@ -50,33 +49,71 @@ def query(db: DBSession, filters: GoalFilters) -> tuple[list[Goal], int]:
     )
 
 
-def build_table(db: DBSession, goals: list[Goal], cursor: int | None = None) -> Table:
-    """The goals table; the row at `cursor`, if any, is highlighted."""
+def days_short(progress: Progress) -> str:
+    """ "40d", "today", "ended": the days left, colored like `days_text`."""
 
-    table = Table(header_style="bold", show_edge=False)
-    table.add_column("#", justify="right", style="dim")
-    table.add_column("Project", style="green")
-    table.add_column("Name")
-    table.add_column("Tracked", justify="right")
-    table.add_column("To go", justify="right")
-    table.add_column("Deadline")
-    table.add_column("Days")
+    days = progress.days_left
+    if days < 0:
+        return "[dim]ended[/dim]"
+    text = "today" if days == 0 else f"{days}d"
+    if not progress.reached and days <= 7:
+        return f"[bold yellow]{text}[/bold yellow]"
+    return text
+
+
+def goal_cells(db: DBSession, goal: Goal) -> tables.Cells:
+    """Every cell a goals table can show, as markup."""
 
     now = datetime.now(UTC)
-    for index, goal in enumerate(goals):
-        project = db.get(Project, goal.project_fk)
-        progress = goal_progress(db, goal, now=now)
-        table.add_row(
-            str(goal.id),
-            escape(project.name) if project else "",
-            escape(goal.name),
-            tracked_text(progress),
-            to_go_text(progress, suffix=""),
-            f"{goal.deadline}",
-            days_text(progress),
-            style="reverse" if index == cursor else None,
-        )
-    return table
+    project = db.get(Project, goal.project_fk)
+    progress = goal_progress(db, goal, now=now)
+    project_name = escape(project.name) if project else ""
+    name = escape(goal.name)
+    percent = f"{min(progress.ratio, 1):.0%}"
+    return {
+        "id": str(goal.id),
+        "project": project_name,
+        "name": name,
+        "goal": f"[green]{project_name}[/green]"
+        + (f" [dim]·[/dim] {name}" if name else ""),
+        "tracked": tracked_text(progress),
+        "to_go": to_go_text(progress, suffix=""),
+        "deadline": f"{goal.deadline}",
+        "deadline_short": tables.short_day(goal.deadline, now.astimezone().date()),
+        "days": days_text(progress),
+        "days_short": days_short(progress),
+        "done": f"[green]{percent}[/green]" if progress.reached else percent,
+    }
+
+
+# "project · name" reads badly cut short: rather drop a column.
+GOAL = tables.col("goal", flex=True, least=24)
+# Widest first; see `tables.py`.
+LAYOUTS: list[tables.Layout] = [
+    [
+        tables.ID,
+        tables.col("project", style="green"),
+        tables.col("name", flex=True),
+        tables.col("tracked", right=True),
+        tables.col("to_go", "To go", right=True),
+        tables.col("deadline"),
+        tables.col("days"),
+    ],
+    [
+        tables.ID,
+        GOAL,
+        tables.col("tracked", right=True),
+        tables.col("deadline_short", "Deadline"),
+        tables.col("days"),
+    ],
+    [
+        tables.ID,
+        GOAL,
+        tables.col("done", right=True),
+        tables.col("days_short", "Left", right=True),
+    ],
+    [tables.ID, GOAL, tables.col("done", right=True)],
+]
 
 
 FILTER_SHORTCUTS: list[browser.Shortcut] = [
@@ -86,11 +123,37 @@ FILTER_SHORTCUTS: list[browser.Shortcut] = [
 SHORTCUTS = browser.PAGE_SHORTCUTS + FILTER_SHORTCUTS + browser.END_SHORTCUTS
 
 
+def show_goal(db: DBSession, goal: Goal, screen: tui.Screen) -> None:
+    from trak import views
+    from trak.goals.view import GoalView
+
+    views.show_in(db, GoalView, goal, screen)
+
+
+def edit_goal(db: DBSession, goal: Goal, prompter: Prompter) -> str:
+    from trak.goals.commands import ask_edits
+    from trak.goals.display import goal_label
+    from trak.goals.services import update_goal
+
+    return entities.edit_in_place(
+        db,
+        goal,
+        prompter,
+        ask=ask_edits,
+        update=update_goal,
+        noun="goal",
+        label=lambda g: goal_label(db, g),
+    )
+
+
 def goal_listing(db: DBSession) -> browser.Listing[Goal, GoalFilters]:
     return browser.Listing(
+        show=lambda goal, screen: show_goal(db, goal, screen),
+        edit=lambda goal, prompter: edit_goal(db, goal, prompter),
         noun="goal",
         query=lambda filters: query(db, filters),
-        table=lambda goals, cursor: build_table(db, goals, cursor),
+        cells=lambda goal: goal_cells(db, goal),
+        layouts=LAYOUTS,
         to_json=lambda goal: goal_json(db, goal),
         filter_shortcuts=FILTER_SHORTCUTS,
         ask_filter=lambda prompter, filters, action: ask_project(db, prompter, filters),  # type: ignore[arg-type]
@@ -108,6 +171,7 @@ def browse(
     read_key: Callable[[], str] | None = None,
     pick: bool = False,
     title: str = "Goals",
+    fit: bool = True,
 ) -> Goal | None:
     """Browse the goals until the user quits (None), or pick one."""
 
@@ -118,6 +182,7 @@ def browse(
         read_key=read_key,
         pick=pick,
         title=title,
+        fit=fit,
     )
 
 
@@ -133,8 +198,14 @@ def list_command(
     ] = False,
     page: Annotated[int, typer.Option("--page", min=1, help="The page to show.")] = 1,
     per_page: Annotated[
-        int, typer.Option("--per-page", min=1, max=500, help="Goals per page.")
-    ] = 20,
+        int | None,
+        typer.Option(
+            "--per-page",
+            min=1,
+            max=500,
+            help="Goals per page. Default: what fits the terminal; 20 when printed.",
+        ),
+    ] = None,
     plain: Annotated[
         bool,
         typer.Option(
@@ -154,10 +225,14 @@ def list_command(
             if project is None:
                 raise typer.Exit(1)
 
-        filters = GoalFilters(project=project, past=past, page=page, per_page=per_page)
+        filters = GoalFilters(
+            project=project, past=past, page=page, per_page=per_page or browser.PER_PAGE
+        )
 
         if plain or not commands.is_interactive():
             browser.print_page(goal_listing(db), filters)
             return
 
-        entities.run_browser(lambda prompter: browse(db, prompter, filters))
+        entities.run_browser(
+            lambda prompter: browse(db, prompter, filters, fit=per_page is None)
+        )

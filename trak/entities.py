@@ -12,13 +12,15 @@ from typing import Any, TypeVar
 
 import click
 import typer
+from rich.console import Console
 from rich.markup import escape
 from sqlmodel import Session as DBSession
 from typer.core import TyperGroup
 
-from trak import output
+from trak import dev_bar, output
 from trak.base_messages import print_error, print_info, print_success, print_warning
 from trak.main.menu import invoke_with_defaults
+from trak.prompts import PromptCancelled
 from trak.sessions import commands
 from trak.sessions.guided import Prompter
 
@@ -160,3 +162,46 @@ def print_details(title: str, rows: list[tuple[str, str]], hint: str = "") -> No
 
 def or_dash(value: Any) -> str:
     return escape(str(value)) if value not in (None, "") else "[dim]—[/dim]"
+
+
+def show_printed(screen: Any, show: Callable[[], None]) -> None:
+    """
+    Print a `show` panel from a full-screen browser: on the normal screen,
+    until a key brings the browser back.
+    """
+
+    with screen.suspended():
+        dev_bar.clear(Console())
+        show()
+        Console().print("[dim]Press any key to go back.[/dim]")
+        while screen.read_key() is None:
+            pass
+
+
+def edit_in_place(
+    db: DBSession,
+    row: R,
+    prompter: Prompter,
+    *,
+    ask: Callable[[DBSession, Prompter, R], dict[str, Any]],
+    update: Callable[..., R],
+    noun: str,
+    label: Callable[[R], str],
+) -> str:
+    """
+    The edit form of `row` from a browser, saved like `save_changes`: what
+    the browser's footer says about it.
+    """
+
+    try:
+        changes = ask(db, prompter, row)
+    except PromptCancelled:
+        return "[dim]No changes were saved.[/dim]"
+    if not changes:
+        return "[dim]Nothing changed.[/dim]"
+    try:
+        row = update(db, row, **changes)
+    except ValueError as e:
+        db.rollback()
+        return f"[red]Can't save the {noun}:[/red] {escape(str(e))}"
+    return f"[green]Saved[/green] {label(row)}"

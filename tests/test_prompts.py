@@ -1,33 +1,38 @@
 import pytest
-from rich.text import Text
-from rich_toolkit.styles import MinimalStyle
+from pydantic import TypeAdapter
 
+from tests.fakes import FakeScreen
+from trak import tui
 from trak.prompts import (
     CTRL_D,
     CTRL_U,
     CTRL_W,
     ESC,
+    Menu,
     PromptCancelled,
-    VimInput,
-    VimMenu,
+    ScreenPrompter,
+    TextInput,
     split_escape,
 )
+from trak.sessions.guided import start_validator
 
-DOWN, UP = "\x1b[B", "\x1b[A"
+DOWN, UP, LEFT = "\x1b[B", "\x1b[A", "\x1b[D"
 
 
 def menu(names=("alpha", "beta", "gamma", "delta"), **kwargs):
     options = [{"name": name, "value": name} for name in names]
-    return VimMenu(label="Pick", options=options, style=MinimalStyle(), **kwargs)
+    return Menu("Pick", options, **kwargs)
 
 
 def press(element, *keys):
+    done = False
     for key in keys:
-        element.handle_key(key)
+        done = element.handle_key(key)
+    return done
 
 
 def current(m):
-    return m.options[m.selected]["value"]
+    return m.value
 
 
 @pytest.mark.parametrize(
@@ -55,7 +60,6 @@ def test_filterable_list_starts_in_insert_mode_and_types_j_k():
     assert m.mode == "insert"
     assert m.text == "jk"
     assert current(m) == "jkl"
-    assert m.should_show_cursor
 
 
 def test_esc_switches_to_normal_mode_where_j_k_move():
@@ -66,8 +70,7 @@ def test_esc_switches_to_normal_mode_where_j_k_move():
     assert m.mode == "normal"
     assert m.text == ""
     assert current(m) == "beta"
-    assert not m.should_show_cursor
-    assert "NORMAL" in m.selection_count_hint
+    assert ("Esc", "back") in m.hints()
 
 
 def test_arrows_move_in_both_modes():
@@ -77,7 +80,7 @@ def test_arrows_move_in_both_modes():
     assert current(m) == "gamma"
 
     press(m, UP, UP, UP)
-    assert current(m) == "delta"  # wraps around, like rich-toolkit
+    assert current(m) == "delta"  # wraps around
 
 
 def test_normal_mode_jumps():
@@ -90,9 +93,9 @@ def test_normal_mode_jumps():
 
 
 def test_half_screen_moves_stop_at_the_ends():
-    m = menu(
-        names=[f"item {i}" for i in range(10)], allow_filtering=True, max_visible=4
-    )
+    m = menu(names=[f"item {i}" for i in range(10)], allow_filtering=True)
+    # Drawn 4 rows high: half a screen is 2.
+    m.body(40, 5)
 
     press(m, ESC, CTRL_D)
     assert m.selected == 2
@@ -128,6 +131,24 @@ def test_other_keys_do_nothing_in_normal_mode():
     assert (m.text, current(m)) == ("", "alpha")
 
 
+def test_the_filter_matches_any_part_ignoring_case():
+    m = menu(allow_filtering=True)
+
+    press(m, "L", "T")
+
+    assert [o["value"] for o in m.options] == ["delta"]
+
+
+def test_enter_with_no_match_picks_nothing():
+    m = menu(allow_filtering=True)
+
+    assert press(m, "z", "z", "\r") is False
+
+
+def test_default_starts_on_its_option():
+    assert current(menu(default="gamma")) == "gamma"
+
+
 # lists without a filter
 
 
@@ -138,7 +159,6 @@ def test_list_without_filter_is_always_in_normal_mode():
 
     assert m.mode == "normal"
     assert current(m) == "beta"
-    assert m.selection_count_hint is None
     with pytest.raises(PromptCancelled):
         press(m, ESC)
 
@@ -157,8 +177,8 @@ def test_inline_list_moves_with_h_l():
 # text inputs
 
 
-def text_input(text=""):
-    i = VimInput(label="Name", style=MinimalStyle())
+def text_input(text="", **kwargs):
+    i = TextInput("Name", **kwargs)
     press(i, *text)
     return i
 
@@ -187,6 +207,42 @@ def test_ctrl_w_deletes_the_word_before_the_cursor():
     assert i.text == "landing "
     press(i, CTRL_W)
     assert i.text == ""
+
+
+def test_typing_and_deleting_at_the_cursor():
+    i = text_input("helo", value="")
+
+    press(i, LEFT, "l", "\x1b[F", "!", "\x7f")
+
+    assert i.text == "hello"
+
+
+def test_an_empty_input_answers_its_default():
+    i = text_input(default="website")
+
+    assert press(i, "\r") is True
+    assert i.value == "website"
+
+
+def test_value_starts_the_text():
+    assert text_input("s", value="page").text == "pages"
+
+
+def test_an_invalid_value_stays_with_the_error():
+    i = text_input("25:99", validator=start_validator)
+
+    assert press(i, "\r") is False
+    assert i.error.startswith("Use")
+    assert any("Use" in line.plain for line in i.body(40, 5))
+    # Typing again hides the error until the next Enter.
+    press(i, "\x7f")
+    assert i.error == ""
+
+
+def test_any_pydantic_validator_works():
+    i = text_input("x", validator=TypeAdapter(int))
+
+    assert press(i, "\r") is False and i.error
 
 
 # ranked filtering
@@ -226,11 +282,130 @@ def test_rank_without_filter_keeps_every_option_in_order():
 def test_button_is_drawn_apart_but_picked_like_any_option():
     m = menu(names=("Name", "Save"), button="Save")
 
-    names = [option["name"] for option in m.options]
-    assert names[0] == "Name\n"  # a blank line above the button
-    assert isinstance(names[1], Text)
-    assert names[1].plain == " Save "
+    lines = [line.plain for line in m.body(40, 10)]
+    assert lines == ["› Name", "", "   Save "]
 
     press(m, "j")
     assert current(m) == "Save"
-    assert m.result_display_name == "Save"
+
+
+def test_a_long_list_scrolls_to_the_cursor():
+    m = menu(names=[f"item {i}" for i in range(50)])
+
+    press(m, "G")
+    lines = [line.plain for line in m.body(40, 10)]
+
+    assert len(lines) == 10
+    assert lines[-1] == "› item 49"
+
+
+# full screen
+
+
+def prompter(*keys, width=80, height=24):
+    screen = FakeScreen(keys, width, height)
+    p = ScreenPrompter(title="start")
+    p.screen = screen
+    return p, screen
+
+
+def test_each_question_takes_the_whole_screen():
+    p, screen = prompter("w", "e", "b", "\r")
+
+    assert p.input("Name", placeholder="optional") == "web"
+
+    frame = screen.last.splitlines()
+    assert len(frame) == 24 and all(len(line) == 80 for line in frame)
+    assert "─ start ─" in frame[1]
+    assert "Enter confirm" in frame[-1]
+
+
+def test_answers_are_listed_above_the_next_question():
+    p, screen = prompter("w", "\r", "j", "\r", "\r")
+
+    p.input("Name")
+    p.ask("Project", [{"name": "a", "value": 1}, {"name": "b", "value": 2}])
+    assert p.confirm("Start this session?") is True
+
+    assert "Name     w" in screen.last and "Project  b" in screen.last
+    assert "Yes" in screen.last
+
+
+def test_a_form_starts_the_answers_afresh():
+    p, screen = prompter("x", "\r", "\r")
+
+    p.input("Name")
+    p.ask("Edit", [{"name": "Save", "value": "save"}], button="save")
+
+    assert "Name " not in screen.last
+
+
+def test_questions_follow_resizes():
+    p, screen = prompter(("resize", 100, 30), "\r")
+
+    p.ask("Project", [{"name": "a", "value": 1}])
+
+    assert [len(f.splitlines()) for f in screen.frames] == [24, 30]
+
+
+def test_a_tiny_terminal_asks_for_more_room():
+    p, screen = prompter("\r", width=20, height=5)
+
+    p.ask("Project", [{"name": "a", "value": 1}])
+
+    assert "bigger" in screen.last
+
+
+def test_the_prompter_opens_the_screen_once(monkeypatch):
+    opened = []
+
+    class Opening(tui.PlainScreen):
+        def __enter__(self):
+            opened.append(self)
+            return self
+
+    monkeypatch.setattr(tui, "PlainScreen", Opening)
+
+    with ScreenPrompter() as outer, tui.open_screen() as inner:
+        assert outer.screen is inner
+
+    assert len(opened) == 1
+
+
+def test_the_title_is_the_running_command(monkeypatch, cli_db):
+
+    from typer.testing import CliRunner
+
+    from trak.sessions import commands
+    from trak.typer_app import app
+
+    titles = []
+
+    class Recording:
+        def __enter__(self):
+            p = ScreenPrompter()
+            p.screen = FakeScreen([])
+            from trak.prompts import command_title
+
+            titles.append(command_title())
+            raise PromptCancelled
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(commands, "is_interactive", lambda: True)
+    monkeypatch.setattr(commands, "make_prompter", lambda: Recording())
+
+    CliRunner().invoke(app, ["sessions", "create"])
+
+    assert titles == ["sessions create"]
+
+
+def test_a_filterable_menu_can_start_in_normal_mode():
+    options = [{"name": "a", "value": 1}, {"name": "b", "value": 2}]
+
+    assert Menu("x", options, allow_filtering=True).mode == "insert"
+    menu = Menu("x", options, allow_filtering=True, normal=True)
+    assert menu.mode == "normal"
+    menu.handle_key("j")
+    assert menu.value == 2 and menu.text == ""

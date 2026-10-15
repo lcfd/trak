@@ -12,6 +12,7 @@ from trak.sessions.guided import (
     ask_session_fields,
     ask_session_to_stop,
     parse_start,
+    pick_many,
 )
 from trak.sessions.models import Category, Tag
 from trak.sessions.services import start_session
@@ -75,25 +76,29 @@ def test_asks_every_field(db):
     project = add(db, Project(name="website"))
     category = add(db, Category(name="dev"))
     tag = add(db, Tag(name="urgent"))
+    add(db, Tag(name="billable"))
     prompter = FakePrompter(
-        "Landing page", "website", "ACME", "dev", "urgent", "2026-10-13 09:00"
+        "Landing page", "website", "ACME", "dev", "urgent", "Done", "2026-10-13 09:00"
     )
 
     fields = ask_session_fields(db, prompter)
 
+    tags = "Tags · Enter toggles"
     assert prompter.asked == [
         "Name",
         "Project",
         "Customer",
         "Category",
-        "Tag",
+        tags,
+        tags,
         "Start",
     ]
+    assert prompter.notes == {"Tags": "urgent"}
     assert fields.name == "Landing page"
     assert fields.project_fk == project.id
     assert fields.customer_fk == customer.id
     assert fields.category_fk == category.id
-    assert fields.tag_fk == tag.id
+    assert fields.tag_fks == [tag.id]
     assert fields.start == parse_start("2026-10-13 09:00")
 
 
@@ -233,6 +238,28 @@ def test_guided_passes_the_name_option(interactive, monkeypatch, cli_db):
     assert seen["name"] == "Landing page"
     [session] = commands.get_active_sessions(cli_db)
     assert session.name == "Landing page"
+
+
+# pick_many
+
+
+def test_pick_many_toggles_until_done(db):
+    rows = [add(db, Tag(name=name)) for name in ("a", "b", "c")]
+    prompter = FakePrompter("b", "c", "b ✓", "Done")
+
+    picked = pick_many(prompter, "Tags", rows, selected=[rows[0].id])
+
+    assert picked == [rows[0].id, rows[2].id]
+    assert prompter.notes == {"Tags": "a, c"}
+    # The cursor stays on the last row toggled.
+    assert prompter.defaults["Tags · Enter toggles"] == rows[1].id
+
+
+def test_pick_many_starts_on_done(db):
+    prompter = FakePrompter("Done")
+
+    assert pick_many(prompter, "Tags", [add(db, Tag(name="a"))], selected=[]) == []
+    assert prompter.notes == {"Tags": "—"}
 
 
 # ask_session_to_stop

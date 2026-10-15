@@ -20,6 +20,7 @@ from trak.projects.report import (
     months_before,
     report_ranges,
 )
+from trak.prompts import ESC
 from trak.sessions.services import start_session, stop_session
 from trak.typer_app import app
 
@@ -54,6 +55,10 @@ def by_key(ranges: list[Range]) -> dict[str, tuple[date, date]]:
     return {r.key: (r.start, r.end) for r in ranges}
 
 
+def by_key_range(ranges: list[Range]) -> dict[str, Range]:
+    return {r.key: r for r in ranges}
+
+
 # Ranges
 
 
@@ -70,7 +75,7 @@ def test_all_ranges():
         "year": (date(2025, 10, 15), TODAY),
         "6m": (date(2026, 4, 15), TODAY),
         "3m": (date(2026, 7, 15), TODAY),
-        "last-month": (date(2026, 9, 1), date(2026, 9, 30)),
+        "30d": (date(2026, 9, 15), TODAY),
         "month": (date(2026, 10, 1), date(2026, 10, 31)),
         "last-week": (date(2026, 10, 5), date(2026, 10, 11)),
         "7d": (date(2026, 10, 8), TODAY),
@@ -126,6 +131,45 @@ def test_a_project_started_today_still_shows_the_days_left():
     assert [r.key for r in report_ranges(TODAY, TODAY)] == ["all", "month", "week"]
 
 
+def test_ranges_after_the_last_session_are_left_out(db):
+    # Untouched since 2022: every range but "Since the start" would be empty.
+    project = add(db, Project(name="website", start=date(2021, 7, 3)))
+    track(db, project, at(date(2022, 6, 10), 9), 1)
+
+    ranges = report.project_ranges(project, report.load_sessions(db, project), NOW)
+
+    assert [r.key for r in ranges] == ["all"]
+
+
+def test_ranges_up_to_the_last_session_stay(db):
+    project = add(db, Project(name="website"))
+    track(db, project, at(date(2025, 1, 10), 9), 1)
+    track(db, project, at(date(2026, 9, 15), 9), 1)
+
+    ranges = report.project_ranges(project, report.load_sessions(db, project), NOW)
+
+    assert [r.key for r in ranges] == ["all", "year", "6m", "3m", "30d"]
+
+
+def test_a_running_session_keeps_the_recent_ranges(db):
+    project = add(db, Project(name="website"))
+    track(db, project, at(date(2025, 1, 10), 9), 1)
+    start_session(db, start=at(TODAY, 17), project_fk=project.id)
+
+    ranges = report.project_ranges(project, report.load_sessions(db, project), NOW)
+
+    assert "week" in [r.key for r in ranges]
+
+
+def test_a_project_ending_later_keeps_the_days_left(db):
+    project = add(db, Project(name="website", end=date(2026, 12, 31)))
+    track(db, project, at(date(2025, 1, 10), 9), 1)
+
+    ranges = report.project_ranges(project, report.load_sessions(db, project), NOW)
+
+    assert {"month", "week"} <= {r.key for r in ranges}
+
+
 # Time per day and per bucket
 
 
@@ -175,7 +219,7 @@ def test_buckets_by_week_start_inside_the_range():
     ("key", "width", "unit"),
     [
         ("month", 72, "day"),
-        ("last-month", 72, "day"),
+        ("30d", 72, "day"),
         ("7d", 30, "day"),
         ("3m", 72, "week"),
         ("3m", 200, "day"),
@@ -296,21 +340,24 @@ class FrozenNow(datetime):
 def headings(output: str) -> list[str]:
     """The range heading of every screen drawn."""
 
-    return [line.split(" · ")[0] for line in output.splitlines() if " → " in line]
+    lines = (line.strip("│ ") for line in output.splitlines())
+    return [line.split(" · ")[0] for line in lines if " → " in line]
 
 
 def test_show_switches_ranges(db, capsys):
     project = add(db, Project(name="website"))
     track(db, project, at(date(2024, 1, 5), 9), 2)
+    # Running: every range has time, so every range is shown.
+    start_session(db, start=at(TODAY, 17), project_fk=project.id)
 
     report.show(
         db,
         project,
-        read_key=keys("l", "l", "h", "G", "l", "g", "h", "3", "9", "q"),
+        read_key=keys("\t", "]", "[", "9", "]", "1", "[", "3", "9", "q"),
         now=lambda: NOW,
     )
 
-    # Every range is shown: All, 1y... "l" past the last and "h" before the
+    # Every range is shown: All, 1y... "]" past the last and "[" before the
     # first are ignored, as is "9" (there are 9 ranges: it's the last one).
     assert headings(capsys.readouterr().out) == [
         "Since the start",
@@ -321,6 +368,93 @@ def test_show_switches_ranges(db, capsys):
         "Since the start",
         "Last 6 months",
         "This week",
+    ]
+
+
+def test_zoom_range_is_the_bar_one_unit_down():
+    year = by_key_range(all_ranges(date(2023, 1, 1), TODAY))["year"]
+
+    # The first month starts with the range, the last one ends with it.
+    october = report.zoom_range(
+        year, report.Bucket(date(2025, 10, 15), timedelta()), "month"
+    )
+    assert (october.start, october.end, october.unit) == (
+        date(2025, 10, 15),
+        date(2025, 10, 31),
+        "week",
+    )
+    assert october.label == "Last year › October 2025"
+    now = report.zoom_range(
+        year, report.Bucket(date(2026, 10, 1), timedelta()), "month"
+    )
+    assert (now.start, now.end) == (date(2026, 10, 1), TODAY)
+
+    week = report.zoom_range(now, report.Bucket(date(2026, 10, 5), timedelta()), "week")
+    assert (week.start, week.end, week.unit) == (
+        date(2026, 10, 5),
+        date(2026, 10, 11),
+        "day",
+    )
+    assert week.label == "Last year › October 2026 › Week of Mon 05 Oct 2026"
+    # A day is as far as it goes.
+    assert report.zoom_range(week, report.Bucket(TODAY, timedelta()), "day") is None
+
+
+def test_show_zooms_into_a_bar_and_out(db, capsys):
+    project = add(db, Project(name="website", start=date(2024, 1, 1)))
+    track(db, project, at(date(2026, 10, 6), 9), 2)
+    track(db, project, at(date(2026, 10, 13), 9), 1)
+
+    report.show(
+        db,
+        project,
+        "year",
+        # Today's month, today's week; a day goes no further; back; the
+        # week before, its first day; back, back to the year, Esc quits.
+        read_key=keys("\r", "\r", "\r", ESC, "h", "\r", ESC, ESC, ESC),
+        now=lambda: NOW,
+    )
+
+    out = capsys.readouterr().out
+    assert headings(out) == [
+        "Last year",
+        "Last year › October 2026",
+        "Last year › October 2026 › Week of Mon 12 Oct 2026",
+        "Last year › October 2026",
+        "Last year › October 2026",
+        "Last year › October 2026 › Week of Mon 05 Oct 2026",
+        "Last year › October 2026",
+        "Last year",
+    ]
+    assert "October 2026 · 3h 0m · Enter: its weeks" in out
+    assert "Wed 14 Oct 2026 · 0h 0m" in out
+    assert "Week of Mon 05 Oct 2026 · 2h 0m · Enter: its days" in out
+    assert "Mon 05 Oct 2026 · 0h 0m" in out
+
+
+def test_show_moves_across_bars(db, capsys):
+    project = add(db, Project(name="website"))
+
+    report.show(
+        db,
+        project,
+        "week",
+        # Today is Wednesday: Tue, Mon, nothing before Mon; the last, Sunday.
+        read_key=keys("h", "h", "h", "G", "l", "g", "q"),
+        now=lambda: NOW,
+    )
+
+    selected = [
+        line.strip("│ ").split(" · ")[0]
+        for line in capsys.readouterr().out.splitlines()
+        if "▌" in line
+    ]
+    assert selected == [
+        "▌ Wed 14 Oct 2026",
+        "▌ Tue 13 Oct 2026",
+        "▌ Mon 12 Oct 2026",
+        "▌ Sun 18 Oct 2026",
+        "▌ Mon 12 Oct 2026",
     ]
 
 
@@ -354,12 +488,49 @@ def test_report_command_opens_the_report_in_a_terminal(
 ):
     project = add(cli_db, Project(name="website"))
     shown = []
-    monkeypatch.setattr(report, "show", lambda db, p, key: shown.append((p.id, key)))
+    monkeypatch.setattr(
+        report, "show", lambda db, p, key, custom: shown.append((p.id, key, custom))
+    )
 
     result = runner.invoke(app, ["projects", "report", str(project.id), "-r", "7d"])
 
     assert result.exit_code == 0, result.output
-    assert shown == [(project.id, "7d")]
+    assert shown == [(project.id, "7d", None)]
+
+
+def test_report_command_opens_the_asked_days(cli_db, monkeypatch, interactive):
+    project = add(cli_db, Project(name="website", start=date(2026, 1, 1)))
+    shown = []
+    monkeypatch.setattr(report, "show", lambda db, p, key, custom: shown.append(custom))
+
+    result = runner.invoke(
+        app, ["projects", "report", str(project.id), "--to", "2026-03-31"]
+    )
+
+    assert result.exit_code == 0, result.output
+    # From the project's first day by default.
+    [custom] = shown
+    assert (custom.key, custom.start, custom.end) == (
+        "custom",
+        date(2026, 1, 1),
+        date(2026, 3, 31),
+    )
+
+
+def test_custom_days_come_first_in_the_tabs(db, capsys):
+    project = add(db, Project(name="website"))
+    custom = report.asked_range(db, project, "2026-10-01", "2026-10-07", NOW)
+
+    report.show(db, project, read_key=keys("\t", "q"), now=lambda: NOW, custom=custom)
+
+    assert headings(capsys.readouterr().out) == ["Custom", "Since the start"]
+
+
+def test_from_must_be_a_day(db):
+    project = add(db, Project(name="website"))
+
+    with pytest.raises(ValueError, match="--from: use YYYY-MM-DD"):
+        report.asked_range(db, project, "soon", None, NOW)
 
 
 def test_tabs_get_short_when_they_dont_fit():

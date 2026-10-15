@@ -284,6 +284,37 @@ def test_project_report(cli_db, monkeypatch):
     assert days == sorted(days) and len(days) == len(set(days))
 
 
+def test_project_report_from_to(cli_db):
+    seed(cli_db)
+
+    _, report = invoke_json(
+        cli_db, "projects", "report", "1", "--from", "2026-10-12", "--to", "2026-10-18"
+    )
+
+    assert report["range"] == {
+        "key": "custom",
+        "label": "Custom",
+        "start": "2026-10-12",
+        "end": "2026-10-18",
+    }
+    assert len(report["days"]) == 7
+    assert report["tracked_seconds"] == 7200
+
+
+def test_project_report_bad_days(cli_db):
+    seed(cli_db)
+
+    result, _ = invoke_json(
+        cli_db, "projects", "report", "1", "--from", "2026-10-12", "--to", "2026-10-01"
+    )
+    assert "comes before --from" in error_of(result)["message"]
+
+    result, _ = invoke_json(
+        cli_db, "projects", "report", "1", "--range", "7d", "--to", "2026-10-01"
+    )
+    assert "not both" in error_of(result)["message"]
+
+
 def test_customer_and_goal_create_show_edit(cli_db):
     seed(cli_db)
 
@@ -291,6 +322,10 @@ def test_customer_and_goal_create_show_edit(cli_db):
     assert customer == {
         "id": 2,
         "name": "Initech",
+        "category_fk": None,
+        "category": None,
+        "tag_fks": [],
+        "tags": [],
         "projects": [],
         "sessions": 0,
         "tracked_seconds": 0,
@@ -317,6 +352,19 @@ def test_doctor(cli_db):
     assert result.exit_code == 0
     assert data["problems"] == []
     assert data["schema_version"] == data["latest_version"]
+
+
+def test_dev_fill(cli_db):
+    result, data = invoke_json(cli_db, "dev", "fill", "--years", "1")
+
+    assert result.exit_code == 0, result.output
+    assert data["database"].endswith("dev_db.sqlite3")
+    assert data["to"] == date.today().isoformat()
+    assert data["sessions"] > 0 and data["running"] == 2
+
+    result, _ = invoke_json(cli_db, "dev", "fill", "--years", "1")
+
+    assert error_of(result)["title"] == "The dev database isn't empty"
 
 
 def test_nothing_changed_still_returns_the_row(cli_db):

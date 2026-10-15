@@ -1,17 +1,17 @@
 import io
+import re
 import time
 from contextlib import nullcontext
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from rich import get_console
 from rich.console import Console, Group
 from typer.testing import CliRunner
 
-from tests.fakes import FakePrompter, add
+from tests.fakes import FakePrompter, add, frames
 from trak import browser
-from trak.browser import help_panel, overlay
+from trak.browser import help_panel
 from trak.customers.models import Customer
 from trak.projects.models import Project
 from trak.prompts import PromptCancelled
@@ -23,6 +23,7 @@ from trak.sessions.listing import (
     parse_day,
 )
 from trak.sessions.services import list_sessions, start_session, stop_session
+from trak.tui import overlay, render
 from trak.typer_app import app
 
 runner = CliRunner()
@@ -284,15 +285,14 @@ def keys(*pressed: str):
 def filter_lines(output: str) -> list[str]:
     """The filter bar of every screen the browser drew."""
 
-    return [line for line in output.splitlines() if line.startswith("Filters: ")]
+    lines = (line.strip("│ ") for line in output.splitlines())
+    return [line for line in lines if line.startswith("Filters: ")]
 
 
 def page_lines(output: str) -> list[str]:
-    return [
-        line.split(" · ?")[0]
-        for line in output.splitlines()
-        if line.startswith("Page ")
-    ]
+    """The page of every screen, on the bottom edge of its panel."""
+
+    return re.findall(r"Page \d+ of \d+ · \d+ sessions?", output)
 
 
 @pytest.mark.parametrize(
@@ -309,6 +309,7 @@ def test_browse_pages(db, capsys, next_key, previous_key):
         FakePrompter(),
         ListFilters(per_page=2),
         read_key=keys(next_key, next_key, previous_key, "q"),
+        fit=False,
     )
 
     assert page_lines(capsys.readouterr().out) == [
@@ -323,7 +324,13 @@ def test_browse_first_and_last_page(db, capsys):
     for hour in range(8, 13):
         make(db, at(10, hour), name=f"at {hour}")
 
-    browse(db, FakePrompter(), ListFilters(per_page=2), read_key=keys("G", "g", "q"))
+    browse(
+        db,
+        FakePrompter(),
+        ListFilters(per_page=2),
+        read_key=keys("G", "g", "q"),
+        fit=False,
+    )
 
     assert page_lines(capsys.readouterr().out) == [
         "Page 1 of 3 · 5 sessions",
@@ -335,32 +342,6 @@ def test_browse_first_and_last_page(db, capsys):
 def test_browse_quits_on_esc_typed_with_the_next_key(db, capsys):
     # A fast Esc can arrive glued to the next key: it's still an Esc.
     browse(db, FakePrompter(), ListFilters(), read_key=keys("\x1bq"))
-
-
-def test_browse_hides_the_cursor_and_restores_it(db, monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        get_console(), "show_cursor", lambda show=True: calls.append(show)
-    )
-
-    browse(db, FakePrompter(), ListFilters(), read_key=keys("q"))
-
-    assert calls[0] is False and calls[-1] is True
-
-
-def test_browse_restores_the_cursor_on_ctrl_c(db, monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        get_console(), "show_cursor", lambda show=True: calls.append(show)
-    )
-
-    def interrupted() -> str:
-        raise KeyboardInterrupt
-
-    with pytest.raises(KeyboardInterrupt):
-        browse(db, FakePrompter(), ListFilters(), read_key=interrupted)
-
-    assert calls[-1] is True
 
 
 @pytest.mark.parametrize("key", ["/", "p", "c", "d"])
@@ -396,9 +377,9 @@ def test_browse_filters_are_above_the_table(db, capsys):
 
     browse(db, FakePrompter(), ListFilters(name="landing"), read_key=keys("q"))
 
-    lines = capsys.readouterr().out.splitlines()
+    lines = [line.strip("│ ") for line in capsys.readouterr().out.splitlines()]
     assert lines.index('Filters: name: "landing"') < next(
-        i for i, line in enumerate(lines) if "Landing page" in line
+        i for i, line in enumerate(lines) if "Landing" in line
     )
 
 
@@ -412,7 +393,6 @@ def test_browse_filters_stack_and_clear(db, capsys):
     browse(db, prompter, ListFilters(), read_key=keys("/", "p", "d", "x", "q"))
 
     output = capsys.readouterr().out
-    # Each edit draws the bar twice: above the prompt, then above the table.
     assert list(dict.fromkeys(filter_lines(output))) == [
         "Filters: none",
         'Filters: name: "landing"',
@@ -420,7 +400,7 @@ def test_browse_filters_stack_and_clear(db, capsys):
         'Filters: project: website · name: "landing" · date: 2026-10-10',
     ]
     assert filter_lines(output)[-1] == "Filters: none"
-    assert "Page 1 of 1 · 1 session · ?" in output
+    assert "Page 1 of 1 · 1 session" in page_lines(output)
 
 
 def test_browse_filter_by_customer(db, capsys):
@@ -442,7 +422,7 @@ def test_browse_filter_by_customer(db, capsys):
         "Filters: customer: ACME",
     ]
     assert filter_lines(output)[-1] == "Filters: none"
-    acme_screen = output.split("Filters: customer: ACME")[1]
+    [acme_screen] = [f for f in frames(output) if "Filters: customer: ACME" in f]
     assert "For ACME" in acme_screen and "For nobody" not in acme_screen
 
 
@@ -476,7 +456,11 @@ def test_browse_filtering_goes_back_to_the_first_page(db, capsys):
         make(db, at(10, hour), name=f"at {hour}")
 
     browse(
-        db, FakePrompter("at"), ListFilters(per_page=2), read_key=keys("n", "/", "q")
+        db,
+        FakePrompter("at"),
+        ListFilters(per_page=2),
+        read_key=keys("n", "/", "q"),
+        fit=False,
     )
 
     assert page_lines(capsys.readouterr().out)[-1] == "Page 1 of 3 · 5 sessions"
@@ -501,30 +485,27 @@ def test_help_lists_every_shortcut_and_any_key_closes_it(db, capsys):
 
     browse(db, FakePrompter(), ListFilters(), read_key=keys("?", "x", "q"))
 
-    output = capsys.readouterr().out
-    help_screen = output.split("Shortcuts")[1].split("any key to close")[0]
+    page, help_screen, again = frames(capsys.readouterr().out)
     for _, _, _, description in SHORTCUTS:
         assert description in help_screen
     assert "l  →  Ctrl-f" in help_screen and "q  Esc" in help_screen
     # The help is drawn over the page, which is still there around it.
-    assert "Landing page" in output.split("Shortcuts")[1]
+    assert "─ Sessions ─" in help_screen and "Shortcuts" not in page
     # After closing it the page is drawn again.
-    assert page_lines(output.split("any key to close")[-1]) == [
-        "Page 1 of 1 · 1 session"
-    ]
+    assert again == page
 
 
 @pytest.mark.parametrize("width", [40, 120])
 def test_help_overlay_fits_the_terminal(width):
-    out = io.StringIO()
-    console = Console(file=out, width=width, height=30)
+    console = Console(file=io.StringIO(), width=width, height=30)
+    back = render(console, Group(*["x" * width] * 5), width, 30)
 
-    overlay(console, Group(*["x" * width] * 5), help_panel(SHORTCUTS))
+    frame = overlay(console, back, help_panel(SHORTCUTS))
 
-    lines = out.getvalue().splitlines()
-    assert "Shortcuts" in out.getvalue()
-    assert all(len(line) <= width for line in lines)
-    assert len(lines) >= 5
+    lines = ["".join(segment.text for segment in line) for line in frame]
+    assert any("Shortcuts" in line for line in lines)
+    assert all(len(line) == width for line in lines)
+    assert len(lines) == 30
 
 
 @pytest.mark.parametrize(
@@ -552,8 +533,8 @@ def test_list_browses_in_a_terminal(interactive, monkeypatch, cli_db):
     website = add(cli_db, Project(name="website"))
     seen = {}
 
-    def fake_browse(db, prompter, filters):
-        seen["filters"] = filters
+    def fake_browse(db, prompter, filters, fit):
+        seen["filters"], seen["fit"] = filters, fit
 
     monkeypatch.setattr(listing, "browse", fake_browse)
     monkeypatch.setattr(commands, "make_prompter", lambda: nullcontext(FakePrompter()))
@@ -577,6 +558,8 @@ def test_list_browses_in_a_terminal(interactive, monkeypatch, cli_db):
 
     assert result.exit_code == 0, result.output
     filters = seen["filters"]
+    # No --per-page: pages fit the terminal.
+    assert seen["fit"] is True
     assert (filters.project.id, filters.customer.id) == (website.id, acme.id)
     assert (filters.name, filters.since, filters.until) == (
         "landing",

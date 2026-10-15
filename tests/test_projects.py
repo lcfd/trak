@@ -1,10 +1,12 @@
+from contextlib import nullcontext
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlmodel import select
 from typer.testing import CliRunner
 
-from tests.fakes import FakePrompter, add
+from tests.fakes import FakePrompter, FakeScreen, add, frames
+from trak import views
 from trak.customers.models import Customer
 from trak.dates import today
 from trak.projects import listing
@@ -322,13 +324,15 @@ def test_show_picks_among_archived_too(interactive, answers, monkeypatch, cli_db
         return db.get(Project, old_id)
 
     monkeypatch.setattr(listing, "browse", fake_browse)
+    view = FakeScreen(["q"])
+    monkeypatch.setattr(views, "open_screen", lambda: nullcontext(view))
     answers()
 
     result = invoke(cli_db, "projects", "show")
 
     assert result.exit_code == 0, result.output
     assert seen["pick"] and seen["filters"].archived
-    assert "archived" in result.output
+    assert "archived" in view.last
 
 
 # trak projects edit
@@ -483,9 +487,9 @@ def test_browse_toggles_archived_and_filters_by_name(db, capsys):
 
     browse(db, FakePrompter("web"), ProjectFilters(), read_key=keys("a", "/", "q"))
 
-    screens = capsys.readouterr().out.split("Projects\n")
-    assert "old web" not in screens[1]
-    assert "Filters: with archived" in screens[2] and "old web" in screens[2]
+    screens = frames(capsys.readouterr().out)
+    assert "old web" not in screens[0]
+    assert "Filters: with archived" in screens[1] and "old web" in screens[1]
     last = screens[-1]
     assert 'name: "web" · with archived' in last
     assert "emails" not in last and "website" in last

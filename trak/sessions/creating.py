@@ -12,7 +12,7 @@ from trak import output
 from trak.base_messages import print_error, print_success, print_warning
 from trak.projects.models import Project
 from trak.sessions import commands
-from trak.sessions.commands import CategoryOption, CustomerOption, TagOption
+from trak.sessions.commands import CategoryOption, CustomerOption, TagsOption
 from trak.sessions.display import created_text, session_json
 from trak.sessions.editing import format_time, parse_time
 from trak.sessions.guided import (
@@ -129,7 +129,7 @@ def create_command(
     ] = "",
     customer_name: CustomerOption = None,
     category: CategoryOption = None,
-    tag: TagOption = None,
+    tags: TagsOption = None,
 ) -> None:
     """
     Add a past session, for time you didn't track with "trak start".
@@ -144,11 +144,12 @@ def create_command(
             if project is None:
                 raise typer.Exit(1)
 
-        fks = commands.association_fks(
-            db, customer=customer_name, category=category, tag=tag
-        )
+        fks = commands.association_fks(db, customer=customer_name, category=category)
         defaults = SessionFields(
-            name=name, project_fk=project.id if project else None, **fks
+            name=name,
+            project_fk=project.id if project else None,
+            tag_fks=commands.find_tags(db, tags) or [],
+            **fks,
         )
 
         if start is None:

@@ -250,16 +250,19 @@ def test_start_shows_only_the_set_fields(cli_db, invoke):
 def test_start_shows_category_and_own_customer(cli_db, invoke):
     customer = add_row(cli_db, Customer(name="ACME"))
     category = add_row(cli_db, Category(name="Design"))
-    tag = add_row(cli_db, Tag(name="urgent"))
+    tags = [add_row(cli_db, Tag(name=name)) for name in ("urgent", "billable")]
     session = start_session(
-        cli_db, customer_fk=customer.id, category_fk=category.id, tag_fk=tag.id
+        cli_db,
+        customer_fk=customer.id,
+        category_fk=category.id,
+        tag_fks=[tag.id for tag in tags],
     )
 
     text = Text.from_markup(started_text(cli_db, session)).plain
 
     assert "Customer  ACME\n" in text
     assert "Category  Design" in text
-    assert "Tag       urgent" in text
+    assert "Tags      billable, urgent" in text
 
 
 def test_start_counts_the_other_running_sessions(cli_db, invoke):

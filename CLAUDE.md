@@ -8,7 +8,7 @@ Time tracking CLI for freelancers. Track hours on projects, generate reports, an
 - Typer (CLI framework)
 - SQLModel (ORM)
 - SQLite (database)
-- Rich + rich-toolkit (UI)
+- Rich (UI); rich-toolkit only for its key reader and the `Option` type
 - uv (package manager)
 
 ## Project Structure
@@ -22,30 +22,47 @@ trak/
 ├── output.py            # --json: JSON mode, emit(), errors on stderr, the option on every command
 ├── dates.py             # Days typed by the user (YYYY-MM-DD, today, tomorrow, +N)
 ├── dev_bar.py           # Green bar on top of every screen in dev mode; dev_bar.clear() clears keeping it
+├── tui.py               # Full screen: open_screen() (Terminal, or PlainScreen without a TTY), page(), overlay()
+├── panes.py             # Lazygit-style panes (Pane, Item, render, side_by_side, tabs): home and show views
+├── views.py             # DetailView: the two-pane `show` of sessions, goals, projects; show_in(), run()
+├── clipboard.py         # copy(): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 (`y` in views)
+├── prompts.py           # ScreenPrompter: full-screen vim prompts (Menu, TextInput), answers listed above
 ├── main/
 │   ├── routes.py        # Main callback - settings, dev mode, DB engine, migrations
+│   ├── menu.py          # run_menu: opens the home; the commands it lists (collect_commands, command_score)
+│   ├── home.py          # The home of a bare `trak`: Goals, Sessions, Actions panes (lazygit style)
 │   ├── overview.py      # `trak --json` alone: version, running sessions, upcoming goals
 │   └── annotations.py   # CLI option annotations
 ├── db/
 │   ├── engine.py        # get_engine(): SQLite engine (FKs on, transactional DDL)
 │   └── migrations.py    # MIGRATIONS list + migrate(), versioned via PRAGMA user_version
-├── browser.py           # Full-screen paginated list browser, shared by every entity
+├── browser.py           # Full-screen paginated list browser, shared by every entity (pages fit the height)
+├── tables.py            # Tables that fit the width: a ladder of layouts per list (group, shorten, drop)
 ├── forms.py             # Edit form: menu of fields + Save, shared by every entity
 ├── entities.py          # EntityGroup (`trak <entities> ID`), get_or_pick, print_details, save_changes
 ├── doctor.py            # `trak doctor`: DB path, schema version, integrity and FK checks
+├── dev/                 # `trak dev` (in --help, not in the menu: `NOT_IN_MENU` in main/menu.py)
+│   ├── commands.py      # `trak dev fill`
+│   └── fill.py          # Years of made-up data relative to today (projects, sessions, goals)
+├── labels/              # Categories and Tags
+│   ├── links.py         # Tags of Sessions/Projects/Customers (link tables), with_tags, labels_json
+│   ├── services.py      # Kind (CATEGORY, TAG) + create/update/list/delete, shared by both
+│   ├── listing.py       # `categories|tags list` browser, label_json
+│   └── commands.py      # make_app(kind): list/show/create/edit/delete
 ├── sessions/
-│   ├── models.py        # Session, Category, Tag models
+│   ├── models.py        # Session, Category, Tag, SessionTag/ProjectTag/CustomerTag models
 │   ├── services.py      # start/stop/update/list sessions, session_totals
 │   ├── commands.py      # start, stop, status + shared CLI helpers (is_interactive, run_prompts,
 │   │                    # find_*, association_fks, session_customer_fk, fail)
 │   ├── listing.py       # `sessions list` browser
 │   ├── creating.py      # `sessions create` (backfill a past session)
-│   ├── details.py       # `sessions show`
+│   ├── view.py          # `sessions show`: SessionView, session_rows, show_command
 │   └── editing.py       # `sessions edit`
-├── projects/            # models, services, listing (`list`), commands (create/show/edit/report),
-│                        # report.py (ranges, per-day time, bar chart, the report screen)
+├── projects/            # models, services, listing (`list`), commands (create/edit/report),
+│                        # view.py (`show`), report.py (ranges, per-day time, bar chart, the report screen)
 ├── customers/           # models, services, listing (`list`), commands (create/show/edit)
-└── goals/               # models, services (progress), display (menu reminder), listing, commands
+└── goals/               # models, services (progress), display (progress texts), listing,
+                         # commands (create/edit), view.py (`show`)
 tests/                   # pytest suite (conftest isolates paths and DBs in tmp_path)
 ```
 
@@ -54,13 +71,20 @@ tests/                   # pytest suite (conftest isolates paths and DBs in tmp_
 The Session is the base unit; every association is optional.
 
 ```
-Session (id, name, customer_fk?, project_fk?, category_fk?, tag_fk?, start, end?, active)
-Project (id, customer_fk?, name, description, rate, archived, start?, end?)
-Customer (id, name)
+Session (id, name, customer_fk?, project_fk?, category_fk?, start, end?, active)
+Project (id, customer_fk?, name, description, rate, archived, start?, end?, category_fk?)
+Customer (id, name, category_fk?)
 Category (id, name)
 Tag (id, name)
+SessionTag (session_fk, tag_fk) / ProjectTag (project_fk, tag_fk) / CustomerTag (customer_fk, tag_fk)
 Goal (id, project_fk, name, hours, start, deadline)
 ```
+
+- Sessions, Projects and Customers have one optional Category and any number of
+  Tags (link tables, `trak/labels/links.py`). Services, forms and flags handle the
+  Tags as a `tag_fks` field (sorted ids; `with_tags(db, row)` adds it to a row for
+  `forms.current`/`effective_changes`); the JSON has `category`, `tag_fks`, `tags`.
+  Category and Tag names are unique and have no commas.
 
 - A Session can belong to a Project, directly to a Customer, or neither. A
   Session on a Project belongs to the Project's Customer (`session_customer_fk`
@@ -136,11 +160,20 @@ adds it to every command and group, so new commands get it for free, and
 
 ## CLI Commands (To Implement)
 
-**Bare `trak`:** logo + running sessions (`print_running`) + upcoming goals (progress, days left) + a filterable menu of every command plus a `help` entry (`trak/main/menu.py`); without a TTY it prints the help; with `--json`, the overview (`main/overview.py`).
+**Bare `trak`:** the home (`trak/main/home.py`), lazygit style: the whole terminal (alt screen),
+redrawn on resize, in three panes reachable with `1` `2` `3` (and `h`/`l`, Tab): **Goals** (upcoming,
+progress, days left), **Sessions** (running first, then recent ones by day), **Actions** (every
+command plus `help` and `quit`). The focus starts on Actions. `j`/`k`/`g`/`G`/Ctrl-d/Ctrl-u move,
+Enter shows the goal/session or runs the action, `e` edits, `n` new goal / start, `s` stops the
+running session in place, `/` filters the actions (`command_score`), `?` help, `q` quits. Commands
+run on the normal screen, then any key comes back (`q` quits; `list`/`report` and the
+sessions/goals/projects `show` views come back directly, `home.is_view`). Below 96 columns one pane shows at a time, with the three as tabs. Without a TTY it
+prints the help; with `--json`, the overview (`main/overview.py`). Tests drive it with a
+`FakeScreen` (`tests/test_home.py`).
 The filter ranks abbreviations first (`command_score`): "sl" → sessions list, "se" → sessions edit, "pc" → projects create.
 
 **Quick usage:**
-- `trak start [PROJECT] [--name] [--customer] [--category] [--tag] [--start] [-g]` - Start a
+- `trak start [PROJECT] [--name] [--customer] [--category] [--tag]... [--start] [-g]` - Start a
   session. In a terminal, with no project or other association, asks the project; `-g` asks
   every field starting from the flags. A project's customer applies to its sessions: another
   `--customer` is an error (`session_customer_fk`)
@@ -151,42 +184,70 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
 **Entity groups** (`trak sessions|projects|customers|goals`, built with `trak/entities.py`):
 - `trak <entities>` - Same as `trak <entities> list` with no options
 - `trak <entities> ID` - Same as `trak <entities> show ID` (`EntityGroup` routes a number to `show`)
+- `trak <entities>` are sessions, projects, customers, goals, categories, tags
+- `trak sessions|goals|projects show [ID] [--plain]` - In a terminal, full screen in two panes
+  like the home (`views.DetailView`): [1] the row (where the focus starts; `e` edits it in
+  place) and [2] sessions by day (j/k, Enter shows one). Sessions: [2] is its project's
+  sessions, Enter shows one in place (Esc/Ctrl-o back), `s` stops it. Goals: progress bar and
+  pace in [1], [2] the sessions counted. Projects: its goals in [1], [2] its sessions, `R` its
+  report. `--plain`, no TTY or `--json` print the details panel. Customers, categories and
+  tags `show` print a panel
 - `trak <entities> show|edit [ID]` - Without ID, pick it in the list browser (j/k + Enter, needs a TTY).
   `edit` takes a flag per field and saves them; without flags it opens a menu of fields
   (`trak/forms.py`; Esc discards), which needs a TTY
-- `trak sessions list [--project] [--customer] [--name] [--date|--from/--to] [--page] [--plain]` - Browse sessions (newest first); `--plain` or no TTY prints one page
-- `trak projects list [--name] [--customer] [--archived] [--page] [--plain]` - Browse projects; `a` toggles archived in the browser
-- `trak customers list [--name] [--page] [--plain]` - Browse customers
-- `trak goals list [--project] [--all] [--page] [--plain]` - Browse goals, nearest deadline first;
+- `trak sessions list [--project] [--customer] [--category] [--tag] [--name] [--date|--from/--to] [--page] [--per-page] [--plain]` - Browse sessions (newest first); `--plain` or no TTY prints one page
+- `trak projects list [--name] [--customer] [--archived] [--page] [--per-page] [--plain]` - Browse projects; `a` toggles archived in the browser
+- `trak customers list [--name] [--page] [--per-page] [--plain]` - Browse customers
+- `trak categories|tags list|show|create|edit|delete` - One implementation for both
+  (`labels/commands.py`, `make_app(kind)`). `delete [ID] [--yes]` takes it off every session,
+  project and customer; it asks in a terminal, needs `--yes` without one
+- `trak goals list [--project] [--all] [--page] [--per-page] [--plain]` - Browse goals, nearest deadline first;
   past ones only with `--all` (`a` toggles them in the browser)
-- `trak projects create [NAME] [--customer] [--rate] [--description] [--start DATE] [--end DATE]` -
+- `trak projects create [NAME] [--customer] [--category] [--tag]... [--rate] [--description] [--start DATE] [--end DATE]` -
   Without NAME, asks every field (TTY). Show, edit and list (Dates column) cover the dates too
-- `trak projects report [ID] [--range] [--plain]` - Time tracked on a project as a bar chart
-  (`--json`: any range, with the time of every day).
-  Without ID, pick it. In a TTY it stays open: h/l (Tab) switch range, 1-9 jump, r refresh.
+- `trak projects report [ID] [--range | --from DATE --to DATE] [--plain]` - Time tracked on a
+  project as a bar chart (`--json`: any range, with the time of every day). `--from`/`--to`
+  (from the project's first day, to today by default) add a "Custom" tab first.
+  Without ID, pick it. In a TTY it stays open: Tab/S-Tab (`]`/`[`) switch range, 1-9 jump,
+  h/l/g/G select a bar, Enter zooms into it one unit down (a year shows its months, a month
+  its weeks, a week its days; `Range.unit`), Esc zooms out (quits when not zoomed), r refresh.
   "Since the start" runs from the project's start (or first session, if earlier) to its end
-  when that's still to come. Ranges: since the start, last year, 6/3 months, last/this month, last week, last 7 days,
-  this week; only the ones that differ from "since the start" and aren't empty. This month/week
+  when that's still to come. Ranges: since the start, last year, 6/3 months, last 30 days, this month, last week, last 7 days,
+  this week; only the ones that differ from "since the start" and aren't empty (none after
+  the project's last session, start or end). This month/week
   run to their last day (days to come on a dotted axis). Every day has a bar, empty ones too,
   and the chart shows even with nothing tracked. A bar is a
   day, or a week/month/year when the days don't fit. Sessions are split at local midnight
-- `trak sessions create [PROJECT] [--start] [--end] [--name] [--customer] [--category] [--tag]` -
+- `trak sessions create [PROJECT] [--start] [--end] [--name] [--customer] [--category] [--tag]...` -
   Backfill a past session. `--end` takes a time or a duration (`1h30m`), default now.
   Without `--start`, asks every field (TTY), starting from the flags
-- `trak sessions edit [ID] [--name] [--project] [--customer] [--category] [--tag] [--start] [--end]`
+- `trak sessions edit [ID] [--name] [--project] [--customer] [--category] [--tag]... [--start] [--end]`
   (`--end` stops a running session)
-- `trak projects edit [ID] [--name] [--customer] [--rate] [--description] [--start] [--end]
-  [--archive/--unarchive]`; `trak customers edit [ID] [--name]`;
+- `--tag` everywhere: repeat it or separate names with commas (`-t billable,urgent`); on
+  `edit` it replaces the tags, `--tag ""` clears them (`commands.find_tags`). Prompts pick
+  tags with `guided.pick_many` (Enter toggles, Done ends)
+- `trak projects edit [ID] [--name] [--customer] [--category] [--tag]... [--rate] [--description] [--start] [--end]
+  [--archive/--unarchive]`; `trak customers edit [ID] [--name] [--category] [--tag]...`;
   `trak goals edit [ID] [--project] [--name] [--hours] [--from] [--by]`
-- `trak customers create [NAME]` - Without NAME, asks it (TTY)
+- `trak customers create [NAME] [--category] [--tag]...` - Without NAME, asks every field (TTY)
 - `trak goals create [PROJECT] [--hours] [--by DATE] [--from DATE] [--name]` - Needs PROJECT,
   `--hours` and `--by` (which defaults to the project's end); with any missing, asks
   every field (TTY) starting from the flags, offering the project's end as the deadline.
   Dates (`trak/dates.py`, for goals and projects): `YYYY-MM-DD`, `today`, `tomorrow`, `+N` (in N days)
-- Every list browser is `trak/browser.py` with a per-entity `Listing` (query, table, to_json, filter shortcuts)
+- A `show` with a two-pane view lives in `<entity>/view.py`, always the same three things:
+  the `<Entity>View` (a `views.DetailView`), `<entity>_rows(db, row)` (the details, for the
+  view and the `--plain` panel) and `show_command`. `view.py` imports `commands.py`, never the
+  other way; `listing.py` imports the view inside its `show_<entity>` (the view imports it).
+- Every list browser is `trak/browser.py` with a per-entity `Listing` (query, table, to_json, filter shortcuts,
+  `show`/`edit` of a row). Rows are always selectable: j/k move a highlighted row across pages,
+  g/G first/last row, Enter shows it (the views above on the same screen, via `views.show_in`,
+  which ends the browser's read first; panels via `entities.show_printed`), `e` edits it in
+  place (`entities.edit_in_place`), `y` copies its id; when picking, Enter returns it. A page is
+  queried and its table fit once (cursor moves restyle a row), and keys already typed are all
+  handled before the next frame, so holding j/k doesn't lag;
+  the table comes from `Listing.cells` (a row's cells, computed once) and `Listing.layouts` (`tables.py`)
 
 **Data operations (to implement):**
-- `trak create category|tag` - Create entities
 - `trak delete project|session|...` - Delete entities
 
 **Reporting:**
@@ -196,6 +257,11 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
 - `trak config` - Manage settings
 - `trak doctor` - DB path, schema version vs latest, `integrity_check` and
   `foreign_key_check`; exits 1 on any problem (`--json`: the same, `problems` a list)
+- `trak dev fill [--years 6] [--seed N] [--reset]` - Fill the dev database (always
+  `dev_db.sqlite3`, dev mode or not) with years of data up to today: thousands of
+  sessions, past/current/future projects and goals, two running sessions, categories and
+  tags on sessions, projects and customers. Refuses a
+  dev database with data unless `--reset`. `dev` is in --help, not in the menu
 
 ## Development
 
@@ -232,8 +298,30 @@ The codebase must be covered by tests using pytest.
 
 Design principle for every interactive UI: a vim/neovim user should feel at home.
 
-- Build prompts with `trak/prompts.py` (`VimToolkit`, via `guided.make_prompter()`),
-  never with rich-toolkit's `Menu`/`Input` directly.
+- **Full screen, lazygit style.** Every interactive screen (home, browsers, the
+  report, prompts, forms) takes the whole terminal through `trak/tui.py`: the
+  alternate screen (the shell comes back untouched; panels printed after a view,
+  like "saved", land on the normal screen), the dev bar on top, `tui.header`, one
+  green panel (`tui.page`) and a footer of key hints (`tui.hints`). Draw whole
+  frames sized to `screen.size()`; `read_key` returns None on a resize: draw again.
+  Below 30x8 a view says "Make the terminal bigger". Nested views (a filter asked
+  in a browser) reuse the open screen (`tui.open_screen`).
+- Lists fill the height: without `--per-page`, a page has as many rows as fit
+  (`browser.rows_that_fit`), recomputed on resize; rows stay on one line.
+- Tables fit their width by changing layout, never with scrollbars or wrapping
+  (`trak/tables.py`). Each list declares a ladder of layouts, widest first: the
+  table takes the first whose columns fit whole, only `flex` columns (names,
+  labels) shrinking to their `least`. Narrower layouts group related columns
+  (Start + End → When `15 Oct 09:00–10:30`, Project · Customer, Category + Tags →
+  Labels), then use shorter formats (`tables.short_day`), then drop what matters
+  least (it's in `show`). Ids, dates, numbers and durations are never cut;
+  `optional` columns leave when empty on the page. A new column goes in the
+  widest layout and wherever it still earns its room.
+- Without a terminal (tests), `tui.PlainScreen` prints each frame below the last;
+  `tests/fakes.py` has `FakeScreen` (scripted keys and resizes) and `frames()`.
+- Build prompts with `trak/prompts.py` (`ScreenPrompter`, via `guided.make_prompter()`),
+  never with rich-toolkit's `Menu`/`Input` directly. Each question is a full
+  screen titled with the command, the answers so far listed above it.
 - Filterable lists open in INSERT mode (typing filters); Esc switches to NORMAL mode:
   `j`/`k` move, `g`/`G` first/last, Ctrl-d/Ctrl-u half a screen, `i` resumes the
   filter, `/` starts a new one, Enter picks, Esc/`q` go back. Other lists are always
@@ -241,9 +329,16 @@ Design principle for every interactive UI: a vim/neovim user should feel at home
 - Text inputs: Esc goes back without changes; Ctrl-u clears, Ctrl-w deletes a word.
 - Going back raises `PromptCancelled`: callers decide what it means (keep the old
   value, or print "Cancelled" and exit 1).
+- The home's Actions pane is the exception: it starts in NORMAL mode, so the digits
+  switch panes; `/` starts the filter, Esc stops it, Esc again clears it.
+- `y` copies the id of what's focused (`clipboard.copied`, said in the footer with what it
+  is: "Copied 12 · session"): in a two-pane view, [1] the row shown, [2] the session under the
+  cursor (nothing if the list is empty); the row under the cursor in the home's panes and every
+  list browser; the report's project. A home action copies `trak <command>`. The hint names
+  it too ("y copy goal id"), changing with the focus.
 - Full-screen views (like `trak sessions list`) use single keys with vim bindings
-  first (`h`/`l` pages, `g`/`G`, `/` search, `q` quit), list them in a `?` help,
-  and hide the cursor while waiting for a key.
+  first (`h`/`l` pages, `g`/`G`, `/` search, `q` quit), list them in a `?` help
+  (`tui.overlay`), and hide the cursor (`tui.Terminal` does it).
 
 ## File Locations
 

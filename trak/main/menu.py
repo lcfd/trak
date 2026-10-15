@@ -1,35 +1,14 @@
-"""The menu shown by a bare `trak`: pick any command from a filterable list."""
+"""A bare `trak`: the home, and the commands its Actions pane lists and ranks."""
 
 import typer
-from rich.console import Console
-from rich.text import Text
-from rich_toolkit.menu import Option
-from sqlmodel import Session as DBSession
 from typer.core import TyperCommand, TyperGroup
 
-from trak import config
-from trak.goals.display import print_reminder
-from trak.prompts import PromptCancelled
+from trak import tui
+from trak.main import home
 from trak.sessions import commands
-from trak.sessions.display import print_running
-from trak.sessions.guided import Prompter
 
-LOGO = r"""
- _             _
-| |_ _ __ __ _| | __
-| __| '__/ _` | |/ /
-| |_| | | (_| |   <
- \__|_|  \__,_|_|\_\
-"""
-
-# The menu entries after the commands: show `trak --help`, and leave.
-HELP = "help"
-QUIT = "quit"
-
-
-def print_logo(console: Console) -> None:
-    console.print(Text(LOGO.strip("\n"), style="bold green"))
-    console.print(f"[dim]v{config.VERSION}[/dim]\n")
+# Top-level groups listed in --help but not in the menu.
+NOT_IN_MENU = {"dev"}
 
 
 def collect_commands(
@@ -41,6 +20,8 @@ def collect_commands(
     for name in group.list_commands(ctx):
         command = group.get_command(ctx, name)
         if command is None or command.hidden:
+            continue
+        if not prefix and name in NOT_IN_MENU:
             continue
         path = f"{prefix}{name}"
         if isinstance(command, TyperGroup):
@@ -112,30 +93,6 @@ def command_score(query: str, path: str, description: str = "") -> float | None:
     return None
 
 
-def ask_command(
-    prompter: Prompter, entries: list[tuple[str, TyperCommand]]
-) -> tuple[str, TyperCommand | None]:
-    """The picked command, or (HELP, None) / (QUIT, None) for those entries."""
-
-    rows = [(path, command.get_short_help_str(limit=60)) for path, command in entries]
-    rows.append((HELP, "Show every command and option (like --help)."))
-    rows.append((QUIT, "Leave trak."))
-    width = max(len(path) for path, _ in rows)
-    options: list[Option[int]] = [
-        {"name": f"{path:<{width}}  {text}", "value": index}
-        for index, (path, text) in enumerate(rows)
-    ]
-    index = prompter.ask(
-        "Command",
-        options,
-        allow_filtering=True,
-        rank=lambda text, option: command_score(text, *rows[option["value"]]),
-    )
-    if index >= len(entries):
-        return rows[index][0], None
-    return entries[index]
-
-
 def invoke_with_defaults(
     ctx: typer.Context, command: TyperCommand | TyperGroup, name: str
 ) -> None:
@@ -147,11 +104,8 @@ def invoke_with_defaults(
 
 def run_menu(ctx: typer.Context) -> None:
     """
-    Let the user pick a command and run it with its defaults. The running
-    sessions and the upcoming goals are shown above it, as a reminder.
-
-    Without a terminal it prints the help instead. Going back, or picking
-    quit, exits quietly.
+    The home (`main/home.py`): goals, sessions and every command, full screen.
+    Without a terminal it prints the help instead. Ctrl-C exits with 130.
     """
 
     if not commands.is_interactive():
@@ -160,25 +114,17 @@ def run_menu(ctx: typer.Context) -> None:
 
     assert isinstance(ctx.command, TyperGroup)
     entries = collect_commands(ctx.command, ctx)
-
-    console = Console()
-    print_logo(console)
-    with DBSession(ctx.obj["DB_ENGINE"]) as db:
-        print_running(console, db)
-        print_reminder(console, db)
+    rows = [(path, command.get_short_help_str(limit=60)) for path, command in entries]
+    rows.append((home.HELP, "Show every command and option (like --help)."))
+    rows.append((home.QUIT, "Leave trak."))
+    view = home.Home(ctx, commands=dict(entries), actions=rows)
 
     try:
-        with commands.make_prompter() as prompter:
-            path, command = ask_command(prompter, entries)
-    except PromptCancelled:
-        return
-    except (KeyboardInterrupt, SystemExit):
-        # On Ctrl-C rich-toolkit prints "Cancelled." and calls exit().
+        with open_screen() as screen:
+            view.loop(screen)
+    except KeyboardInterrupt:
         raise typer.Exit(130)
 
-    if command is None:
-        if path == HELP:
-            typer.echo(ctx.get_help())
-        return
 
-    invoke_with_defaults(ctx, command, path)
+# The terminal, full screen; tests swap it for a fake one.
+open_screen = tui.open_screen

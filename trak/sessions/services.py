@@ -5,6 +5,7 @@ from typing import Any
 from sqlmodel import Session as DBSession
 from sqlmodel import col, func, or_, select
 
+from trak.labels.links import set_tags, tagged_with
 from trak.projects.models import Project
 from trak.sessions.models import Session
 
@@ -21,7 +22,7 @@ def start_session(
     project_fk: int | None = None,
     customer_fk: int | None = None,
     category_fk: int | None = None,
-    tag_fk: int | None = None,
+    tag_fks: list[int] | None = None,
     start: datetime | None = None,
 ) -> Session:
     session = Session(
@@ -29,11 +30,12 @@ def start_session(
         project_fk=project_fk,
         customer_fk=customer_fk,
         category_fk=category_fk,
-        tag_fk=tag_fk,
         start=start or datetime.now(UTC),
         active=True,
     )
     db.add(session)
+    db.flush()
+    set_tags(db, session, tag_fks or [])
     db.commit()
     db.refresh(session)
     return session
@@ -45,6 +47,7 @@ def create_session(
     start: datetime,
     end: datetime,
     now: datetime | None = None,
+    tag_fks: list[int] | None = None,
     **fields: Any,
 ) -> Session:
     """A past, stopped Session: for time tracked without `trak start`."""
@@ -57,6 +60,8 @@ def create_session(
     session = Session(start=start, end=end, active=False, **fields)
     session.name = session.name.strip()
     db.add(session)
+    db.flush()
+    set_tags(db, session, tag_fks or [])
     db.commit()
     db.refresh(session)
     return session
@@ -85,7 +90,7 @@ EDITABLE_FIELDS = {
     "project_fk",
     "customer_fk",
     "category_fk",
-    "tag_fk",
+    "tag_fks",
     "start",
     "end",
 }
@@ -94,7 +99,7 @@ EDITABLE_FIELDS = {
 def update_session(db: DBSession, session: Session, **changes: Any) -> Session:
     """
     Change the editable fields of a Session. Giving an active Session an
-    `end` stops it.
+    `end` stops it. `tag_fks` replaces its Tags.
     """
 
     unknown = set(changes) - EDITABLE_FIELDS
@@ -108,6 +113,8 @@ def update_session(db: DBSession, session: Session, **changes: Any) -> Session:
     if session.end is not None and "end" in changes and end is None:
         raise ValueError("A stopped session can't be running again.")
 
+    if "tag_fks" in changes:
+        set_tags(db, session, changes.pop("tag_fks"))
     for field, value in changes.items():
         setattr(session, field, value.strip() if field == "name" else value)
     if session.end is not None:
@@ -129,6 +136,8 @@ def session_conditions(
     *,
     project_fk: int | None = None,
     customer_fk: int | None = None,
+    category_fk: int | None = None,
+    tag_fk: int | None = None,
     name: str | None = None,
     start_from: datetime | None = None,
     start_until: datetime | None = None,
@@ -148,6 +157,10 @@ def session_conditions(
                 col(Session.project_fk).in_(customer_projects),
             )
         )
+    if category_fk is not None:
+        conditions.append(Session.category_fk == category_fk)
+    if tag_fk is not None:
+        conditions.append(tagged_with(Session, tag_fk))
     if name:
         conditions.append(col(Session.name).icontains(name))
     if start_from is not None:
@@ -168,7 +181,8 @@ def list_sessions(
     A page of Sessions, newest first, and the total matching the filters.
 
     `customer_fk` matches Sessions of that Customer, directly or through their
-    Project. `name` matches case-insensitively anywhere in the name. The start
+    Project; `tag_fk` the Sessions with that Tag (among others). `name`
+    matches case-insensitively anywhere in the name. The start
     range includes `start_from` and excludes `start_until`.
     """
 

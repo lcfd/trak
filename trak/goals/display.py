@@ -1,18 +1,15 @@
-"""How Goals look: their progress, days left, and the reminder above `trak`."""
+"""How Goals look: their progress and days left (`show`, `list`, the home)."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from rich.console import Console, Group
 from rich.markup import escape
-from rich.padding import Padding
-from rich.progress_bar import ProgressBar
-from rich.table import Table
+from rich.text import Text
 from sqlmodel import Session as DBSession
 
 from trak import output
 from trak.goals.models import Goal
-from trak.goals.services import Progress, goal_progress, upcoming_goals
+from trak.goals.services import Progress, goal_progress
 from trak.projects.models import Project
 from trak.sessions.display import format_duration
 
@@ -119,58 +116,15 @@ def days_text(progress: Progress) -> str:
     return f"[bold yellow]{text}[/bold yellow]"
 
 
-def progress_bar(progress: Progress, width: int = 20) -> ProgressBar:
-    return ProgressBar(
-        total=1,
-        completed=min(progress.ratio, 1),
-        width=width,
-        complete_style="green" if progress.reached else "cyan",
-        finished_style="green",
+def progress_bar(progress: Progress, width: int) -> Text:
+    """ "━━━━━━━━━━━━  31%": cyan as it goes, green once reached."""
+
+    percent = f"{min(progress.ratio, 1):>4.0%}"
+    bar_width = max(1, width - len(percent) - 1)
+    done = round(bar_width * min(progress.ratio, 1))
+    return Text.assemble(
+        ("━" * done, "green" if progress.reached else "cyan"),
+        ("━" * (bar_width - done), "bright_black"),
+        " ",
+        (percent, "bold"),
     )
-
-
-def goal_block(db: DBSession, goal: Goal, now: datetime) -> Group:
-    """
-    One Goal of the reminder, on three lines (four until it's reached):
-
-        website · Launch
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  31%
-        12h 30m of 40h tracked · 27h 30m to go · 16 days left, by Fri 30 Oct
-        3.4 workdays needed, ~1h 37m a day
-    """
-
-    progress = goal_progress(db, goal, now=now)
-
-    bar = Table.grid(padding=(0, 2))
-    bar.add_column()
-    bar.add_column(justify="right", style="bold")
-    bar.add_row(progress_bar(progress, width=30), f"{min(progress.ratio, 1):.0%}")
-
-    parts = [
-        f"[bold]{tracked_text(progress)}[/bold] tracked",
-        to_go_text(progress),
-        f"{days_text(progress)}, by {goal.deadline:%a %d %b}",
-    ]
-    details = " [dim]·[/dim] ".join(parts)
-    pace = pace_text(progress)
-    return Group(
-        f"[bold green]{escape(describe_goal(db, goal))}[/bold green]",
-        bar,
-        details,
-        *([pace] if pace else []),
-    )
-
-
-def print_reminder(
-    console: Console, db: DBSession, now: datetime | None = None
-) -> None:
-    """The upcoming Goals, nearest deadline first; nothing if there are none."""
-
-    now = now or datetime.now(UTC)
-    goals = upcoming_goals(db, on=now.astimezone().date())
-    if not goals:
-        return
-
-    console.print(f"[bold]🎯 Goals[/bold] [dim]({len(goals)})[/dim]\n")
-    for goal in goals:
-        console.print(Padding(goal_block(db, goal, now), (0, 0, 1, 2)))

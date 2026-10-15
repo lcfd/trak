@@ -58,10 +58,7 @@ def find_project(db: DBSession, name: str, archived: bool = False) -> Project | 
         text = "You don't have any project yet."
     print_error(
         title="This project doesn't exist",
-        text=(
-            f"{text}\n\n"
-            'Run "trak create project <project name>" to create a new project.'
-        ),
+        text=(f'{text}\n\nRun "trak projects create NAME" to create a new project.'),
     )
     return None
 
@@ -91,10 +88,14 @@ def find_customer(db: DBSession, name: str) -> Customer | None:
     return None
 
 
+PLURALS = {"category": "categories", "tag": "tags"}
+
+
 def find_row(db: DBSession, model: Any, name: str, noun: str) -> Any | None:
     """The `model` row (a Category, a Tag) called `name`, printing an error if
     it isn't unique."""
 
+    plural = PLURALS.get(noun, f"{noun}s")
     rows = list(db.exec(select(model).where(model.name == name)))
     if len(rows) == 1:
         return rows[0]
@@ -102,18 +103,51 @@ def find_row(db: DBSession, model: Any, name: str, noun: str) -> Any | None:
     if rows:
         print_error(
             title=f"Ambiguous {noun}",
-            text=f"There are {len(rows)} {noun}s called [green]{name}[/green].",
+            text=f"There are {len(rows)} {plural} called [green]{name}[/green].",
         )
         return None
 
     available = [row.name for row in db.exec(select(model).order_by(model.name))]
     if available:
         names = "\n".join(f" • {row}" for row in available)
-        text = f"Available {noun}s are:\n\n{names}"
+        text = f"Available {plural} are:\n\n{names}"
     else:
         text = f"You don't have any {noun} yet."
+    text += f'\n\nCreate one with "trak {plural} create NAME".'
     print_error(title=f"This {noun} doesn't exist", text=text)
     return None
+
+
+def split_names(values: list[str]) -> list[str]:
+    """Names given as repeated flags, each maybe a comma-separated list."""
+
+    return [name.strip() for value in values for name in value.split(",")]
+
+
+def find_tags(db: DBSession, values: list[str] | None) -> list[int] | None:
+    """
+    The ids of the Tags named by `--tag` flags (repeated, or "a,b"); None if
+    none was given, [] for `--tag ""`. Exits with 1, after the error, when a
+    name matches no Tag or several.
+    """
+
+    if values is None:
+        return None
+    fks = []
+    for name in split_names(values):
+        if not name:
+            continue
+        tag = find_row(db, Tag, name, "tag")
+        if tag is None:
+            raise typer.Exit(1)
+        fks.append(tag.id)
+    return sorted(set(fks))
+
+
+def find_category(db: DBSession, name: str | None) -> dict[str, int | None]:
+    """{"category_fk": id} from `--category` (None if empty), {} if not given."""
+
+    return association_fks(db, category=name)
 
 
 def association_fks(
@@ -122,7 +156,6 @@ def association_fks(
     project: str | None = None,
     customer: str | None = None,
     category: str | None = None,
-    tag: str | None = None,
 ) -> dict[str, int | None]:
     """
     The `*_fk` fields of a Session from the flags naming its associations.
@@ -135,7 +168,6 @@ def association_fks(
         "project_fk": (project, lambda n: find_project(db, n, archived=True)),
         "customer_fk": (customer, lambda n: find_customer(db, n)),
         "category_fk": (category, lambda n: find_row(db, Category, n, "category")),
-        "tag_fk": (tag, lambda n: find_row(db, Tag, n, "tag")),
     }
     fks: dict[str, int | None] = {}
     for field, (name, find) in finders.items():
@@ -188,9 +220,14 @@ CategoryOption = Annotated[
     str | None,
     typer.Option("--category", help="The category, by name. Empty for none."),
 ]
-TagOption = Annotated[
-    str | None,
-    typer.Option("--tag", "-t", help="The tag, by name. Empty for none."),
+TagsOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--tag",
+        "-t",
+        help="A tag, by name: repeat it, or separate names with commas, for more. "
+        '"" for none.',
+    ),
 ]
 
 
@@ -213,7 +250,7 @@ def run_prompts(ask: Callable[[Prompter], T], cancelled: str = "") -> T:
         print_warning(title="Cancelled", text=cancelled or "Nothing was changed.")
         raise typer.Exit(1)
     except (KeyboardInterrupt, SystemExit):
-        # On Ctrl-C rich-toolkit prints "Cancelled." and calls exit().
+        # Ctrl-C (SystemExit: from code that calls exit() on it).
         raise typer.Exit(130)
 
 
@@ -232,7 +269,7 @@ def start(
     ] = "",
     customer_name: CustomerOption = None,
     category: CategoryOption = None,
-    tag: TagOption = None,
+    tags: TagsOption = None,
     start_time: Annotated[
         str | None,
         typer.Option(
@@ -253,7 +290,7 @@ def start(
 ) -> None:
     """
     Start a new session, optionally on a project. Every field has an option;
-    in a terminal, without a project, customer, category or tag, asks for
+    in a terminal, without a project, customer, category or tags, asks for
     the project.
     """
 
@@ -264,7 +301,12 @@ def start(
             if project is None:
                 raise typer.Exit(1)
 
-        fks = association_fks(db, customer=customer_name, category=category, tag=tag)
+        fks: dict[str, Any] = association_fks(
+            db, customer=customer_name, category=category
+        )
+        tag_fks = find_tags(db, tags)
+        if tag_fks:
+            fks["tag_fks"] = tag_fks
         fields = SessionFields(
             name=name, project_fk=project.id if project else None, **fks
         )

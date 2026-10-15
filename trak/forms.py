@@ -8,10 +8,8 @@ field list discards everything (PromptCancelled), Esc on a field keeps it.
 from collections.abc import Callable
 from typing import Any
 
-from rich import get_console
 from rich_toolkit.menu import Option
 
-from trak import dev_bar
 from trak.prompts import PromptCancelled
 from trak.sessions.guided import Prompter
 
@@ -47,7 +45,6 @@ def ask_changes(
     field)` asks for a new value and records it in `changes`.
     """
 
-    console = get_console()
     changes: dict[str, Any] = {}
     last = None
 
@@ -65,7 +62,6 @@ def ask_changes(
         ]
         options.append({"name": "Save", "value": SAVE})
 
-        dev_bar.clear(console)
         choice = prompter.ask(
             f"{title} · Esc to discard", options, default=last, button=SAVE
         )

@@ -1,17 +1,15 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from rich.console import Console
 from rich.markup import escape
-from rich.padding import Padding
-from rich.table import Table
+from rich.text import Text
 from sqlmodel import Session as DBSession
 
 from trak import output
 from trak.customers.models import Customer
+from trak.labels.links import tag_fks_of, tag_names
 from trak.projects.models import Project
-from trak.sessions.models import Category, Session, Tag
-from trak.sessions.services import get_active_sessions
+from trak.sessions.models import Category, Session
 
 
 def format_duration(duration: timedelta) -> str:
@@ -53,7 +51,8 @@ def session_json(
         "customer": customer.name if customer else None,
         "customer_from_project": customer is not None and session.customer_fk is None,
         "category": name_of(Category, session.category_fk),
-        "tag": name_of(Tag, session.tag_fk),
+        "tag_fks": tag_fks_of(db, session),
+        "tags": tag_names(db, session),
         "duration_seconds": output.seconds(elapsed(session, now)),
     }
 
@@ -69,6 +68,41 @@ def describe_session(db: DBSession, session: Session) -> str:
         (customer.name or f"Customer #{customer.id}") if customer else "",
     ]
     return " · ".join(part for part in parts if part) or f"Session #{session.id}"
+
+
+def labels_text(db: DBSession, session: Session) -> str:
+    """Plain text: "Development #billable #urgent", whichever are set."""
+
+    category = db.get(Category, session.category_fk) if session.category_fk else None
+    parts = [category.name if category else ""]
+    parts += [f"#{name}" for name in tag_names(db, session)]
+    return " ".join(part for part in parts if part)
+
+
+def session_line(
+    session: Session,
+    name: str,
+    now: datetime,
+    labels: str = "",
+    current: bool = False,
+) -> Text:
+    """
+    "● 09:12   2h 30m  name · project  Development #billable": its start, how
+    long, what. `current` marks the session on screen with a ▸.
+    """
+
+    running = session.end is None
+    mark = "▸ " if current else "● " if running else "  "
+    return Text.assemble(
+        (mark, "bold cyan" if current else "bold green"),
+        (f"{session.start.astimezone():%H:%M} ", "dim"),
+        (
+            f"{format_duration(elapsed(session, now)):>7}  ",
+            "bold green" if running else "bold",
+        ),
+        (name, "bold" if current else ""),
+        (f"  {labels}" if labels else "", "magenta"),
+    )
 
 
 def session_label(db: DBSession, session: Session) -> str:
@@ -109,10 +143,12 @@ def _detail_lines(
                 + (" [dim](from the project)[/dim]" if via_project else ""),
             )
         )
-    for model, fk in ((Category, session.category_fk), (Tag, session.tag_fk)):
-        row = db.get(model, fk) if fk is not None else None
-        if row is not None:
-            details.append((model.__name__, escape(row.name or f"#{fk}")))
+    category = db.get(Category, session.category_fk) if session.category_fk else None
+    if category is not None:
+        details.append(("Category", escape(category.name)))
+    tags = tag_names(db, session)
+    if tags:
+        details.append(("Tags", escape(", ".join(tags))))
     details.extend(rows)
 
     width = max(len(label) for label, _ in details)
@@ -224,30 +260,3 @@ def created_text(db: DBSession, session: Session) -> str:
     )
     lines += ["", f'[dim]Change it with "trak sessions edit {session.id}".[/dim]']
     return "\n".join(lines)
-
-
-def print_running(console: Console, db: DBSession, now: datetime | None = None) -> None:
-    """
-    The running Sessions above the menu of `trak`, oldest first, one per line;
-    nothing if there are none:
-
-        website · ACME     since 09:12 · 2h 30m · #12
-    """
-
-    now = now or datetime.now(UTC)
-    sessions = get_active_sessions(db)
-    if not sessions:
-        return
-
-    console.print(f"[bold]⏱️  Running sessions[/bold] [dim]({len(sessions)})[/dim]\n")
-    table = Table.grid(padding=(0, 3))
-    table.add_column()
-    table.add_column()
-    for session in sessions:
-        table.add_row(
-            f"[bold green]{escape(describe_session(db, session))}[/bold green]",
-            f"[dim]since[/dim] {format_start(session.start, now)} [dim]·[/dim] "
-            f"[bold]{format_duration(elapsed(session, now))}[/bold] "
-            f"[dim]· #{session.id}[/dim]",
-        )
-    console.print(Padding(table, (0, 0, 1, 2)))

@@ -15,7 +15,6 @@ from trak import output
 # from trak.configs.commands import app as config_app
 # from trak.create import app as create_app
 # from trak.delete import app as delete_app
-# from trak.dev.commands import app as dev_app
 # from trak.edit import app as edit_app
 # from trak.report import app as report_app
 # from trak.tracker.commands.get_current_session_status import (
@@ -23,16 +22,21 @@ from trak import output
 # )
 from trak.customers import commands as customers
 from trak.customers import listing as customers_listing
+from trak.dev.commands import app as dev_app
 from trak.doctor import doctor_command
 from trak.entities import entity_app
 from trak.goals import commands as goals
 from trak.goals import listing as goals_listing
+from trak.goals import view as goals_view
+from trak.labels import commands as labels
+from trak.labels.services import CATEGORY, TAG
 from trak.main.routes import main
 from trak.projects import commands as projects
 from trak.projects import listing as projects_listing
+from trak.projects import view as projects_view
 from trak.sessions import creating as sessions_creating
-from trak.sessions import details as sessions_details
 from trak.sessions import listing as sessions_listing
+from trak.sessions import view as sessions_view
 from trak.sessions.commands import start, status, stop
 from trak.sessions.editing import edit_command
 from trak.sessions.models import Category
@@ -108,7 +112,7 @@ sessions_app = entity_app("sessions")
 sessions_app.command(name="list", help="List sessions, newest first.")(
     sessions_listing.list_command
 )
-sessions_app.command(name="show", help="Show a session.")(sessions_details.show_command)
+sessions_app.command(name="show", help="Show a session.")(sessions_view.show_command)
 sessions_app.command(name="create", help="Add a past session.")(
     sessions_creating.create_command
 )
@@ -119,7 +123,7 @@ projects_app = entity_app("projects")
 projects_app.command(name="list", help="List projects by name.")(
     projects_listing.list_command
 )
-projects_app.command(name="show", help="Show a project.")(projects.show_command)
+projects_app.command(name="show", help="Show a project.")(projects_view.show_command)
 projects_app.command(name="create", help="Create a project.")(projects.create_command)
 projects_app.command(name="edit", help="Edit a project.")(projects.edit_command)
 projects_app.command(name="report", help="Report the time tracked on a project.")(
@@ -142,16 +146,27 @@ goals_app = entity_app("goals")
 goals_app.command(name="list", help="List goals, nearest deadline first.")(
     goals_listing.list_command
 )
-goals_app.command(name="show", help="Show a goal.")(goals.show_command)
+goals_app.command(name="show", help="Show a goal.")(goals_view.show_command)
 goals_app.command(name="create", help="Create a goal.")(goals.create_command)
 goals_app.command(name="edit", help="Edit a goal.")(goals.edit_command)
 app.add_typer(goals_app, name="goals", rich_help_panel="Your data")
+
+app.add_typer(labels.make_app(CATEGORY), name="categories", rich_help_panel="Your data")
+app.add_typer(labels.make_app(TAG), name="tags", rich_help_panel="Your data")
 
 app.command(
     name="doctor",
     help="Check that the database is up to date and healthy.",
     rich_help_panel="Other",
 )(doctor_command)
+
+# In --help, but not in the menu of a bare `trak` (see main/menu.py).
+app.add_typer(
+    dev_app,
+    name="dev",
+    help="Tools for trak developers.",
+    rich_help_panel="Other",
+)
 
 # TODO: TBA
 # app.add_typer(
@@ -172,11 +187,5 @@ app.command(
 #     config_app,
 #     name="config",
 #     help="Interact with your configuration.",
-#     rich_help_panel="Other",
-# )
-# app.add_typer(
-#     dev_app,
-#     name="dev",
-#     help="Utils for trak developers.",
 #     rich_help_panel="Other",
 # )

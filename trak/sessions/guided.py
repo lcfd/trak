@@ -1,33 +1,39 @@
 """Guided mode for `trak start -g`: ask every Session field interactively."""
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Annotated, Any, Protocol
 
 from pydantic import AfterValidator, TypeAdapter
 from pydantic_core import PydanticCustomError
 from rich_toolkit.menu import Option
-from rich_toolkit.styles import MinimalStyle
 from sqlmodel import Session as DBSession
 from sqlmodel import select
 
 from trak.customers.services import get_customers
 from trak.projects.models import Project
 from trak.projects.services import get_projects
-from trak.prompts import VimToolkit
-from trak.sessions.display import describe_session, elapsed, format_duration
+from trak.prompts import ScreenPrompter
+from trak.sessions.display import (
+    describe_session,
+    elapsed,
+    format_duration,
+    labels_text,
+)
 from trak.sessions.models import Category, Session, Tag
 
 
 class Prompter(Protocol):
-    """The subset of RichToolkit used here, so tests can script the answers."""
+    """What prompts ask with (`ScreenPrompter`), so tests can script the answers."""
 
     def ask(self, label: str, options: list[Option[Any]], **kwargs: Any) -> Any: ...
 
     def input(self, title: str, **kwargs: Any) -> str: ...
 
     def confirm(self, label: str, default: bool = True) -> bool: ...
+
+    def note(self, label: str, answer: str) -> None: ...
 
 
 @dataclass
@@ -36,7 +42,7 @@ class SessionFields:
     project_fk: int | None = None
     customer_fk: int | None = None
     category_fk: int | None = None
-    tag_fk: int | None = None
+    tag_fks: list[int] = field(default_factory=list)
     start: datetime | None = None
 
 
@@ -79,10 +85,10 @@ def parse_start(
 
 def input_validator(parse: Callable[[str], Any]) -> TypeAdapter:
     """
-    A rich-toolkit Input validator that accepts what `parse` accepts.
+    An input validator that accepts what `parse` accepts.
 
-    rich-toolkit only reports pydantic ValidationErrors, and a plain
-    ValueError would be shown as "Value error, ...": convert it.
+    Inputs report pydantic ValidationErrors, and a plain ValueError would be
+    shown as "Value error, ...": convert it.
     """
 
     def validate(value: str) -> str:
@@ -99,8 +105,8 @@ def input_validator(parse: Callable[[str], Any]) -> TypeAdapter:
 start_validator = input_validator(parse_start)
 
 
-def make_prompter() -> VimToolkit:
-    return VimToolkit(style=MinimalStyle(), handle_keyboard_interrupts=False)
+def make_prompter() -> ScreenPrompter:
+    return ScreenPrompter()
 
 
 def pick(
@@ -111,6 +117,65 @@ def pick(
     options: list[Option[int | None]] = [{"name": "None", "value": None}]
     options += [{"name": row.name or f"#{row.id}", "value": row.id} for row in rows]
     return prompter.ask(label, options, allow_filtering=True, default=default)
+
+
+DONE = "done"
+
+
+def pick_many(
+    prompter: Prompter, label: str, rows: list[Any], selected: list[int]
+) -> list[int]:
+    """
+    Pick any number of rows by id: Enter on a row toggles it (✓), Done (the
+    first option) ends. Rows need `id` and `name`. Returns the ids, sorted.
+    It opens typing a filter; after a toggle it stays in NORMAL mode (j/k).
+    """
+
+    chosen = set(selected)
+    last: Any = DONE
+    while True:
+        options: list[Option[Any]] = [
+            {"name": f"Done ({len(chosen)} picked)", "value": DONE}
+        ]
+        options += [
+            {
+                "name": (row.name or f"#{row.id}") + (" ✓" if row.id in chosen else ""),
+                "value": row.id,
+            }
+            for row in rows
+        ]
+        last = prompter.ask(
+            f"{label} · Enter toggles",
+            options,
+            allow_filtering=True,
+            default=last,
+            record=False,
+            normal=last != DONE,
+        )
+        if last == DONE:
+            break
+        chosen ^= {last}
+    names = [row.name for row in rows if row.id in chosen]
+    prompter.note(label, ", ".join(names) or "—")
+    return sorted(chosen)
+
+
+def ask_category(db: DBSession, prompter: Prompter, default: int | None) -> int | None:
+    """Pick the Category (None for none); without any, keeps `default`."""
+
+    rows = list(db.exec(select(Category).order_by(Category.name)))
+    if not rows:
+        return default
+    return pick(prompter, "Category", rows, default=default)
+
+
+def ask_tags(db: DBSession, prompter: Prompter, selected: list[int]) -> list[int]:
+    """Pick the Tags; without any, keeps `selected`."""
+
+    rows = list(db.exec(select(Tag).order_by(Tag.name)))
+    if not rows:
+        return selected
+    return pick_many(prompter, "Tags", rows, selected)
 
 
 def ask_project_and_customer(
@@ -154,7 +219,7 @@ def ask_name_and_associations(
     name: str = "",
 ) -> None:
     """
-    Ask for the name, Project, Customer, Category and Tag of `fields`; what
+    Ask for the name, Project, Customer, Category and Tags of `fields`; what
     `fields` already has (from the flags) is the default.
     """
 
@@ -164,14 +229,8 @@ def ask_name_and_associations(
 
     ask_project_and_customer(db, prompter, fields, project=project)
 
-    for model, attr in ((Category, "category_fk"), (Tag, "tag_fk")):
-        rows = list(db.exec(select(model).order_by(model.name)))
-        if rows:
-            setattr(
-                fields,
-                attr,
-                pick(prompter, model.__name__, rows, default=getattr(fields, attr)),
-            )
+    fields.category_fk = ask_category(db, prompter, fields.category_fk)
+    fields.tag_fks = ask_tags(db, prompter, fields.tag_fks)
 
 
 def ask_session_fields(
@@ -211,9 +270,17 @@ def ask_session_to_stop(
 ) -> Session:
     options: list[Option[int]] = [
         {
-            "name": (
-                f"{describe_session(db, s)}  "
-                f"(since {s.start.astimezone():%a %H:%M}, {format_duration(elapsed(s))})"
+            "name": "  ".join(
+                part
+                for part in (
+                    describe_session(db, s),
+                    labels_text(db, s),
+                    (
+                        f"(since {s.start.astimezone():%a %H:%M}, "
+                        f"{format_duration(elapsed(s))})"
+                    ),
+                )
+                if part
             ),
             "value": index,
         }

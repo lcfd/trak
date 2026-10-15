@@ -58,6 +58,8 @@ def _0001_initial(conn: Connection) -> None:
             description VARCHAR NOT NULL,
             rate INTEGER NOT NULL,
             archived BOOLEAN NOT NULL,
+            start DATE,
+            "end" DATE,
             PRIMARY KEY (id),
             FOREIGN KEY (customer_fk) REFERENCES customer (id)
         )
@@ -65,6 +67,7 @@ def _0001_initial(conn: Connection) -> None:
     conn.exec_driver_sql("""
         CREATE TABLE session (
             id INTEGER NOT NULL,
+            name VARCHAR NOT NULL,
             customer_fk INTEGER,
             project_fk INTEGER,
             category_fk INTEGER,
@@ -80,15 +83,6 @@ def _0001_initial(conn: Connection) -> None:
         )
     """)
     conn.exec_driver_sql("CREATE INDEX ix_session_active ON session (active)")
-
-
-def _0002_session_name(conn: Connection) -> None:
-    conn.exec_driver_sql(
-        "ALTER TABLE session ADD COLUMN name VARCHAR NOT NULL DEFAULT ''"
-    )
-
-
-def _0003_goal(conn: Connection) -> None:
     conn.exec_driver_sql("""
         CREATE TABLE goal (
             id INTEGER NOT NULL,
@@ -103,16 +97,66 @@ def _0003_goal(conn: Connection) -> None:
     """)
 
 
-def _0004_project_dates(conn: Connection) -> None:
-    conn.exec_driver_sql("ALTER TABLE project ADD COLUMN start DATE")
-    conn.exec_driver_sql('ALTER TABLE project ADD COLUMN "end" DATE')
+def _0002_categories_and_tags(conn: Connection) -> None:
+    """
+    Projects and Customers get a Category; Sessions, Projects and Customers
+    get any number of Tags, in link tables. A Session's single `tag_fk`
+    moves to `session_tag`, and the column goes.
+    """
+
+    for table in ("project", "customer"):
+        conn.exec_driver_sql(
+            f"ALTER TABLE {table} ADD COLUMN category_fk INTEGER "
+            "REFERENCES category (id)"
+        )
+
+    # Rebuild session without tag_fk: nothing references it yet.
+    conn.exec_driver_sql("DROP INDEX ix_session_active")
+    conn.exec_driver_sql("ALTER TABLE session RENAME TO session_old")
+    conn.exec_driver_sql("""
+        CREATE TABLE session (
+            id INTEGER NOT NULL,
+            name VARCHAR NOT NULL,
+            customer_fk INTEGER,
+            project_fk INTEGER,
+            category_fk INTEGER,
+            start DATETIME NOT NULL,
+            "end" DATETIME,
+            active BOOLEAN NOT NULL,
+            PRIMARY KEY (id),
+            FOREIGN KEY (customer_fk) REFERENCES customer (id),
+            FOREIGN KEY (project_fk) REFERENCES project (id),
+            FOREIGN KEY (category_fk) REFERENCES category (id)
+        )
+    """)
+    conn.exec_driver_sql("""
+        INSERT INTO session
+            (id, name, customer_fk, project_fk, category_fk, start, "end", active)
+        SELECT id, name, customer_fk, project_fk, category_fk, start, "end", active
+        FROM session_old
+    """)
+    conn.exec_driver_sql("CREATE INDEX ix_session_active ON session (active)")
+
+    for owner in ("session", "project", "customer"):
+        conn.exec_driver_sql(f"""
+            CREATE TABLE {owner}_tag (
+                {owner}_fk INTEGER NOT NULL,
+                tag_fk INTEGER NOT NULL,
+                PRIMARY KEY ({owner}_fk, tag_fk),
+                FOREIGN KEY ({owner}_fk) REFERENCES {owner} (id),
+                FOREIGN KEY (tag_fk) REFERENCES tag (id)
+            )
+        """)
+    conn.exec_driver_sql("""
+        INSERT INTO session_tag (session_fk, tag_fk)
+        SELECT id, tag_fk FROM session_old WHERE tag_fk IS NOT NULL
+    """)
+    conn.exec_driver_sql("DROP TABLE session_old")
 
 
 MIGRATIONS: list[Callable[[Connection], None]] = [
     _0001_initial,
-    _0002_session_name,
-    _0003_goal,
-    _0004_project_dates,
+    _0002_categories_and_tags,
 ]
 
 LATEST_VERSION = len(MIGRATIONS)

@@ -1,4 +1,4 @@
-"""`trak goals create|show|edit`."""
+"""`trak goals create|edit` (`show` is in view.py)."""
 
 from datetime import date
 from typing import Annotated, Any
@@ -12,19 +12,15 @@ from trak.base_messages import print_error, print_success, print_warning
 from trak.dates import DATE_PLACEHOLDER, parse_date
 from trak.goals import listing
 from trak.goals.display import (
-    days_text,
     format_day,
     goal_json,
     goal_label,
-    to_go_text,
-    tracked_text,
 )
 from trak.goals.listing import GoalFilters
 from trak.goals.models import Goal
 from trak.goals.services import (
     check_goal,
     create_goal,
-    goal_progress,
     today,
     update_goal,
 )
@@ -273,31 +269,6 @@ def get_or_pick(db: DBSession, goal_id: int | None, verb: str) -> Goal:
         command=f"trak goals {verb}",
         cancelled=f"No goal was {'shown' if verb == 'show' else 'edited'}.",
     )
-
-
-def show_command(ctx: typer.Context, goal_id: IdArgument = None) -> None:
-    """
-    Show a goal: its project, hours, days and how far along it is.
-    """
-
-    with DBSession(ctx.obj["DB_ENGINE"]) as db:
-        goal = get_or_pick(db, goal_id, "show")
-        output.emit(goal_json(db, goal))
-        progress = goal_progress(db, goal)
-        entities.print_details(
-            title=f"Goal #{goal.id}",
-            rows=[
-                ("Project", f"[green]{row_name(db, Project, goal.project_fk)}[/green]"),
-                ("Name", entities.or_dash(goal.name)),
-                ("Hours", f"{goal.hours}h"),
-                ("From", format_day(goal.start)),
-                ("Deadline", format_day(goal.deadline)),
-                ("Tracked", tracked_text(progress)),
-                ("Status", to_go_text(progress)),
-                ("Days", days_text(progress)),
-            ],
-            hint=f'Edit it with "trak goals edit {goal.id}".',
-        )
 
 
 def field_rows(db: DBSession, goal: Goal, changes: dict[str, Any]) -> list[forms.Row]:

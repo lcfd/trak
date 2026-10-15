@@ -4,6 +4,7 @@ from typing import Any
 from sqlmodel import Session as DBSession
 from sqlmodel import col, func, select
 
+from trak.labels.links import set_tags
 from trak.projects.models import Project
 
 EDITABLE_FIELDS = {
@@ -14,6 +15,8 @@ EDITABLE_FIELDS = {
     "archived",
     "start",
     "end",
+    "category_fk",
+    "tag_fks",
 }
 
 
@@ -65,6 +68,8 @@ def create_project(
     rate: int = 0,
     start: date | None = None,
     end: date | None = None,
+    category_fk: int | None = None,
+    tag_fks: list[int] | None = None,
 ) -> Project:
     name = name.strip()
     check_project(db, name, rate, start=start, end=end)
@@ -75,8 +80,11 @@ def create_project(
         rate=rate,
         start=start,
         end=end,
+        category_fk=category_fk,
     )
     db.add(project)
+    db.flush()
+    set_tags(db, project, tag_fks or [])
     db.commit()
     db.refresh(project)
     return project
@@ -99,6 +107,8 @@ def update_project(db: DBSession, project: Project, **changes: Any) -> Project:
         end=changes.get("end", project.end),
     )
 
+    if "tag_fks" in changes:
+        set_tags(db, project, changes.pop("tag_fks"))
     for field, value in changes.items():
         setattr(project, field, value)
     db.add(project)

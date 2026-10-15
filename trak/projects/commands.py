@@ -1,4 +1,4 @@
-"""`trak projects create|show|edit`."""
+"""`trak projects create|edit|report` (`show` is in view.py)."""
 
 import shlex
 from datetime import date
@@ -10,11 +10,12 @@ from rich.markup import escape
 from sqlmodel import Session as DBSession
 
 from trak import entities, forms, output
-from trak.base_messages import print_success, print_warning
+from trak.base_messages import print_error, print_success, print_warning
 from trak.customers.models import Customer
 from trak.customers.services import get_customers
 from trak.dates import DATE_PLACEHOLDER, parse_date, parse_optional_date, today
 from trak.goals.display import format_day
+from trak.labels.links import with_tags
 from trak.projects import listing, report
 from trak.projects.listing import ProjectFilters, format_rate, project_json
 from trak.projects.models import Project
@@ -25,10 +26,15 @@ from trak.projects.services import (
     update_project,
 )
 from trak.sessions import commands
-from trak.sessions.display import format_duration
-from trak.sessions.editing import format_time, row_name
-from trak.sessions.guided import Prompter, input_validator, pick
-from trak.sessions.services import session_totals
+from trak.sessions.commands import CategoryOption, TagsOption
+from trak.sessions.editing import ask_label, label_rows, row_name
+from trak.sessions.guided import (
+    Prompter,
+    ask_category,
+    ask_tags,
+    input_validator,
+    pick,
+)
 
 RATE_PLACEHOLDER = "per hour, a whole number; empty for none"
 OPTIONAL_DATE_PLACEHOLDER = f"{DATE_PLACEHOLDER}; empty for none"
@@ -143,6 +149,8 @@ def ask_new_project(
     fields["description"] = prompter.input(
         "Description", default=defaults.get("description", ""), placeholder="optional"
     ).strip()
+    fields["category_fk"] = ask_category(db, prompter, defaults.get("category_fk"))
+    fields["tag_fks"] = ask_tags(db, prompter, defaults.get("tag_fks", []))
     fields["start"] = ask_start(prompter, defaults.get("start"), None)
     fields["end"] = ask_end(prompter, defaults.get("end"), fields["start"])
 
@@ -189,6 +197,8 @@ def create_command(
             help=f"The day it ends (included): {DATE_PLACEHOLDER}.",
         ),
     ] = None,
+    category: CategoryOption = None,
+    tags: TagsOption = None,
 ) -> None:
     """
     Create a project. Without a name, asks for every field.
@@ -206,6 +216,10 @@ def create_command(
             if customer is None:
                 raise typer.Exit(1)
             defaults["customer_fk"] = customer.id
+        defaults.update(commands.find_category(db, category))
+        tag_fks = commands.find_tags(db, tags)
+        if tag_fks is not None:
+            defaults["tag_fks"] = tag_fks
 
         if name is None:
             entities.require_terminal("Creating a project without a name")
@@ -270,39 +284,6 @@ def get_or_pick(db: DBSession, project_id: int | None, verb: str) -> Project:
     )
 
 
-def show_command(ctx: typer.Context, project_id: IdArgument = None) -> None:
-    """
-    Show a project: its fields and the time tracked on it.
-    """
-
-    with DBSession(ctx.obj["DB_ENGINE"]) as db:
-        project = get_or_pick(db, project_id, "show")
-        output.emit(project_json(db, project))
-        totals = session_totals(db, project_fk=project.id)
-        entities.print_details(
-            title=f"Project #{project.id}",
-            rows=[
-                ("Name", project_label(project)),
-                ("Customer", entities.or_dash(customer_of(db, project))),
-                ("Rate", entities.or_dash(format_rate(project.rate))),
-                ("Description", entities.or_dash(project.description)),
-                (
-                    "Start",
-                    entities.or_dash(project.start and format_day(project.start)),
-                ),
-                ("End", end_text(project) or entities.or_dash(None)),
-                ("Status", "archived" if project.archived else "active"),
-                ("Sessions", str(totals.sessions)),
-                ("Time", format_duration(totals.time)),
-                (
-                    "Last session",
-                    entities.or_dash(totals.last and format_time(totals.last)),
-                ),
-            ],
-            hint=f'Edit it with "trak projects edit {project.id}".',
-        )
-
-
 def customer_of(db: DBSession, project: Project) -> str | None:
     if project.customer_fk is None:
         return None
@@ -318,6 +299,7 @@ def field_rows(
     return [
         ("name", "Name", value("name")),
         ("customer_fk", "Customer", row_name(db, Customer, value("customer_fk"))),
+        *label_rows(db, value("category_fk"), value("tag_fks")),
         ("rate", "Rate", format_rate(value("rate")) or "—"),
         ("description", "Description", value("description") or "—"),
         ("start", "Start", str(value("start") or "—")),
@@ -343,6 +325,8 @@ def ask_field(
         changes["customer_fk"] = pick(
             prompter, "Customer", get_customers(db), default=value
         )
+    elif field in ("category_fk", "tag_fks"):
+        ask_label(db, prompter, changes, field, value)
     elif field == "rate":
         changes["rate"] = parse_rate(
             prompter.input(
@@ -369,13 +353,14 @@ def ask_field(
 
 
 def ask_edits(db: DBSession, prompter: Prompter, project: Project) -> dict[str, Any]:
+    original: Any = with_tags(db, project)
     return forms.ask_changes(
         prompter,
         f"Edit project #{project.id}",
-        project,
-        rows=lambda changes: field_rows(db, project, changes),
+        original,
+        rows=lambda changes: field_rows(db, original, changes),
         ask_field=lambda changes, field: ask_field(
-            db, prompter, project, changes, field
+            db, prompter, original, changes, field
         ),
     )
 
@@ -390,6 +375,8 @@ def flag_changes(
     start: str | None = None,
     end: str | None = None,
     archived: bool | None = None,
+    category: str | None = None,
+    tags: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     The changes the flags of `trak projects edit` ask for; None means the
@@ -413,6 +400,10 @@ def flag_changes(
             if found is None:
                 raise typer.Exit(1)
             changes["customer_fk"] = found.id
+    changes.update(commands.find_category(db, category))
+    tag_fks = commands.find_tags(db, tags)
+    if tag_fks is not None:
+        changes["tag_fks"] = tag_fks
     try:
         if start is not None:
             changes["start"] = parse_optional_date(start)
@@ -461,10 +452,12 @@ def edit_command(
         bool | None,
         typer.Option("--archive/--unarchive", help="Archive it, or bring it back."),
     ] = None,
+    category: CategoryOption = None,
+    tags: TagsOption = None,
 ) -> None:
     """
-    Edit a project: its name, customer, rate, description, start and end days
-    and whether it's archived. With options, saves them right away; without,
+    Edit a project: its name, customer, category, tags (--tag replaces them),
+    rate, description, start and end days and whether it's archived. With options, saves them right away; without,
     opens the form (terminal).
     """
 
@@ -476,6 +469,8 @@ def edit_command(
         "start": start,
         "end": end,
         "archived": archived,
+        "category": category,
+        "tags": tags,
     }
     given = any(value is not None for value in flags.values())
     if not given:
@@ -484,7 +479,9 @@ def edit_command(
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         project = get_or_pick(db, project_id, "edit")
         if given:
-            changes = forms.effective_changes(project, flag_changes(db, **flags))
+            changes = forms.effective_changes(
+                with_tags(db, project), flag_changes(db, **flags)
+            )
         else:
             changes = commands.run_prompts(
                 lambda prompter: ask_edits(db, prompter, project),
@@ -517,6 +514,21 @@ def report_command(
             help="The range to start from (default: since the start).",
         ),
     ] = None,
+    since: Annotated[
+        str | None,
+        typer.Option(
+            "--from",
+            help=f"Report from this day instead of a range: {DATE_PLACEHOLDER}. "
+            "Default: the project's first day.",
+        ),
+    ] = None,
+    until: Annotated[
+        str | None,
+        typer.Option(
+            "--to",
+            help="Report up to this day (included) instead of a range. Default: today.",
+        ),
+    ] = None,
     plain: Annotated[
         bool,
         typer.Option(
@@ -526,22 +538,34 @@ def report_command(
 ) -> None:
     """
     Report the time tracked on a project, as a bar chart per day (or week,
-    month, year). In a terminal it stays open: h/l switch the range.
+    month, year). In a terminal it stays open: Tab switches the range, h/l
+    select a bar, Enter zooms into it (its months, weeks or days), Esc zooms
+    out.
     """
+
+    if range_key is not None and (since is not None or until is not None):
+        print_error(
+            title="Can't report", text="Give either --range or --from/--to, not both."
+        )
+        raise typer.Exit(1)
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         project = get_or_pick(db, project_id, "report")
+        try:
+            custom = report.asked_range(db, project, since, until)
+        except ValueError as e:
+            commands.fail("Can't report", e)
 
         if output.json_mode():
-            output.emit(report.report_json(db, project, range_key))
+            output.emit(report.report_json(db, project, range_key, custom=custom))
             return
 
         if plain or not commands.is_interactive():
-            report.print_report(db, project, range_key)
+            report.print_report(db, project, range_key, custom=custom)
             return
 
         try:
-            report.show(db, project, range_key)
+            report.show(db, project, range_key, custom=custom)
         except KeyboardInterrupt:
             # Ctrl-C is a normal way to leave the report.
             pass

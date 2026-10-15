@@ -1,8 +1,10 @@
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 
 from typer.testing import CliRunner
 
-from tests.fakes import add
+from tests.fakes import FakeScreen, add
+from trak import views
 from trak.customers.models import Customer
 from trak.projects.models import Project
 from trak.sessions import listing
@@ -28,14 +30,16 @@ def make(db, hours: float = 1.5, **fields) -> Session:
 def test_sessions_id_shows_the_session(cli_db):
     acme = add(cli_db, Customer(name="ACME"))
     website = add(cli_db, Project(name="website", customer_fk=acme.id))
-    tag = add(cli_db, Tag(name="billable"))
-    session = make(cli_db, name="Landing", project_fk=website.id, tag_fk=tag.id)
+    tags = [add(cli_db, Tag(name=name)) for name in ("billable", "urgent")]
+    session = make(
+        cli_db, name="Landing", project_fk=website.id, tag_fks=[t.id for t in tags]
+    )
 
     result = invoke(cli_db, "sessions", str(session.id))
 
     assert result.exit_code == 0, result.output
     assert f"Session #{session.id}" in result.output
-    for text in ("Landing", "website", "ACME (from the project)", "billable"):
+    for text in ("Landing", "website", "ACME (from the project)", "billable, urgent"):
         assert text in result.output
     assert f"{START.astimezone():%Y-%m-%d %H:%M}" in result.output
     assert "1h 30m" in result.output
@@ -81,6 +85,8 @@ def test_unknown_command_is_still_an_error(cli_db):
 def test_show_without_id_picks_from_the_browser(
     interactive, answers, monkeypatch, cli_db
 ):
+    view = FakeScreen(["q"])
+    monkeypatch.setattr(views, "open_screen", lambda: nullcontext(view))
     session = make(cli_db, name="Picked")
     session_id = session.id
     seen = {}
@@ -96,7 +102,7 @@ def test_show_without_id_picks_from_the_browser(
 
     assert result.exit_code == 0, result.output
     assert seen == {"pick": True, "title": "Pick a session to show"}
-    assert "Picked" in result.output
+    assert "Picked" in view.last
 
 
 def test_show_without_id_quitting_the_browser(

@@ -4,7 +4,7 @@ import pytest
 from sqlmodel import select
 from typer.testing import CliRunner
 
-from tests.fakes import FakePrompter, add
+from tests.fakes import FakePrompter, add, frames
 from trak.customers import listing
 from trak.customers.listing import CustomerFilters, browse
 from trak.customers.models import Customer
@@ -221,6 +221,6 @@ def test_browse_filters_by_name(db, capsys):
 
     browse(db, FakePrompter("oth"), CustomerFilters(), read_key=lambda: pressed.pop(0))
 
-    last = capsys.readouterr().out.split("Customers\n")[-1]
+    last = frames(capsys.readouterr().out)[-1]
     assert 'Filters: name: "oth"' in last
     assert "Other" in last and "ACME" not in last

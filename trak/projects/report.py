@@ -1,10 +1,11 @@
 """
 `trak projects report`: the time tracked on a project, as a bar chart.
 
-The report stays open: h/l switch the time range (since the start, last year,
-... this week), `?` lists the shortcuts, q quits. Each bar is the time tracked
-in a day; when the days don't fit the terminal, a bar is a week, a month or a
-year instead.
+The report stays open: Tab switches the time range (since the start, last
+year, ... this week), h/l select a bar, Enter zooms into it (a year shows its
+months, a month its weeks, a week its days), Esc zooms out, `?` lists the
+shortcuts, q quits. Each bar is the time tracked in a day; when the days don't
+fit the terminal, a bar is a week, a month or a year instead.
 
 Every day of the range has its bar, even an empty one, so skipped days show;
 "this month" and "this week" run to their last day, with the days still to
@@ -18,7 +19,7 @@ one hour on each day; running ones count until now.
 """
 
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from math import ceil
 from typing import Any, Literal
@@ -30,11 +31,12 @@ from rich.text import Text
 from sqlmodel import Session as DBSession
 from sqlmodel import select
 
-from trak import browser, dev_bar
+from trak import browser, clipboard, dev_bar, tui
+from trak.dates import parse_date
 from trak.output import seconds
 from trak.projects.listing import format_dates
 from trak.projects.models import Project
-from trak.prompts import ESC, split_escape
+from trak.prompts import ESC
 from trak.sessions.display import format_duration
 from trak.sessions.models import Session
 from trak.sessions.services import local_midnight
@@ -55,6 +57,8 @@ class Range:
     # Both days included.
     start: date
     end: date
+    # The time a bar holds; None for the smallest that fits.
+    unit: Unit | None = None
 
     @property
     def days(self) -> int:
@@ -82,7 +86,6 @@ def all_ranges(first: date, today: date, last: date | None = None) -> list[Range
 
     monday = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
-    last_month_end = month_start - timedelta(days=1)
     month_end = months_before(month_start, -1) - timedelta(days=1)
 
     def trailing(months: int) -> date:
@@ -99,13 +102,7 @@ def all_ranges(first: date, today: date, last: date | None = None) -> list[Range
         Range("year", "Last year", "1y", trailing(12), today),
         Range("6m", "Last 6 months", "6m", trailing(6), today),
         Range("3m", "Last 3 months", "3m", trailing(3), today),
-        Range(
-            "last-month",
-            "Last month",
-            "Last mo",
-            last_month_end.replace(day=1),
-            last_month_end,
-        ),
+        Range("30d", "Last 30 days", "30d", today - timedelta(days=29), today),
         Range("month", "This month", "Month", month_start, month_end),
         Range(
             "last-week",
@@ -122,19 +119,26 @@ def all_ranges(first: date, today: date, last: date | None = None) -> list[Range
 RANGE_KEYS = [r.key for r in all_ranges(date(2000, 1, 1), date(2000, 1, 1))]
 
 
-def report_ranges(first: date, today: date, last: date | None = None) -> list[Range]:
+def report_ranges(
+    first: date, today: date, last: date | None = None, latest: date | None = None
+) -> list[Range]:
     """
-    The ranges worth showing: not the ones ending before the first day
-    (they'd be empty), nor the ones ending today that start on or before it
-    (they'd be the same as "Since the start"). "This week" and "this month"
-    end later, so they're always worth it: they show the days left.
+    The ranges worth showing: not the ones ending before the first day, nor
+    the ones starting after `latest` (the project's last session, start or
+    end: they'd be empty), nor the ones ending today that start on or before
+    the first day (they'd be the same as "Since the start"). "This week" and
+    "this month" end later, so they're worth it while the project goes on:
+    they show the days left.
     """
 
+    latest = latest or today
     since_start, *others = all_ranges(first, today, last)
     useful = [
         r
         for r in others
-        if r.end >= first and not (r.end == today and r.start <= first)
+        if r.end >= first
+        and r.start <= latest
+        and not (r.end == today and r.start <= first)
     ]
     return [since_start, *useful]
 
@@ -194,6 +198,51 @@ def buckets(daily: dict[date, timedelta], unit: Unit) -> list[Bucket]:
     return list(grouped.values())
 
 
+def bucket_end(day: date, unit: Unit) -> date:
+    """The last day of the bucket holding `day`."""
+
+    first = bucket_of(day, unit)
+    following = {
+        "day": first + timedelta(days=1),
+        "week": first + timedelta(days=7),
+        "month": months_before(first, -1),
+        "year": first.replace(year=first.year + 1),
+    }[unit]
+    return following - timedelta(days=1)
+
+
+def bucket_name(day: date, unit: Unit) -> str:
+    """ "Mon 12 Oct 2026", "week of Mon 12 Oct 2026", "October 2026", "2026"."""
+
+    return {
+        "day": format_day(day),
+        "week": f"week of {format_day(bucket_of(day, 'week'))}",
+        "month": f"{day:%B %Y}",
+        "year": f"{day:%Y}",
+    }[unit]
+
+
+# Enter on a bar shows its days one bar per the next unit down.
+SMALLER: dict[Unit, Unit] = {"year": "month", "month": "week", "week": "day"}
+
+
+def zoom_range(r: Range, bucket: Bucket, unit: Unit) -> Range | None:
+    """The days of a bar of `r`, one bar per smaller unit; None for a day."""
+
+    smaller = SMALLER.get(unit)
+    if smaller is None:
+        return None
+    name = bucket_name(bucket.start, unit)
+    return Range(
+        "zoom",
+        f"{r.label} › {name[0].upper()}{name[1:]}",
+        r.short,
+        bucket.start,
+        min(bucket_end(bucket.start, unit), r.end),
+        smaller,
+    )
+
+
 def count_buckets(r: Range, unit: Unit) -> int:
     return len({bucket_of(r.start + timedelta(days=i), unit) for i in range(r.days)})
 
@@ -236,6 +285,15 @@ class Report:
     def is_future(self, bucket: Bucket) -> bool:
         return bucket.start > self.today
 
+    def index_of(self, day: date) -> int:
+        """The bar holding `day` (the nearest one if it's out of the range)."""
+
+        key = bucket_of(day, self.unit)
+        for index, bucket in enumerate(self.buckets):
+            if bucket_of(bucket.start, self.unit) >= key:
+                return index
+        return len(self.buckets) - 1
+
 
 def load_sessions(db: DBSession, project: Project) -> list[Session]:
     statement = select(Session).where(Session.project_fk == project.id)
@@ -257,7 +315,7 @@ def build_report(
     inside = [
         s for s in sessions if s.start < range_end and (s.end or now) > range_start
     ]
-    unit = choose_unit(r, width)
+    unit = r.unit or choose_unit(r, width)
     return Report(
         project=project,
         range=r,
@@ -368,8 +426,11 @@ def x_labels(report: Report, column: int, width: int) -> list[str]:
     return lines
 
 
-def chart(report: Report, width: int, height: int) -> Text:
-    """The bars with a y axis on the left and the labels under them."""
+def chart(report: Report, width: int, height: int, selected: int | None = None) -> Text:
+    """
+    The bars with a y axis on the left and the labels under them; the
+    `selected` bar stands out, its axis too (it may be empty).
+    """
 
     longest = max((b.time for b in report.buckets), default=timedelta())
     top = chart_top(longest)
@@ -389,13 +450,18 @@ def chart(report: Report, width: int, height: int) -> Text:
             else " " * (gutter - 1) + "│",
             style="dim",
         )
-        for cells in columns:
-            text.append(cells[row] * bar, style="cyan")
+        for index, cells in enumerate(columns):
+            style = "bold yellow" if index == selected else "cyan"
+            text.append(cells[row] * bar, style=style)
             text.append(" ")
         text.append("\n")
     text.append(" " * (gutter - 2) + "0└", style="dim")
-    for b in report.buckets:
-        text.append(("┈" if report.is_future(b) else "─") * column, style="dim")
+    for index, b in enumerate(report.buckets):
+        if index == selected:
+            text.append("━" * bar, style="bold yellow")
+            text.append("─", style="dim")
+        else:
+            text.append(("┈" if report.is_future(b) else "─") * column, style="dim")
     for line in x_labels(report, column, plot_width):
         text.append("\n" + " " * gutter + line, style="dim")
     return text
@@ -446,39 +512,70 @@ def summary(report: Report) -> list[str]:
             + (f" · {left} day{'s' if left != 1 else ''} left" if left else "")
         )
         busiest = max(report.buckets, key=lambda b: b.time)
-        when = {
-            "day": format_day(busiest.start),
-            "week": f"week of {format_day(busiest.start)}",
-            "month": f"{busiest.start:%B %Y}",
-            "year": f"{busiest.start:%Y}",
-        }[unit]
-        lines.append(f"Busiest {unit}: {when} · {format_duration(busiest.time)}")
+        lines.append(
+            f"Busiest {unit}: {bucket_name(busiest.start, unit)} · "
+            f"{format_duration(busiest.time)}"
+        )
     if report.project.rate:
         earned = report.total.total_seconds() / 3600 * report.project.rate
         lines.append(f"Earned: {format_money(earned)} at {report.project.rate}/h")
     return lines
 
 
-KEYS_HINT = (
-    "[dim][bold]h[/bold]/[bold]l[/bold] range · [bold]?[/bold] shortcuts · "
-    "[bold]q[/bold] quit[/dim]"
-)
+def selection(report: Report, selected: int) -> str:
+    """The selected bar: its time, and whether Enter zooms into it."""
+
+    bucket = report.buckets[selected]
+    name = bucket_name(bucket.start, report.unit)
+    zoom = f" · Enter: its {SMALLER[report.unit]}s" if report.unit in SMALLER else ""
+    return (
+        f"[bold yellow]▌[/bold yellow] [bold]{name[0].upper()}{name[1:]}[/bold] "
+        f"· {format_duration(bucket.time)}[dim]{zoom}[/dim]"
+    )
 
 
-def screen(
+def hints(report: Report, zoomed: bool) -> list[tuple[str, str]]:
+    """The footer's keys: Enter while a bar has smaller ones, Esc when zoomed."""
+
+    zoom = (
+        ([("⏎/Esc", "zoom in/out")] if zoomed else [("⏎", "zoom")])
+        if report.unit in SMALLER
+        else [("Esc", "zoom out")]
+        if zoomed
+        else []
+    )
+    return [
+        ("h/l", "bar"),
+        *zoom,
+        ("Tab", "range"),
+        ("y", "copy project id"),
+        ("?", "help"),
+        ("q", "quit"),
+    ]
+
+
+def title(report: Report) -> str:
+    """ "Report · website", with the project's dates."""
+
+    dates = format_dates(report.project)
+    return f"Report · {report.project.name}" + (f" · {dates}" if dates else "")
+
+
+def body(
     report: Report,
     ranges: list[Range],
     current: int,
     width: int,
     height: int,
-    interactive: bool = True,
-) -> Group:
+    selected: int | None = None,
+) -> list[RenderableType]:
+    """
+    The report under its title: range tabs, the range, summary, the selected
+    bar (if any), chart.
+    """
+
     r = report.range
-    dates = format_dates(report.project)
-    parts: list[RenderableType] = [
-        f"[bold]Report · [green]{escape(report.project.name)}[/green][/bold]"
-        + (f" [dim]· {dates}[/dim]" if dates else ""),
-        "",
+    return [
         tabs(ranges, current, width),
         "",
         (
@@ -487,15 +584,29 @@ def screen(
         ),
         "",
         *summary(report),
+        *([selection(report, selected)] if selected is not None else []),
         "",
-        chart(report, width, height),
+        chart(report, width, height, selected),
     ]
-    if interactive:
-        parts += ["", KEYS_HINT]
-    return Group(*parts)
 
 
-# Lines around the chart: title, tabs, range, summary (up to 4), labels, footer.
+def screen(
+    report: Report,
+    ranges: list[Range],
+    current: int,
+    width: int,
+    height: int,
+) -> Group:
+    """The report as printed: its title, then `body`."""
+
+    dates = format_dates(report.project)
+    heading = f"[bold]Report · [green]{escape(report.project.name)}[/green][/bold]"
+    if dates:
+        heading += f" [dim]· {dates}[/dim]"
+    return Group(heading, "", *body(report, ranges, current, width, height))
+
+
+# Lines around the printed chart: title, tabs, range, summary (up to 4), labels.
 OTHER_LINES = 18
 
 
@@ -510,13 +621,14 @@ def render(
     current: int,
     console: Console,
     now: datetime,
-    interactive: bool = True,
 ) -> Group:
+    """The report to print, as wide as the console."""
+
     # The y axis takes a few columns: keep them out of the bars' width.
     width = console.width
     report = build_report(project, sessions, ranges[current], width - 8, now)
     height = chart_height(console)
-    return screen(report, ranges, current, width, height, interactive)
+    return screen(report, ranges, current, width, height)
 
 
 def first_day(project: Project, sessions: list[Session], today: date) -> date:
@@ -528,29 +640,79 @@ def first_day(project: Project, sessions: list[Session], today: date) -> date:
     return min(days, default=today)
 
 
+def latest_day(project: Project, sessions: list[Session], now: datetime) -> date | None:
+    """The project's last session (today if running), start or end, the latest."""
+
+    days = [(s.end or now).astimezone().date() for s in sessions]
+    days += [day for day in (project.start, project.end) if day]
+    return max(days, default=None)
+
+
 def project_ranges(
     project: Project, sessions: list[Session], now: datetime
 ) -> list[Range]:
     today = now.astimezone().date()
-    return report_ranges(first_day(project, sessions, today), today, project.end)
+    return report_ranges(
+        first_day(project, sessions, today),
+        today,
+        project.end,
+        latest_day(project, sessions, now),
+    )
+
+
+def asked_range(
+    db: DBSession,
+    project: Project,
+    since: str | None,
+    until: str | None,
+    now: datetime | None = None,
+) -> Range | None:
+    """
+    The days asked with --from/--to, if any: from the project's first day
+    and up to today by default.
+    """
+
+    if since is None and until is None:
+        return None
+    today = (now or datetime.now(UTC)).astimezone().date()
+    try:
+        start = (
+            parse_date(since, today)
+            if since
+            else first_day(project, load_sessions(db, project), today)
+        )
+    except ValueError as e:
+        raise ValueError(f"--from: {e}") from None
+    try:
+        end = parse_date(until, today) if until else today
+    except ValueError as e:
+        raise ValueError(f"--to: {e}") from None
+    if end < start:
+        raise ValueError(f"--to ({end}) comes before --from ({start}).")
+    return Range("custom", "Custom", "Custom", start, end)
 
 
 def report_json(
-    db: DBSession, project: Project, key: str | None = None, now: datetime | None = None
+    db: DBSession,
+    project: Project,
+    key: str | None = None,
+    now: datetime | None = None,
+    custom: Range | None = None,
 ) -> dict[str, Any]:
     """
-    The report for `--json`: the range `key` (since the start by default),
-    the time tracked on each of its days, and the totals. Unlike the screen,
-    every range can be asked for, and the days are never grouped.
+    The report for `--json`: the range `key` (since the start by default) or
+    the `custom` days, the time tracked on each of its days, and the totals.
+    Unlike the screen, every range can be asked for, and the days are never
+    grouped.
     """
 
     now = now or datetime.now(UTC)
     today = now.astimezone().date()
     sessions = load_sessions(db, project)
     ranges = all_ranges(first_day(project, sessions, today), today, project.end)
-    r = next((r for r in ranges if r.key == key), ranges[0])
+    r = custom or next((r for r in ranges if r.key == key), ranges[0])
     # As wide as needed for a bar per day.
-    report = build_report(project, sessions, r, width=r.days * MIN_COLUMN, now=now)
+    report = build_report(project, sessions, replace(r, unit="day"), width=0, now=now)
     return {
         "project": {"id": project.id, "name": project.name},
         "range": {"key": r.key, "label": r.label, "start": r.start, "end": r.end},
@@ -578,14 +740,26 @@ def start_index(ranges: list[Range], key: str | None) -> int:
     return keys.index(key) if key in keys else 0
 
 
+def shown_ranges(
+    project: Project, sessions: list[Session], now: datetime, custom: Range | None
+) -> list[Range]:
+    """The ranges in the tabs: the `custom` days first, if any."""
+
+    return [*([custom] if custom else []), *project_ranges(project, sessions, now)]
+
+
 def print_report(
-    db: DBSession, project: Project, key: str | None = None, now: datetime | None = None
+    db: DBSession,
+    project: Project,
+    key: str | None = None,
+    now: datetime | None = None,
+    custom: Range | None = None,
 ) -> None:
     """Print the report once, without waiting for keys."""
 
     now = now or datetime.now(UTC)
     sessions = load_sessions(db, project)
-    ranges = project_ranges(project, sessions, now)
+    ranges = shown_ranges(project, sessions, now, custom)
     console = get_console()
     console.print(
         render(
@@ -595,21 +769,79 @@ def print_report(
             start_index(ranges, key),
             console,
             now,
-            interactive=False,
         )
     )
 
 
 SHORTCUTS: list[browser.Shortcut] = [
-    ("l  →  Tab", ("l", "\x1b[C", "\t"), "next", "Next range"),
-    ("h  ←", ("h", "\x1b[D", "\x1b[Z"), "previous", "Previous range"),
-    ("g", ("g",), "first", "First range"),
-    ("G", ("G",), "last", "Last range"),
+    ("l  →", ("l", "\x1b[C"), "right", "Next bar"),
+    ("h  ←", ("h", "\x1b[D"), "left", "Previous bar"),
+    ("g", ("g",), "first", "First bar"),
+    ("G", ("G",), "last", "Last bar"),
+    ("Enter", ("\r", "\n"), "zoom", "Zoom into the bar: its months, weeks or days"),
+    ("Esc  ⌫", (ESC, "\x7f", "\x08"), "back", "Zoom out (quit when not zoomed)"),
+    ("Tab  ]", ("\t", "]"), "next", "Next range"),
+    ("S-Tab  [", ("\x1b[Z", "["), "previous", "Previous range"),
     ("1-9", tuple("123456789"), "jump", "Jump to a range"),
     ("r", ("r",), "refresh", "Refresh"),
+    ("y", ("y",), "copy", "Copy the project's id"),
     ("?", ("?",), "help", "Show these shortcuts"),
-    ("q  Esc", ("q", ESC), "quit", "Quit"),
+    ("q", ("q",), "quit", "Quit"),
 ]
+
+
+@dataclass
+class Place:
+    """Where the report is: a range tab, the bars zoomed into, the bar selected."""
+
+    current: int
+    selected: date
+    # The ranges zoomed into, outermost first, each with the day selected
+    # before zooming (selected again when zooming out).
+    zooms: list[tuple[Range, date]]
+
+    def range(self, ranges: list[Range]) -> Range:
+        return self.zooms[-1][0] if self.zooms else ranges[self.current]
+
+
+def first_selected(r: Range, today: date) -> date:
+    """Today's bar if the range has it, else its first."""
+
+    return today if r.start <= today <= r.end else r.start
+
+
+def frame(
+    console: Console,
+    size: tuple[int, int],
+    report: Report,
+    ranges: list[Range],
+    current: int,
+    selected: int,
+    zoomed: bool = False,
+    message: str = "",
+) -> tui.Frame:
+    """The report full screen: the chart takes the height left."""
+
+    width, height = size
+    inner_width, inner_height = tui.body_size(width, height)
+    options = console.options.update(width=inner_width)
+    smallest = 2
+
+    def lines(chart_lines: int) -> Group:
+        return Group(*body(report, ranges, current, inner_width, chart_lines, selected))
+
+    others = len(console.render_lines(lines(smallest), options))
+    chart_lines = max(smallest, smallest + inner_height - others)
+    return tui.page(
+        console,
+        width,
+        height,
+        title=title(report),
+        body=lines(chart_lines),
+        footer=Text.from_markup(f" {message}")
+        if message
+        else tui.hints(hints(report, zoomed)),
+    )
 
 
 def show(
@@ -618,66 +850,114 @@ def show(
     key: str | None = None,
     read_key: Callable[[], str] | None = None,
     now: Callable[[], datetime] | None = None,
+    custom: Range | None = None,
 ) -> None:
-    """Show the report until the user quits."""
+    """Show the report full screen until the user quits."""
 
     read_key = read_key or browser.getchar
     now = now or (lambda: datetime.now(UTC))
-    console = get_console()
     key_actions = {code: action for _, codes, action, _ in SHORTCUTS for code in codes}
 
     def keys() -> Iterator[str]:
         while True:
-            yield from split_escape(read_key())
+            yield from tui.split_keys(read_key()) or [browser.RESIZE]
 
     pressed = keys()
     sessions = load_sessions(db, project)
     moment = now()
-    ranges = project_ranges(project, sessions, moment)
-    current = start_index(ranges, key)
+    ranges = shown_ranges(project, sessions, moment, custom)
 
-    console.show_cursor(False)
-    try:
+    def today() -> date:
+        return moment.astimezone().date()
+
+    def on_tab(index: int) -> Place:
+        return Place(index, first_selected(ranges[index], today()), [])
+
+    place = on_tab(start_index(ranges, key))
+
+    with tui.open_screen() as view:
+        console = view.console
+        message = ""
         while True:
-            page = render(project, sessions, ranges, current, console, moment)
-            dev_bar.clear(console)
-            console.print(page)
-            console.show_cursor(False)
+            # The y axis takes a few columns: keep them out of the bars' width.
+            inner_width, _ = tui.body_size(*view.size())
+            report = build_report(
+                project, sessions, place.range(ranges), inner_width - 8, moment
+            )
+            selected = report.index_of(place.selected)
+            page = frame(
+                console,
+                view.size(),
+                report,
+                ranges,
+                place.current,
+                selected,
+                bool(place.zooms),
+                message,
+            )
+            view.draw(page)
+            message = ""
 
+            starts = [bucket.start for bucket in report.buckets]
             # Ignore keys that do nothing here, without redrawing.
+            last_bar = len(starts) - 1
             for pressed_key in pressed:
+                if pressed_key == browser.RESIZE:
+                    action = "redraw"
+                    break
                 action = key_actions.get(pressed_key)
-                if action in ("next", "last") and current == len(ranges) - 1:
+                if action in ("right", "last") and selected == last_bar:
                     continue
-                if action in ("previous", "first") and current == 0:
+                if action in ("left", "first") and selected == 0:
+                    continue
+                if action == "zoom" and report.unit not in SMALLER:
+                    continue
+                if action == "next" and place.current == len(ranges) - 1:
+                    continue
+                if action == "previous" and place.current == 0:
                     continue
                 if action == "jump" and int(pressed_key) > len(ranges):
                     continue
                 if action is not None:
                     break
 
-            if action == "quit":
+            if action == "quit" or (action == "back" and not place.zooms):
                 return
-            if action == "help":
-                dev_bar.clear(console)
-                browser.overlay(console, page, browser.help_panel(SHORTCUTS))
+            if action == "copy":
+                message = clipboard.copied(str(project.id), console, what="project")
+            elif action == "help":
+                view.draw(tui.overlay(console, page, browser.help_panel(SHORTCUTS)))
                 next(pressed)
-            elif action == "next":
-                current += 1
-            elif action == "previous":
-                current -= 1
+            elif action == "right":
+                place.selected = starts[selected + 1]
+            elif action == "left":
+                place.selected = starts[selected - 1]
             elif action == "first":
-                current = 0
+                place.selected = starts[0]
             elif action == "last":
-                current = len(ranges) - 1
+                place.selected = starts[last_bar]
+            elif action == "zoom":
+                zoomed = zoom_range(report.range, report.buckets[selected], report.unit)
+                if zoomed is not None:
+                    place.zooms.append((zoomed, place.selected))
+                    place.selected = first_selected(zoomed, today())
+            elif action == "back":
+                _, place.selected = place.zooms.pop()
+            elif action == "next":
+                place = on_tab(place.current + 1)
+            elif action == "previous":
+                place = on_tab(place.current - 1)
             elif action == "jump":
-                current = int(pressed_key) - 1
+                place = on_tab(int(pressed_key) - 1)
             elif action == "refresh":
-                selected = ranges[current].key
+                selected_key = ranges[place.current].key
                 db.expire_all()
                 sessions = load_sessions(db, project)
                 moment = now()
-                ranges = project_ranges(project, sessions, moment)
-                current = start_index(ranges, selected)
-    finally:
-        console.show_cursor(True)
+                ranges = shown_ranges(project, sessions, moment, custom)
+                current = start_index(ranges, selected_key)
+                # Zoomed days stay as they were; a range gone starts over.
+                if ranges[current].key != selected_key:
+                    place = on_tab(current)
+                else:
+                    place.current = current

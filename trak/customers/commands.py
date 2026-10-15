@@ -13,11 +13,13 @@ from trak.customers import listing
 from trak.customers.listing import CustomerFilters, customer_json
 from trak.customers.models import Customer
 from trak.customers.services import check_customer, create_customer, update_customer
+from trak.labels.links import label_details, with_tags
 from trak.projects.models import Project
 from trak.sessions import commands
+from trak.sessions.commands import CategoryOption, TagsOption
 from trak.sessions.display import format_duration
-from trak.sessions.editing import format_time
-from trak.sessions.guided import Prompter, input_validator
+from trak.sessions.editing import ask_label, format_time, label_rows
+from trak.sessions.guided import Prompter, ask_category, ask_tags, input_validator
 from trak.sessions.listing import customer_name
 from trak.sessions.services import session_totals
 
@@ -40,26 +42,45 @@ def create_command(
     name: Annotated[
         str | None,
         typer.Argument(
-            metavar="NAME", help="The customer's name. Leave it empty to type it."
+            metavar="NAME",
+            help="The customer's name. Leave it empty to fill in every field "
+            "(in a terminal), starting from the options.",
         ),
     ] = None,
+    category: CategoryOption = None,
+    tags: TagsOption = None,
 ) -> None:
     """
-    Create a customer.
+    Create a customer. Without a name, asks for every field.
     """
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
+        fields: dict[str, Any] = {
+            "category_fk": None,
+            "tag_fks": [],
+            **commands.find_category(db, category),
+        }
+        tag_fks = commands.find_tags(db, tags)
+        if tag_fks is not None:
+            fields["tag_fks"] = tag_fks
+
         if name is None:
             entities.require_terminal("Creating a customer without a name")
-            name = commands.run_prompts(
-                lambda prompter: prompter.input(
+
+            def ask(prompter: Prompter) -> str:
+                answer = prompter.input(
                     "Name", placeholder="e.g. ACME", validator=name_validator(db)
-                ),
-                cancelled="No customer was created.",
-            )
+                )
+                fields["category_fk"] = ask_category(
+                    db, prompter, fields["category_fk"]
+                )
+                fields["tag_fks"] = ask_tags(db, prompter, fields["tag_fks"])
+                return answer
+
+            name = commands.run_prompts(ask, cancelled="No customer was created.")
 
         try:
-            customer = create_customer(db, name=name)
+            customer = create_customer(db, name=name, **fields)
         except ValueError as e:
             print_error(title="Can't create the customer", text=str(e))
             raise typer.Exit(1)
@@ -118,38 +139,55 @@ def show_command(ctx: typer.Context, customer_id: IdArgument = None) -> None:
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         customer = get_or_pick(db, customer_id, "show")
         output.emit(customer_json(db, customer))
-        totals = session_totals(db, customer_fk=customer.id)
-        projects = project_names(db, customer)
-        entities.print_details(
-            title=f"Customer #{customer.id}",
-            rows=[
-                ("Name", customer_label(customer)),
-                ("Projects", projects or "[dim]—[/dim]"),
-                ("Sessions", str(totals.sessions)),
-                ("Time", format_duration(totals.time)),
-                (
-                    "Last session",
-                    entities.or_dash(totals.last and format_time(totals.last)),
-                ),
-            ],
-            hint=f'Edit it with "trak customers edit {customer.id}".',
-        )
+        print_customer(db, customer)
+
+
+def print_customer(db: DBSession, customer: Customer) -> None:
+    """The panel of `trak customers show`."""
+
+    totals = session_totals(db, customer_fk=customer.id)
+    projects = project_names(db, customer)
+    entities.print_details(
+        title=f"Customer #{customer.id}",
+        rows=[
+            ("Name", customer_label(customer)),
+            *label_details(db, customer),
+            ("Projects", projects or "[dim]—[/dim]"),
+            ("Sessions", str(totals.sessions)),
+            ("Time", format_duration(totals.time)),
+            (
+                "Last session",
+                entities.or_dash(totals.last and format_time(totals.last)),
+            ),
+        ],
+        hint=f'Edit it with "trak customers edit {customer.id}".',
+    )
 
 
 def ask_edits(db: DBSession, prompter: Prompter, customer: Customer) -> dict[str, Any]:
+    original: Any = with_tags(db, customer)
+
     def ask_field(changes: dict[str, Any], field: str) -> None:
+        if field != "name":
+            value = forms.current(original, changes, field)
+            ask_label(db, prompter, changes, field, value)
+            return
         changes["name"] = prompter.input(
             "Name",
-            value=forms.current(customer, changes, "name") or "",
+            value=forms.current(original, changes, "name") or "",
             validator=name_validator(db, customer.id),
         ).strip()
+
+    def value(changes: dict[str, Any], field: str) -> Any:
+        return forms.current(original, changes, field)
 
     return forms.ask_changes(
         prompter,
         f"Edit customer #{customer.id}",
-        customer,
+        original,
         rows=lambda changes: [
-            ("name", "Name", forms.current(customer, changes, "name") or "—")
+            ("name", "Name", value(changes, "name") or "—"),
+            *label_rows(db, value(changes, "category_fk"), value(changes, "tag_fks")),
         ],
         ask_field=ask_field,
     )
@@ -159,19 +197,28 @@ def edit_command(
     ctx: typer.Context,
     customer_id: IdArgument = None,
     name: Annotated[str | None, typer.Option("--name", "-n", help="The name.")] = None,
+    category: CategoryOption = None,
+    tags: TagsOption = None,
 ) -> None:
     """
-    Edit a customer's name. With --name, saves it right away; without, opens
-    the form (terminal).
+    Edit a customer: its name, category and tags (--tag replaces them). With
+    options, saves them right away; without, opens the form (terminal).
     """
 
-    if name is None:
+    given = name is not None or category is not None or tags is not None
+    if not given:
         entities.require_terminal("Editing without options")
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         customer = get_or_pick(db, customer_id, "edit")
-        if name is not None:
-            changes = forms.effective_changes(customer, {"name": name.strip()})
+        if given:
+            flags: dict[str, Any] = commands.find_category(db, category)
+            if name is not None:
+                flags["name"] = name.strip()
+            tag_fks = commands.find_tags(db, tags)
+            if tag_fks is not None:
+                flags["tag_fks"] = tag_fks
+            changes = forms.effective_changes(with_tags(db, customer), flags)
         else:
             changes = commands.run_prompts(
                 lambda prompter: ask_edits(db, prompter, customer),

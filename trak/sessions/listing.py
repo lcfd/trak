@@ -1,18 +1,19 @@
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.markup import escape
-from rich.table import Table
 from rich_toolkit.menu import Option
 from sqlmodel import Session as DBSession
+from sqlmodel import select
 
-from trak import browser, entities
+from trak import browser, entities, tables, tui
 from trak.base_messages import print_error
 from trak.customers.models import Customer
 from trak.customers.services import get_customers
+from trak.labels.links import category_name, tag_names
 from trak.projects.models import Project
 from trak.projects.services import get_projects
 from trak.sessions import commands
@@ -23,7 +24,7 @@ from trak.sessions.display import (
     session_json,
 )
 from trak.sessions.guided import Prompter, input_validator
-from trak.sessions.models import Session
+from trak.sessions.models import Category, Session, Tag
 from trak.sessions.services import list_sessions, local_midnight
 
 
@@ -31,16 +32,24 @@ from trak.sessions.services import list_sessions, local_midnight
 class ListFilters:
     project: Project | None = None
     customer: Customer | None = None
+    category: Category | None = None
+    tag: Tag | None = None
     name: str = ""
     since: date | None = None
     until: date | None = None
     page: int = 1
-    per_page: int = 20
+    per_page: int = browser.PER_PAGE
 
     @property
     def active(self) -> bool:
         return bool(
-            self.project or self.customer or self.name or self.since or self.until
+            self.project
+            or self.customer
+            or self.category
+            or self.tag
+            or self.name
+            or self.since
+            or self.until
         )
 
     def describe(self) -> str:
@@ -49,6 +58,10 @@ class ListFilters:
             parts.append(f"project: {escape(self.project.name)}")
         if self.customer:
             parts.append(f"customer: {escape(customer_name(self.customer))}")
+        if self.category:
+            parts.append(f"category: {escape(self.category.name)}")
+        if self.tag:
+            parts.append(f"tag: {escape(self.tag.name)}")
         if self.name:
             parts.append(f'name: "{escape(self.name)}"')
         if self.since and self.since == self.until:
@@ -71,6 +84,8 @@ def query(db: DBSession, filters: ListFilters) -> tuple[list[Session], int]:
         db,
         project_fk=filters.project.id if filters.project else None,
         customer_fk=filters.customer.id if filters.customer else None,
+        category_fk=filters.category.id if filters.category else None,
+        tag_fk=filters.tag.id if filters.tag else None,
         name=filters.name or None,
         start_from=local_midnight(filters.since) if filters.since else None,
         start_until=(
@@ -81,46 +96,104 @@ def query(db: DBSession, filters: ListFilters) -> tuple[list[Session], int]:
     )
 
 
-def build_table(
-    db: DBSession, sessions: list[Session], cursor: int | None = None
-) -> Table:
-    """The sessions table; the row at `cursor`, if any, is highlighted."""
-
-    table = Table(header_style="bold", show_edge=False)
-    table.add_column("#", justify="right", style="dim")
-    table.add_column("Name")
-    table.add_column("Project", style="green")
-    table.add_column("Customer")
-    table.add_column("Start")
-    table.add_column("End")
-    table.add_column("Duration", justify="right")
+def session_cells(db: DBSession, session: Session) -> tables.Cells:
+    """Every cell a sessions table can show, as markup."""
 
     now = datetime.now(UTC)
-    for index, session in enumerate(sessions):
-        project = db.get(Project, session.project_fk) if session.project_fk else None
-        customer = session_customer(db, session)
-        start = session.start.astimezone()
-        if session.end is None:
-            end = "[bold green]running[/bold green]"
-        else:
-            end_local = session.end.astimezone()
-            # Same day: the date would just repeat the start's.
-            end = (
-                f"{end_local:%H:%M}"
-                if end_local.date() == start.date()
-                else f"{end_local:%Y-%m-%d %H:%M}"
+    project = db.get(Project, session.project_fk) if session.project_fk else None
+    customer = session_customer(db, session)
+    start = session.start.astimezone()
+    day = tables.short_day(start.date(), now.astimezone().date())
+    if session.end is None:
+        end = "[bold green]running[/bold green]"
+        until = "[bold green]now[/bold green]"
+    else:
+        end_local = session.end.astimezone()
+        days = (end_local.date() - start.date()).days
+        # Same day: the date would just repeat the start's.
+        end = f"{end_local:%H:%M}" if not days else f"{end_local:%Y-%m-%d %H:%M}"
+        until = f"{end_local:%H:%M}" + (f" [dim](+{days})[/dim]" if days else "")
+
+    name = escape(session.name)
+    project_name = escape(project.name) if project else ""
+    customer_name = escape(customer.name or "") if customer else ""
+    category = escape(category_name(db, session) or "")
+    tags = tag_names(db, session)
+    labels = " ".join([category, *(f"#{escape(tag)}" for tag in tags)]).strip()
+    return {
+        "id": str(session.id),
+        "name": name,
+        "project": f"[green]{project_name}[/green]" if project else "",
+        "customer": customer_name,
+        "project_customer": " ".join(
+            part
+            for part in (
+                f"[green]{project_name}[/green]" if project else "",
+                f"[dim]· {customer_name}[/dim]" if customer_name else "",
             )
-        table.add_row(
-            str(session.id),
-            escape(session.name),
-            escape(project.name) if project else "",
-            escape(customer.name or "") if customer else "",
-            f"{start:%Y-%m-%d %H:%M}",
-            end,
-            format_duration(elapsed(session, now)),
-            style="reverse" if index == cursor else None,
-        )
-    return table
+            if part
+        ),
+        "category": category,
+        "tags": escape(", ".join(tags)),
+        "labels": labels,
+        "session": " [dim]·[/dim] ".join(
+            part
+            for part in (name, f"[green]{project_name}[/green]" if project else "")
+            if part
+        ),
+        "start": f"{start:%Y-%m-%d %H:%M}",
+        "end": end,
+        "when": f"{day} {start:%H:%M}–{until}",
+        "since": f"{day} {start:%H:%M}",
+        "duration": format_duration(elapsed(session, now)),
+    }
+
+
+DURATION = tables.col("duration", right=True)
+# Widest first; see `tables.py`.
+LAYOUTS: list[tables.Layout] = [
+    [
+        tables.ID,
+        tables.col("name", flex=True),
+        tables.col("project", optional=True),
+        tables.col("customer", optional=True),
+        tables.col("category", style="magenta", optional=True),
+        tables.col("tags", style="magenta", optional=True),
+        tables.col("start"),
+        tables.col("end"),
+        DURATION,
+    ],
+    [
+        tables.ID,
+        tables.col("name", flex=True),
+        tables.col("project_customer", "Project", optional=True),
+        tables.col("labels", style="magenta", flex=True, least=10, optional=True),
+        tables.col("when"),
+        DURATION,
+    ],
+    [
+        tables.ID,
+        tables.col("name", flex=True),
+        tables.col("project", optional=True),
+        tables.col("labels", style="magenta", flex=True, least=10, optional=True),
+        tables.col("when"),
+        DURATION,
+    ],
+    [
+        tables.ID,
+        tables.col("name", flex=True),
+        tables.col("project", optional=True),
+        tables.col("when"),
+        DURATION,
+    ],
+    [
+        tables.ID,
+        tables.col("session", flex=True),
+        tables.col("since", "Start"),
+        DURATION,
+    ],
+    [tables.ID, tables.col("session", flex=True), DURATION],
+]
 
 
 # Plain mode: print one page and exit.
@@ -182,6 +255,17 @@ def ask_customer(
     return replace(filters, customer=customer, page=1)
 
 
+def ask_label(
+    db: DBSession, prompter: Prompter, filters: ListFilters, model: type
+) -> ListFilters:
+    rows = list(db.exec(select(model).order_by(model.name)))  # type: ignore[attr-defined]
+    noun = model.__name__.lower()
+    options: list[Option[Any]] = [{"name": f"Any {noun}", "value": None}]
+    options += [{"name": row.name, "value": row} for row in rows]
+    row = prompter.ask(model.__name__, options, allow_filtering=True)
+    return replace(filters, page=1, **{noun: row})
+
+
 def ask_name(prompter: Prompter, filters: ListFilters) -> ListFilters:
     name = prompter.input(
         "Name", value=filters.name, placeholder="part of the name, empty for any"
@@ -231,6 +315,8 @@ FILTER_SHORTCUTS: list[browser.Shortcut] = [
     ("/", ("/",), "name", "Search by name"),
     ("p", ("p",), "project", "Filter by project"),
     ("c", ("c",), "customer", "Filter by customer"),
+    ("C", ("C",), "category", "Filter by category"),
+    ("t", ("t",), "tag", "Filter by tag"),
     ("d", ("d",), "date", "Filter by date"),
 ]
 
@@ -242,16 +328,46 @@ def ask_filter(
         return ask_project(db, prompter, filters)
     if action == "customer":
         return ask_customer(db, prompter, filters)
+    if action in ("category", "tag"):
+        return ask_label(
+            db, prompter, filters, Category if action == "category" else Tag
+        )
     if action == "name":
         return ask_name(prompter, filters)
     return ask_dates(prompter, filters)
 
 
+def show_session(db: DBSession, session: Session, screen: tui.Screen) -> None:
+    from trak import views
+    from trak.sessions.view import SessionView
+
+    views.show_in(db, SessionView, session, screen)
+
+
+def edit_session(db: DBSession, session: Session, prompter: Prompter) -> str:
+    from trak.sessions.display import session_label
+    from trak.sessions.editing import ask_edits
+    from trak.sessions.services import update_session
+
+    return entities.edit_in_place(
+        db,
+        session,
+        prompter,
+        ask=ask_edits,
+        update=update_session,
+        noun="session",
+        label=lambda s: session_label(db, s),
+    )
+
+
 def session_listing(db: DBSession) -> browser.Listing[Session, ListFilters]:
     return browser.Listing(
+        show=lambda session, screen: show_session(db, session, screen),
+        edit=lambda session, prompter: edit_session(db, session, prompter),
         noun="session",
         query=lambda filters: query(db, filters),
-        table=lambda sessions, cursor: build_table(db, sessions, cursor),
+        cells=lambda session: session_cells(db, session),
+        layouts=LAYOUTS,
         to_json=lambda session: session_json(db, session),
         filter_shortcuts=FILTER_SHORTCUTS,
         ask_filter=lambda prompter, filters, action: ask_filter(
@@ -272,6 +388,7 @@ def browse(
     read_key: Callable[[], str] | None = None,
     pick: bool = False,
     title: str = "Sessions",
+    fit: bool = True,
 ) -> Session | None:
     """
     Browse the sessions until the user quits (None).
@@ -287,6 +404,7 @@ def browse(
         read_key=read_key,
         pick=pick,
         title=title,
+        fit=fit,
     )
 
 
@@ -319,6 +437,14 @@ def list_command(
             "-c",
             help="Only the sessions of this customer, directly or through a project.",
         ),
+    ] = None,
+    category_name_: Annotated[
+        str | None,
+        typer.Option("--category", help="Only the sessions of this category."),
+    ] = None,
+    tag_name: Annotated[
+        str | None,
+        typer.Option("--tag", "-t", help="Only the sessions with this tag."),
     ] = None,
     name: Annotated[
         str | None,
@@ -356,8 +482,14 @@ def list_command(
     ] = None,
     page: Annotated[int, typer.Option("--page", min=1, help="The page to show.")] = 1,
     per_page: Annotated[
-        int, typer.Option("--per-page", min=1, max=500, help="Sessions per page.")
-    ] = 20,
+        int | None,
+        typer.Option(
+            "--per-page",
+            min=1,
+            max=500,
+            help="Sessions per page. Default: what fits the terminal; 20 when printed.",
+        ),
+    ] = None,
     plain: Annotated[
         bool,
         typer.Option(
@@ -391,18 +523,31 @@ def list_command(
             if customer is None:
                 raise typer.Exit(1)
 
+        labels: dict[str, Any] = {}
+        for key, model, value in (
+            ("category", Category, category_name_),
+            ("tag", Tag, tag_name),
+        ):
+            if value is not None:
+                labels[key] = commands.find_row(db, model, value.strip(), key)
+                if labels[key] is None:
+                    raise typer.Exit(1)
+
         filters = ListFilters(
             project=project,
             customer=customer,
+            **labels,
             name=name or "",
             since=since.date() if since else None,
             until=until.date() if until else None,
             page=page,
-            per_page=per_page,
+            per_page=per_page or browser.PER_PAGE,
         )
 
         if plain or not commands.is_interactive():
             print_page(db, filters)
             return
 
-        entities.run_browser(lambda prompter: browse(db, prompter, filters))
+        entities.run_browser(
+            lambda prompter: browse(db, prompter, filters, fit=per_page is None)
+        )

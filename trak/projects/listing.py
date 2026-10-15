@@ -6,11 +6,11 @@ from typing import Annotated, Any
 
 import typer
 from rich.markup import escape
-from rich.table import Table
 from sqlmodel import Session as DBSession
 
-from trak import browser, entities, output
+from trak import browser, entities, output, tables, tui
 from trak.customers.models import Customer
+from trak.labels.links import category_name, labels_json, tag_names
 from trak.projects.models import Project
 from trak.projects.services import list_projects
 from trak.sessions import commands
@@ -26,7 +26,7 @@ class ProjectFilters:
     customer: Customer | None = None
     archived: bool = False
     page: int = 1
-    per_page: int = 20
+    per_page: int = browser.PER_PAGE
 
     @property
     def active(self) -> bool:
@@ -78,44 +78,92 @@ def project_json(db: DBSession, project: Project) -> dict[str, Any]:
     return {
         **output.fields(project),
         "customer": customer.name if customer else None,
+        **labels_json(db, project),
         "sessions": totals.sessions,
         "tracked_seconds": output.seconds(totals.time),
         "last_session": totals.last,
     }
 
 
-def build_table(
-    db: DBSession, projects: list[Project], cursor: int | None = None
-) -> Table:
-    """The projects table; the row at `cursor`, if any, is highlighted."""
+def format_dates_short(project: Project) -> str:
+    """ "Jul 26 → Jan 27": `format_dates` by month."""
 
-    table = Table(header_style="bold", show_edge=False)
-    table.add_column("#", justify="right", style="dim")
-    table.add_column("Name", style="green")
-    table.add_column("Customer")
-    table.add_column("Rate", justify="right")
-    table.add_column("Dates", no_wrap=True)
-    table.add_column("Sessions", justify="right")
-    table.add_column("Time", justify="right")
-    table.add_column("Status")
+    start = f"{project.start:%b %y}" if project.start else ""
+    end = f"{project.end:%b %y}" if project.end else ""
+    if start and end:
+        return f"{start} → {end}"
+    if start:
+        return f"from {start}"
+    return f"until {end}" if end else ""
 
-    for index, project in enumerate(projects):
-        customer = (
-            db.get(Customer, project.customer_fk) if project.customer_fk else None
-        )
-        totals = session_totals(db, project_fk=project.id)
-        table.add_row(
-            str(project.id),
-            escape(project.name),
-            escape(customer_name(customer)) if customer else "",
-            format_rate(project.rate),
-            format_dates(project),
-            str(totals.sessions),
-            format_duration(totals.time),
-            "[dim]archived[/dim]" if project.archived else "",
-            style="reverse" if index == cursor else None,
-        )
-    return table
+
+def project_cells(db: DBSession, project: Project) -> tables.Cells:
+    """Every cell a projects table can show, as markup."""
+
+    customer = db.get(Customer, project.customer_fk) if project.customer_fk else None
+    totals = session_totals(db, project_fk=project.id)
+    category = escape(category_name(db, project) or "")
+    tags = tag_names(db, project)
+    name = escape(project.name)
+    return {
+        "id": str(project.id),
+        "name": name,
+        # The status in the name, when there's no column for it.
+        "name_status": name + (" [dim](archived)[/dim]" if project.archived else ""),
+        "customer": escape(customer_name(customer)) if customer else "",
+        "category": category,
+        "tags": escape(", ".join(tags)),
+        "labels": " ".join([category, *(f"#{escape(t)}" for t in tags)]).strip(),
+        "rate": format_rate(project.rate),
+        "dates": format_dates(project),
+        "dates_short": format_dates_short(project),
+        "sessions": str(totals.sessions),
+        "time": format_duration(totals.time),
+        "status": "[dim]archived[/dim]" if project.archived else "",
+    }
+
+
+NAME = tables.col("name", style="green", flex=True)
+TIME = tables.col("time", right=True)
+# Widest first; see `tables.py`.
+LAYOUTS: list[tables.Layout] = [
+    [
+        tables.ID,
+        NAME,
+        tables.col("customer", optional=True),
+        tables.col("category", style="magenta", optional=True),
+        tables.col("tags", style="magenta", optional=True),
+        tables.col("rate", right=True, optional=True),
+        tables.col("dates", optional=True),
+        tables.col("sessions", right=True),
+        TIME,
+        tables.col("status", optional=True),
+    ],
+    [
+        tables.ID,
+        NAME,
+        tables.col("customer", optional=True),
+        tables.col("labels", style="magenta", flex=True, least=10, optional=True),
+        tables.col("rate", right=True, optional=True),
+        tables.col("dates_short", "Dates", optional=True),
+        TIME,
+        tables.col("status", optional=True),
+    ],
+    [
+        tables.ID,
+        tables.col("name_status", "Name", style="green", flex=True),
+        tables.col("customer", optional=True),
+        tables.col("dates_short", "Dates", optional=True),
+        TIME,
+    ],
+    [
+        tables.ID,
+        tables.col("name_status", "Name", style="green", flex=True),
+        tables.col("customer", optional=True),
+        TIME,
+    ],
+    [tables.ID, tables.col("name_status", "Name", style="green", flex=True), TIME],
+]
 
 
 FILTER_SHORTCUTS: list[browser.Shortcut] = [
@@ -134,11 +182,36 @@ def ask_filter(
     return ask_name(prompter, filters)  # type: ignore[arg-type]
 
 
+def show_project(db: DBSession, project: Project, screen: tui.Screen) -> None:
+    from trak import views
+    from trak.projects.view import ProjectView
+
+    views.show_in(db, ProjectView, project, screen)
+
+
+def edit_project(db: DBSession, project: Project, prompter: Prompter) -> str:
+    from trak.projects.commands import ask_edits, project_label
+    from trak.projects.services import update_project
+
+    return entities.edit_in_place(
+        db,
+        project,
+        prompter,
+        ask=ask_edits,
+        update=update_project,
+        noun="project",
+        label=project_label,
+    )
+
+
 def project_listing(db: DBSession) -> browser.Listing[Project, ProjectFilters]:
     return browser.Listing(
+        show=lambda project, screen: show_project(db, project, screen),
+        edit=lambda project, prompter: edit_project(db, project, prompter),
         noun="project",
         query=lambda filters: query(db, filters),
-        table=lambda projects, cursor: build_table(db, projects, cursor),
+        cells=lambda project: project_cells(db, project),
+        layouts=LAYOUTS,
         to_json=lambda project: project_json(db, project),
         filter_shortcuts=FILTER_SHORTCUTS,
         ask_filter=lambda prompter, filters, action: ask_filter(
@@ -160,6 +233,7 @@ def browse(
     read_key: Callable[[], str] | None = None,
     pick: bool = False,
     title: str = "Projects",
+    fit: bool = True,
 ) -> Project | None:
     """Browse the projects until the user quits (None), or pick one."""
 
@@ -170,6 +244,7 @@ def browse(
         read_key=read_key,
         pick=pick,
         title=title,
+        fit=fit,
     )
 
 
@@ -191,8 +266,14 @@ def list_command(
     ] = False,
     page: Annotated[int, typer.Option("--page", min=1, help="The page to show.")] = 1,
     per_page: Annotated[
-        int, typer.Option("--per-page", min=1, max=500, help="Projects per page.")
-    ] = 20,
+        int | None,
+        typer.Option(
+            "--per-page",
+            min=1,
+            max=500,
+            help="Projects per page. Default: what fits the terminal; 20 when printed.",
+        ),
+    ] = None,
     plain: Annotated[
         bool,
         typer.Option(
@@ -217,11 +298,13 @@ def list_command(
             customer=customer,
             archived=archived,
             page=page,
-            per_page=per_page,
+            per_page=per_page or browser.PER_PAGE,
         )
 
         if plain or not commands.is_interactive():
             browser.print_page(project_listing(db), filters)
             return
 
-        entities.run_browser(lambda prompter: browse(db, prompter, filters))
+        entities.run_browser(
+            lambda prompter: browse(db, prompter, filters, fit=per_page is None)
+        )

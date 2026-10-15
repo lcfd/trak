@@ -13,6 +13,7 @@ from tests.fakes import add
 from trak.customers.models import Customer
 from trak.dates import today
 from trak.goals.models import Goal
+from trak.labels.links import tag_names
 from trak.projects.models import Project
 from trak.sessions.models import Category, Session, Tag
 from trak.sessions.services import get_active_sessions, start_session, stop_session
@@ -49,6 +50,7 @@ def everything(cli_db):
     add(cli_db, Project(name="website"))
     add(cli_db, Category(name="dev"))
     add(cli_db, Tag(name="billable"))
+    add(cli_db, Tag(name="urgent"))
     return cli_db
 
 
@@ -60,13 +62,14 @@ def test_start_sets_every_field(everything):
 
     result = invoke(
         everything, "start", "website", "-n", "Hero", "-c", "ACME",
-        "--category", "dev", "-t", "billable", "-s", local(start),
+        "--category", "dev", "-t", "billable", "-t", "urgent", "-s", local(start),
     )  # fmt: skip
 
     assert result.exit_code == 0, result.output
     session = only_session(everything)
     assert (session.name, session.project_fk, session.customer_fk) == ("Hero", 1, 1)
-    assert (session.category_fk, session.tag_fk) == (1, 1)
+    assert session.category_fk == 1
+    assert tag_names(everything, session) == ["billable", "urgent"]
     assert session.start == start and session.active
 
 
@@ -115,13 +118,16 @@ def test_start_refuses_a_second_customer(cli_db):
 
 
 def test_guided_start_begins_from_the_flags(everything, interactive, answers):
-    fake = answers("", "website", "ACME", "dev", "billable", "")
+    # The tags start from the flag: "urgent" toggles on, then Done.
+    fake = answers("", "website", "ACME", "dev", "urgent", "Done", "")
 
     result = invoke(everything, "start", "-g", "-c", "ACME", "-t", "billable")
 
     assert result.exit_code == 0, result.output
-    assert fake.defaults["Customer"] == 1 and fake.defaults["Tag"] == 1
+    assert fake.defaults["Customer"] == 1
     assert fake.defaults["Category"] is None
+    assert fake.notes["Tags"] == "billable, urgent"
+    assert tag_names(everything, only_session(everything)) == ["billable", "urgent"]
 
 
 # trak stop / status
@@ -168,12 +174,13 @@ def test_create_session_sets_every_field(everything):
 
     result = invoke(
         everything, "sessions", "create", "website", "-s", local(start), "-e", "1h",
-        "-n", "Docs", "-c", "ACME", "--category", "dev", "--tag", "billable",
+        "-n", "Docs", "-c", "ACME", "--category", "dev", "--tag", "billable,urgent",
     )  # fmt: skip
 
     assert result.exit_code == 0, result.output
     session = only_session(everything)
-    assert (session.name, session.category_fk, session.tag_fk) == ("Docs", 1, 1)
+    assert (session.name, session.category_fk) == ("Docs", 1)
+    assert tag_names(everything, session) == ["billable", "urgent"]
     assert session.end == start + timedelta(hours=1)
 
 
@@ -211,7 +218,8 @@ def test_edit_session_with_flags_needs_no_terminal(everything):
     assert "saved" in result.output
     session = only_session(everything)
     assert (session.name, session.project_fk, session.customer_fk) == ("new", 1, None)
-    assert (session.category_fk, session.tag_fk) == (1, 1)
+    assert session.category_fk == 1
+    assert tag_names(everything, session) == ["billable"]
     assert (session.start, session.end, session.active) == (
         start,
         start + timedelta(hours=3),
@@ -220,13 +228,26 @@ def test_edit_session_with_flags_needs_no_terminal(everything):
 
 
 def test_edit_session_clears_with_empty_flags(everything):
-    start_session(everything, project_fk=1, tag_fk=1)
+    start_session(everything, project_fk=1, tag_fks=[1, 2])
 
     result = invoke(everything, "sessions", "edit", "1", "-p", "", "-t", "")
 
     assert result.exit_code == 0, result.output
     session = only_session(everything)
-    assert (session.project_fk, session.tag_fk) == (None, None)
+    assert session.project_fk is None
+    assert tag_names(everything, session) == []
+
+
+def test_edit_session_tags_replace_them(everything):
+    start_session(everything, tag_fks=[1])
+
+    replaced = invoke(everything, "sessions", "edit", "1", "-t", "urgent")
+    same = invoke(everything, "sessions", "edit", "1", "-t", "urgent")
+
+    assert replaced.exit_code == 0, replaced.output
+    assert "saved" in replaced.output
+    assert tag_names(everything, only_session(everything)) == ["urgent"]
+    assert "Nothing changed" in same.output
 
 
 def test_edit_session_project_with_customer_drops_its_own(cli_db):
@@ -326,6 +347,44 @@ def test_edit_project_rejects_bad_flags(cli_db, args, message):
 
     assert result.exit_code == 1
     assert message in result.output
+
+
+# Projects and customers: category and tags
+
+
+def test_projects_and_customers_take_a_category_and_tags(everything):
+    project = invoke(
+        everything, "projects", "create", "shop", "--category", "dev",
+        "-t", "billable", "-t", "urgent",
+    )  # fmt: skip
+    customer = invoke(
+        everything,
+        "customers",
+        "create",
+        "Initech",
+        "--category",
+        "dev",
+        "-t",
+        "urgent",
+    )
+    edited = invoke(everything, "projects", "edit", "2", "--category", "", "-t", "")
+    renamed = invoke(everything, "customers", "edit", "2", "-t", "billable")
+
+    for result in (project, customer, edited, renamed):
+        assert result.exit_code == 0, result.output
+    everything.expire_all()
+    shop, initech = everything.get(Project, 2), everything.get(Customer, 2)
+    assert (shop.category_fk, tag_names(everything, shop)) == (None, [])
+    assert initech.category_fk == 1
+    assert tag_names(everything, initech) == ["billable"]
+
+
+def test_a_tag_that_doesnt_exist_is_an_error(everything):
+    result = invoke(everything, "projects", "create", "shop", "-t", "nope")
+
+    assert result.exit_code == 1
+    assert "This tag doesn't exist" in result.output
+    assert "trak tags create NAME" in result.output
 
 
 # trak customers edit

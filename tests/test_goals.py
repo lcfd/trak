@@ -1,17 +1,17 @@
+from contextlib import nullcontext
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
-from rich.console import Console
 from sqlmodel import select
 from typer.testing import CliRunner
 
-from tests.fakes import FakePrompter, add
+from tests.fakes import FakePrompter, FakeScreen, add, frames
+from trak import views
 from trak.goals import listing
 from trak.goals.commands import ask_edits, parse_date, parse_hours
 from trak.goals.display import (
     format_days_left,
     pace_text,
-    print_reminder,
     to_go_text,
 )
 from trak.goals.listing import GoalFilters, browse
@@ -185,46 +185,6 @@ def test_parse_hours():
     for value in ("0", "1.5", ""):
         with pytest.raises(ValueError, match="1 or more"):
             parse_hours(value)
-
-
-# the reminder in the menu
-
-
-def test_reminder_shows_upcoming_goals(db):
-    website = add(db, Project(name="website"))
-    goal(db, website, hours=40, days=16, name="Launch")
-    goal(db, website, days=-1, start=TODAY - timedelta(days=5), name="Old")
-    console = Console(record=True, width=120)
-
-    print_reminder(console, db)
-
-    text = console.export_text()
-    assert "Goals" in text
-    assert "website · Launch" in text and "0h 0m of 40h" in text
-    assert "0h 0m of 40h tracked" in text and "0%" in text
-    assert "5 workdays needed, ~2h 21m a day" in text
-    deadline = TODAY + timedelta(days=16)
-    assert f"16 days left, by {deadline:%a %d %b}" in text
-    assert "Old" not in text
-
-
-def test_reminder_without_goals_prints_nothing(db):
-    console = Console(record=True)
-
-    print_reminder(console, db)
-
-    assert console.export_text() == ""
-
-
-def test_menu_shows_the_goals_above_the_list(interactive, answers, cli_db):
-    website = add(cli_db, Project(name="website"))
-    goal(cli_db, website, hours=40, days=3)
-    answers(PromptCancelled())
-
-    result = invoke(cli_db)
-
-    assert result.exit_code == 0, result.output
-    assert "Goals" in result.output and "3 days left" in result.output
 
 
 # trak goals create
@@ -435,13 +395,15 @@ def test_show_picks_among_past_goals_too(interactive, answers, monkeypatch, cli_
         return db.get(Goal, old_id)
 
     monkeypatch.setattr(listing, "browse", fake_browse)
+    view = FakeScreen(["q"])
+    monkeypatch.setattr(views, "open_screen", lambda: nullcontext(view))
     answers()
 
     result = invoke(cli_db, "goals", "show")
 
     assert result.exit_code == 0, result.output
     assert seen["pick"] and seen["filters"].past
-    assert "ended 1 day ago" in result.output
+    assert "ended 1 day ago" in view.last
 
 
 # trak goals edit
@@ -556,9 +518,9 @@ def test_browse_toggles_past_and_filters_by_project(db, capsys):
 
     browse(db, FakePrompter("website"), GoalFilters(), read_key=keys("a", "p", "q"))
 
-    screens = capsys.readouterr().out.split("Goals\n")
-    assert "Old" not in screens[1]
-    assert "Filters: with past" in screens[2] and "Old" in screens[2]
+    screens = frames(capsys.readouterr().out)
+    assert "Old" not in screens[0]
+    assert "Filters: with past" in screens[1] and "Old" in screens[1]
     last = screens[-1]
     assert "project: website · with past" in last
     assert "Elsewhere" not in last and "Launch" in last

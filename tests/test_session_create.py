@@ -129,7 +129,7 @@ def test_ask_new_session(db):
         "project_fk": project.id,
         "customer_fk": None,
         "category_fk": None,
-        "tag_fk": None,
+        "tag_fks": [],
         "start": start,
         "end": start + timedelta(hours=1, minutes=30),
     }

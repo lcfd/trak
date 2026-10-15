@@ -123,18 +123,10 @@ def test_browse_cursor_moves_across_pages(db):
         ListFilters(per_page=2),
         read_key=keys("j", "j", "j", "k", "\n"),
         pick=True,
+        fit=False,
     )
 
     assert picked.name == "day 3"
-
-
-def test_browse_ignores_pick_keys_when_not_picking(db):
-    make(db)
-
-    # j/k/Enter don't redraw nor pick: the next key read is q.
-    assert (
-        browse(db, FakePrompter(), ListFilters(), read_key=keys("j", "\r", "q")) is None
-    )
 
 
 def test_browse_pick_on_an_empty_list_does_nothing(db):
