@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from sqlmodel import Field, SQLModel
 
 
@@ -13,24 +14,22 @@ class Tag(SQLModel, table=True):
 
 
 class Session(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    project: int | None = Field(default=None, foreign_key="project.id")
-    category: int | None = Field(default=None, foreign_key="category.id")
-    tag: int | None = Field(default=None, foreign_key="tag.id")
-    start: datetime
-    end: datetime
-
-
-class RunningSession(SQLModel, table=True):
     """
-    A RunningSession is a Session that has been started but not finished.
-    There can be multiple RunningSession at the same time.
+    A Session is the base unit of trak: a span of time, optionally named.
 
-    You can also consider it as a temporary Session.
+    Everything else is optional: a Session can be associated to a Project,
+    to a Customer (directly, or through its Project), a Category and a Tag.
+
+    An active Session is running: it has been started but not stopped yet,
+    so it has no `end`. There can be multiple active Sessions at the same time.
     """
 
     id: int | None = Field(default=None, primary_key=True)
-    project: int | None = Field(default=None, foreign_key="project.id")
-    category: int | None = Field(default=None, foreign_key="category.id")
-    tag: int | None = Field(default=None, foreign_key="tag.id")
+    name: str = ""
+    customer_fk: int | None = Field(default=None, foreign_key="customer.id")
+    project_fk: int | None = Field(default=None, foreign_key="project.id")
+    category_fk: int | None = Field(default=None, foreign_key="category.id")
+    tag_fk: int | None = Field(default=None, foreign_key="tag.id")
     start: datetime
+    end: datetime | None = None
+    active: bool = Field(default=False, index=True)

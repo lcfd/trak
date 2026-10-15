@@ -2,8 +2,8 @@
 
 from rich import print
 
+from trak._OLD.models import Record
 from trak.base_messages import print_error, print_success
-from trak.models import Record
 
 
 def PercentageBar(total: int, part: int):
@@ -86,7 +86,6 @@ def print_error_no_projects():
         ),
     )
 
-    return
 
 
 def print_error_work_field(work_id: str, project_id: str, field: str):
@@ -94,7 +93,6 @@ def print_error_work_field(work_id: str, project_id: str, field: str):
         title="Error", text=f"Error in {work_id}'s {field} of {project_id} project."
     )
 
-    return
 
 
 def print_missing_project(projects_in_config):
@@ -108,7 +106,6 @@ def print_missing_project(projects_in_config):
         ),
     )
 
-    return
 
 
 def print_project_archived_toggle(project_id: str, archived: bool):

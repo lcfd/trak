@@ -61,48 +61,105 @@ You can pass arguments like this:
 
 ### Local
 
-Run `poetry build` and then
+Run `uv build` and then
 
 ```bash
 # x.x.x = The version you have used to do the build.
-pipx install ./dist/trakcli-x.x.x-py3-none-any.whl
+uv tool install ./dist/trakcli-x.x.x-py3-none-any.whl
 ```
 
 to install `trak` using the wheel file.
 
 ## Usage
 
-The package has the useful `--help` command that explains all the commands.
+Run `trak` alone to open a menu of every command: type to filter it
+(abbreviations work, e.g. `sl` → `sessions list`, `pc` → `projects create`)
+and press Enter to run one. Without a terminal it prints the help.
+
+Every command explains itself with `--help`:
 
 `trak --help`
 
-The CLI guides you through what you should and must do with specific messages.
-
-### Basic commands
+### Tracking time
 
 ```bash
-# Start a new session
+# Start a session on a project (leave it empty to pick one)
 trak start <project-name>
 
-# Stop the current session
+# Give the session a name
+trak start <project-name> --name "Fix the login page"
+
+# Fill in every field of the session interactively
+trak start --guided
+
+# Stop the active session (if more are running, pick one)
 trak stop
 
-# Show the elapsed time of the current session
-trak status
-
-# Show the amount of hours spend on the project
-trak report project <project-name>
+# Stop only the sessions of a project, or all of them at once
+trak stop <project-name>
+trak stop --all
 ```
 
-Start tracking a billable project:
+A session can belong to a project, to a customer, both, or neither, and
+more than one session can run at the same time.
 
-`trak start pasta -b`
+### Your data
 
-Start tracking a project on a specific category/topic:
+Sessions, projects and customers share the same commands:
 
-`trak start pasta -c rigatoni`
+```bash
+trak sessions            # Browse them (same as `trak sessions list`)
+trak sessions 42         # Show one (same as `trak sessions show 42`)
+trak sessions show       # Pick one in the list, then show it
+trak sessions edit [ID]  # Edit one in a menu of its fields
+```
+
+Swap `sessions` with `projects` or `customers`.
+
+Filter the lists with options:
+
+```bash
+trak sessions list --project pasta --from 2026-10-01 --to 2026-10-14
+trak sessions list --customer acme --date 2026-10-14
+trak projects list --customer acme --archived
+trak customers list --name ac
+```
+
+Add `--plain` to print one page instead of opening the browser
+(`--page` and `--per-page` pick which one).
+
+Create projects and customers:
+
+```bash
+trak customers create acme
+trak projects create pasta --customer acme --rate 50 --description "The website"
+
+# Without a name, trak asks for every field
+trak projects create
+```
+
+### Vim keys
+
+Every interactive screen feels like vim:
+
+- Lists: `j`/`k` move, `g`/`G` go to the first/last row, `h`/`l` change page,
+  `/` searches, Enter picks, `q` quits and `?` shows every shortcut.
+- Filterable menus start in insert mode (typing filters); Esc switches to
+  normal mode, `i` resumes the filter.
+- Text inputs: Esc goes back without changes, Ctrl-u clears, Ctrl-w deletes a word.
+
+## Where your data lives
+
+trak follows XDG (`$XDG_DATA_HOME` and `$XDG_CONFIG_HOME` override the defaults):
+
+- Database: `~/.local/share/trak/db.sqlite3`
+- Settings: `~/.config/trak/settings.toml`
+
+The database is upgraded automatically when you install a new version.
 
 ## Starship
+
+> `trak status` is being rewritten in 0.0.6: this integration will come back with it.
 
 There is a dedicated command that outputs clean strings for tools like Starship:
 
@@ -135,13 +192,37 @@ Every version has its own dedicated branch.
 For example: `0.0.6`.
 All the changes done during this version development time will go into this branch.
 
+### Development setup
+
+trak needs Python 3.11+ and uses [uv](https://docs.astral.sh/uv/).
+
+```bash
+# Install the dependencies
+uv sync
+
+# Run the CLI
+uv run trak [command]
+
+# Use the development database instead of the real one
+TRAK_DEV=1 uv run trak [command]
+
+# Run the tests
+uv run pytest
+```
+
+Development mode can also be turned on with `development = true` (or `TRAK_DEV = true`) in
+`settings.toml`; `TRAK_DEV=0` turns it off for one command.
+
+Every new feature or bug fix comes with tests in `tests/`.
+Changing a model? Append a migration to `trak/db/migrations.py`.
+
 ### Steps
 
-- Keep an issue from the Issues
-  - If it doesn't exit create one
+- Pick an issue from the Issues
+  - If it doesn't exist create one
 - Create a branch starting from the next version branch
   - The name of the issue should be `issue-<ISSUE NUMBER>`
-- Do you magic 🪄 🐇
+- Do your magic 🪄 🐇
 - Once you finish create a pull request to the next version branch
   - In the description add `Closes #<ISSUE NUMBER>`
 - The maintainer will do a review of the changes

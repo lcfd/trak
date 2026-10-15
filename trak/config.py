@@ -1,5 +1,6 @@
 """Configuration file for settings that user can't change."""
 
+import os
 from pathlib import Path
 
 # Metadata
@@ -10,10 +11,21 @@ GIT_REPOSITORY = "https://github.com/lcfd/trak"
 DOCS = "https://docs.usetrak.com"
 
 # Paths
-TRAK_FOLDER = Path.home() / ".config/trak"
-DB_PATH = TRAK_FOLDER / "db.sqlite3"
-DB_DEV_PATH = TRAK_FOLDER / "dev_db.sqlite3"
-SETTINGS_FILE_PATH = TRAK_FOLDER / "settings.toml"
+# Follow the XDG Base Directory spec: settings in ~/.config, data in ~/.local/share.
+CONFIG_FOLDER = (
+    Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / APP_NAME
+)
+DATA_FOLDER = (
+    Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / APP_NAME
+)
+DB_PATH = DATA_FOLDER / "db.sqlite3"
+DB_DEV_PATH = DATA_FOLDER / "dev_db.sqlite3"
+SETTINGS_FILE_PATH = CONFIG_FOLDER / "settings.toml"
+
+# Development mode
+# Enabled with `TRAK_DEV=1` or `development = true` in settings.toml.
+# The environment variable wins, so `TRAK_DEV=0` disables it for one command.
+DEV_ENV_VAR = "TRAK_DEV"
 
 
 # DB_FILE_PATH = TRAK_FOLDER / "db.json"

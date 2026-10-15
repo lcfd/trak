@@ -8,9 +8,10 @@ authors = [
 readme = "README.md"
 keywords = ["cli", "timetraker", "time", "traker", "tool"]
 dependencies = [
-    "rich-toolkit>=0.11.0",
-    "sqlmodel>=0.0.27",
-    "typer>=0.19",
+    "rich-toolkit>=0.20",
+    "sqlalchemy>=2.0",
+    "sqlmodel>=0.0.48",
+    "typer>=0.27",
 ]
 requires-python = ">=3.11"
 
@@ -26,7 +27,7 @@ Docs = "https://docs.usetrak.com"
 trak = "trak.__main__:app"
 
 [dependency-groups]
-dev = ["ruff", "pytest>=8.4", "pdbpp>=0.11"]
+dev = ["ruff>=0.17", "pytest>=9.1", "pdbpp>=0.12"]
 
 [build-system]
 requires = ["hatchling"]
@@ -34,3 +35,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["trak"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
