@@ -21,7 +21,6 @@ trak/
 ├── base_messages.py     # Rich UI helpers (print_error, print_success, print_info, print_warning)
 ├── output.py            # --json: JSON mode, emit(), errors on stderr, the option on every command
 ├── dates.py             # Days typed by the user (YYYY-MM-DD, today, tomorrow, +N)
-├── ui.py                # Additional UI utilities
 ├── dev_bar.py           # Green bar on top of every screen in dev mode; dev_bar.clear() clears keeping it
 ├── main/
 │   ├── routes.py        # Main callback - settings, dev mode, DB engine, migrations
@@ -46,8 +45,7 @@ trak/
 ├── projects/            # models, services, listing (`list`), commands (create/show/edit/report),
 │                        # report.py (ranges, per-day time, bar chart, the report screen)
 ├── customers/           # models, services, listing (`list`), commands (create/show/edit)
-├── goals/               # models, services (progress), display (menu reminder), listing, commands
-└── _OLD/                # Previous implementation (reference only)
+└── goals/               # models, services (progress), display (menu reminder), listing, commands
 tests/                   # pytest suite (conftest isolates paths and DBs in tmp_path)
 ```
 
@@ -135,7 +133,7 @@ adds it to every command and group, so new commands get it for free, and
 
 ## CLI Commands (To Implement)
 
-**Bare `trak`:** logo + upcoming goals (progress, days left) + a filterable menu of every command plus a `help` entry (`trak/main/menu.py`); without a TTY it prints the help; with `--json`, the overview (`main/overview.py`).
+**Bare `trak`:** logo + running sessions (`print_running`) + upcoming goals (progress, days left) + a filterable menu of every command plus a `help` entry (`trak/main/menu.py`); without a TTY it prints the help; with `--json`, the overview (`main/overview.py`).
 The filter ranks abbreviations first (`command_score`): "sl" → sessions list, "se" → sessions edit, "pc" → projects create.
 
 **Quick usage:**

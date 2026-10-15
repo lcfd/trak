@@ -11,6 +11,7 @@ from trak import config
 from trak.goals.display import print_reminder
 from trak.prompts import PromptCancelled
 from trak.sessions import commands
+from trak.sessions.display import print_running
 from trak.sessions.guided import Prompter
 
 LOGO = r"""
@@ -146,8 +147,8 @@ def invoke_with_defaults(
 
 def run_menu(ctx: typer.Context) -> None:
     """
-    Let the user pick a command and run it with its defaults. The upcoming
-    goals are shown above it, as a reminder.
+    Let the user pick a command and run it with its defaults. The running
+    sessions and the upcoming goals are shown above it, as a reminder.
 
     Without a terminal it prints the help instead. Going back, or picking
     quit, exits quietly.
@@ -163,6 +164,7 @@ def run_menu(ctx: typer.Context) -> None:
     console = Console()
     print_logo(console)
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
+        print_running(console, db)
         print_reminder(console, db)
 
     try:

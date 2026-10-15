@@ -36,5 +36,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["trak"]
 
+[tool.hatch.build.targets.sdist]
+include = ["trak", "tests", "README.md", "LICENSE"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

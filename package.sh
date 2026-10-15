@@ -1,2 +1,6 @@
-rm dist.tar.gz
-tar --exclude=".venv" --exclude="dist" --exclude=".mypy_cache" --exclude=".pytest_cache" --exclude="**/__pycache__" -czvf dist.tar.gz cli
+#!/bin/sh
+# Build the source archive (dist/trakcli-<version>.tar.gz) for the Homebrew formula.
+set -e
+cd "$(dirname "$0")"
+rm -rf dist
+uv build --sdist

@@ -17,7 +17,6 @@ from trak import output
 # from trak.delete import app as delete_app
 # from trak.dev.commands import app as dev_app
 # from trak.edit import app as edit_app
-# from trak._OLD.initialize import initialize_trak
 # from trak.report import app as report_app
 # from trak.tracker.commands.get_current_session_status import (
 #     command_status,

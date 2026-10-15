@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlmodel import select
@@ -6,10 +7,13 @@ from typer.testing import CliRunner
 
 from tests.fakes import FakePrompter
 from trak import browser, config
+from trak.goals.models import Goal
 from trak.main.menu import LOGO, command_score
+from trak.projects.models import Project
 from trak.prompts import PromptCancelled
 from trak.sessions import commands
 from trak.sessions.models import Session
+from trak.sessions.services import start_session, stop_session
 from trak.typer_app import app
 
 runner = CliRunner()
@@ -199,3 +203,36 @@ def test_menu_ranks_with_command_score(prompter, monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert seen["best"] == ["sessions", "edit"]
+
+
+def test_menu_shows_the_running_sessions_above_the_goals(prompter, cli_db):
+    website = Project(name="website")
+    cli_db.add(website)
+    cli_db.commit()
+    today = datetime.now().date()
+    cli_db.add(
+        Goal(project_fk=website.id, hours=10, start=today, deadline=today, name="Ship")
+    )
+    start = datetime.now(UTC) - timedelta(hours=2, minutes=5)
+    running = start_session(cli_db, project_fk=website.id, name="Design", start=start)
+    stopped = start_session(cli_db, name="Done")
+    stop_session(cli_db, stopped)
+    cli_db.commit()
+    prompter(PromptCancelled())
+
+    result = runner.invoke(app, [])
+
+    assert result.exit_code == 0, result.output
+    assert "Running sessions (1)" in result.output
+    assert "Design · website" in result.output and "2h 5m" in result.output
+    assert f"#{running.id}" in result.output and "Done" not in result.output
+    assert result.output.index("Running sessions") < result.output.index("Goals")
+
+
+def test_menu_without_running_sessions_shows_no_section(prompter):
+    prompter(PromptCancelled())
+
+    result = runner.invoke(app, [])
+
+    assert result.exit_code == 0
+    assert "Running sessions" not in result.output

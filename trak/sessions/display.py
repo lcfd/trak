@@ -1,13 +1,17 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from rich.console import Console
 from rich.markup import escape
+from rich.padding import Padding
+from rich.table import Table
 from sqlmodel import Session as DBSession
 
 from trak import output
 from trak.customers.models import Customer
 from trak.projects.models import Project
 from trak.sessions.models import Category, Session, Tag
+from trak.sessions.services import get_active_sessions
 
 
 def format_duration(duration: timedelta) -> str:
@@ -220,3 +224,30 @@ def created_text(db: DBSession, session: Session) -> str:
     )
     lines += ["", f'[dim]Change it with "trak sessions edit {session.id}".[/dim]']
     return "\n".join(lines)
+
+
+def print_running(console: Console, db: DBSession, now: datetime | None = None) -> None:
+    """
+    The running Sessions above the menu of `trak`, oldest first, one per line;
+    nothing if there are none:
+
+        website · ACME     since 09:12 · 2h 30m · #12
+    """
+
+    now = now or datetime.now(UTC)
+    sessions = get_active_sessions(db)
+    if not sessions:
+        return
+
+    console.print(f"[bold]⏱️  Running sessions[/bold] [dim]({len(sessions)})[/dim]\n")
+    table = Table.grid(padding=(0, 3))
+    table.add_column()
+    table.add_column()
+    for session in sessions:
+        table.add_row(
+            f"[bold green]{escape(describe_session(db, session))}[/bold green]",
+            f"[dim]since[/dim] {format_start(session.start, now)} [dim]·[/dim] "
+            f"[bold]{format_duration(elapsed(session, now))}[/bold] "
+            f"[dim]· #{session.id}[/dim]",
+        )
+    console.print(Padding(table, (0, 0, 1, 2)))
