@@ -7,10 +7,10 @@ from rich.markup import escape
 from sqlmodel import Session as DBSession
 from sqlmodel import select
 
-from trak import entities, forms
-from trak.base_messages import print_error, print_info, print_success
+from trak import entities, forms, output
+from trak.base_messages import print_error, print_success
 from trak.customers import listing
-from trak.customers.listing import CustomerFilters
+from trak.customers.listing import CustomerFilters, customer_json
 from trak.customers.models import Customer
 from trak.customers.services import check_customer, create_customer, update_customer
 from trak.projects.models import Project
@@ -64,6 +64,7 @@ def create_command(
             print_error(title="Can't create the customer", text=str(e))
             raise typer.Exit(1)
 
+        output.emit(customer_json(db, customer))
         print_success(
             title="✨ Create",
             text=f"Customer #{customer.id} {customer_label(customer)} created.",
@@ -116,6 +117,7 @@ def show_command(ctx: typer.Context, customer_id: IdArgument = None) -> None:
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         customer = get_or_pick(db, customer_id, "show")
+        output.emit(customer_json(db, customer))
         totals = session_totals(db, customer_fk=customer.id)
         projects = project_names(db, customer)
         entities.print_details(
@@ -153,31 +155,35 @@ def ask_edits(db: DBSession, prompter: Prompter, customer: Customer) -> dict[str
     )
 
 
-def edit_command(ctx: typer.Context, customer_id: IdArgument = None) -> None:
+def edit_command(
+    ctx: typer.Context,
+    customer_id: IdArgument = None,
+    name: Annotated[str | None, typer.Option("--name", "-n", help="The name.")] = None,
+) -> None:
     """
-    Edit a customer's name.
+    Edit a customer's name. With --name, saves it right away; without, opens
+    the form (terminal).
     """
 
-    entities.require_terminal("Editing")
+    if name is None:
+        entities.require_terminal("Editing without options")
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         customer = get_or_pick(db, customer_id, "edit")
-        changes = commands.run_prompts(
-            lambda prompter: ask_edits(db, prompter, customer),
-            cancelled="No changes were saved.",
-        )
+        if name is not None:
+            changes = forms.effective_changes(customer, {"name": name.strip()})
+        else:
+            changes = commands.run_prompts(
+                lambda prompter: ask_edits(db, prompter, customer),
+                cancelled="No changes were saved.",
+            )
 
-        if not changes:
-            print_info(title="Nothing changed", text=customer_label(customer))
-            return
-
-        try:
-            customer = update_customer(db, customer, **changes)
-        except ValueError as e:
-            print_error(title="Can't save the customer", text=str(e))
-            raise typer.Exit(1)
-
-        print_success(
-            title="✏️  Edit",
-            text=f"Customer #{customer.id} {customer_label(customer)} saved.",
+        entities.save_changes(
+            db,
+            customer,
+            changes,
+            update=update_customer,
+            noun="customer",
+            label=customer_label,
+            to_json=lambda c: customer_json(db, c),
         )

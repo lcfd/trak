@@ -10,6 +10,9 @@ Every day of the range has its bar, even an empty one, so skipped days show;
 "this month" and "this week" run to their last day, with the days still to
 come on a dotted axis.
 
+"Since the start" runs from the project's start (or its first session, if
+earlier) to its end, when that's still to come.
+
 Sessions are split at local midnight, so a session from 23:00 to 01:00 counts
 one hour on each day; running ones count until now.
 """
@@ -18,7 +21,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from math import ceil
-from typing import Literal
+from typing import Any, Literal
 
 from rich import get_console
 from rich.console import Console, Group, RenderableType
@@ -28,6 +31,8 @@ from sqlmodel import Session as DBSession
 from sqlmodel import select
 
 from trak import browser, dev_bar
+from trak.output import seconds
+from trak.projects.listing import format_dates
 from trak.projects.models import Project
 from trak.prompts import ESC, split_escape
 from trak.sessions.display import format_duration
@@ -69,8 +74,11 @@ def months_before(day: date, months: int) -> date:
     raise AssertionError("unreachable")
 
 
-def all_ranges(first: date, today: date) -> list[Range]:
-    """Every range, from the longest; `first` is the day of the first session."""
+def all_ranges(first: date, today: date, last: date | None = None) -> list[Range]:
+    """
+    Every range, from the longest. `first` is the project's first day (its
+    start or its first session); `last` is its end, if any.
+    """
 
     monday = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
@@ -81,7 +89,13 @@ def all_ranges(first: date, today: date) -> list[Range]:
         return months_before(today, months) + timedelta(days=1)
 
     return [
-        Range("all", "Since the start", "All", min(first, today), today),
+        Range(
+            "all",
+            "Since the start",
+            "All",
+            min(first, today),
+            max(last, today) if last else today,
+        ),
         Range("year", "Last year", "1y", trailing(12), today),
         Range("6m", "Last 6 months", "6m", trailing(6), today),
         Range("3m", "Last 3 months", "3m", trailing(3), today),
@@ -108,15 +122,15 @@ def all_ranges(first: date, today: date) -> list[Range]:
 RANGE_KEYS = [r.key for r in all_ranges(date(2000, 1, 1), date(2000, 1, 1))]
 
 
-def report_ranges(first: date, today: date) -> list[Range]:
+def report_ranges(first: date, today: date, last: date | None = None) -> list[Range]:
     """
-    The ranges worth showing: not the ones ending before the first session
+    The ranges worth showing: not the ones ending before the first day
     (they'd be empty), nor the ones ending today that start on or before it
     (they'd be the same as "Since the start"). "This week" and "this month"
     end later, so they're always worth it: they show the days left.
     """
 
-    since_start, *others = all_ranges(first, today)
+    since_start, *others = all_ranges(first, today, last)
     useful = [
         r
         for r in others
@@ -460,8 +474,10 @@ def screen(
     interactive: bool = True,
 ) -> Group:
     r = report.range
+    dates = format_dates(report.project)
     parts: list[RenderableType] = [
-        f"[bold]Report · [green]{escape(report.project.name)}[/green][/bold]",
+        f"[bold]Report · [green]{escape(report.project.name)}[/green][/bold]"
+        + (f" [dim]· {dates}[/dim]" if dates else ""),
         "",
         tabs(ranges, current, width),
         "",
@@ -503,10 +519,56 @@ def render(
     return screen(report, ranges, current, width, height, interactive)
 
 
-def today_and_ranges(sessions: list[Session], now: datetime) -> list[Range]:
+def first_day(project: Project, sessions: list[Session], today: date) -> date:
+    """The project's start or its first session, whichever comes first."""
+
+    days = [sessions[0].start.astimezone().date()] if sessions else []
+    if project.start:
+        days.append(project.start)
+    return min(days, default=today)
+
+
+def project_ranges(
+    project: Project, sessions: list[Session], now: datetime
+) -> list[Range]:
     today = now.astimezone().date()
-    first = sessions[0].start.astimezone().date() if sessions else today
-    return report_ranges(first, today)
+    return report_ranges(first_day(project, sessions, today), today, project.end)
+
+
+def report_json(
+    db: DBSession, project: Project, key: str | None = None, now: datetime | None = None
+) -> dict[str, Any]:
+    """
+    The report for `--json`: the range `key` (since the start by default),
+    the time tracked on each of its days, and the totals. Unlike the screen,
+    every range can be asked for, and the days are never grouped.
+    """
+
+    now = now or datetime.now(UTC)
+    today = now.astimezone().date()
+    sessions = load_sessions(db, project)
+    ranges = all_ranges(first_day(project, sessions, today), today, project.end)
+    r = next((r for r in ranges if r.key == key), ranges[0])
+    # As wide as needed for a bar per day.
+    report = build_report(project, sessions, r, width=r.days * MIN_COLUMN, now=now)
+    return {
+        "project": {"id": project.id, "name": project.name},
+        "range": {"key": r.key, "label": r.label, "start": r.start, "end": r.end},
+        "ranges": [r.key for r in project_ranges(project, sessions, now)],
+        "days": [
+            {"date": bucket.start, "tracked_seconds": seconds(bucket.time)}
+            for bucket in report.buckets
+        ],
+        "tracked_seconds": seconds(report.total),
+        "sessions": report.sessions,
+        "days_worked": report.days_worked,
+        "running": report.running,
+        "earned": (
+            round(report.total.total_seconds() / 3600 * project.rate, 2)
+            if project.rate
+            else None
+        ),
+    }
 
 
 def start_index(ranges: list[Range], key: str | None) -> int:
@@ -523,7 +585,7 @@ def print_report(
 
     now = now or datetime.now(UTC)
     sessions = load_sessions(db, project)
-    ranges = today_and_ranges(sessions, now)
+    ranges = project_ranges(project, sessions, now)
     console = get_console()
     console.print(
         render(
@@ -571,7 +633,7 @@ def show(
     pressed = keys()
     sessions = load_sessions(db, project)
     moment = now()
-    ranges = today_and_ranges(sessions, moment)
+    ranges = project_ranges(project, sessions, moment)
     current = start_index(ranges, key)
 
     console.show_cursor(False)
@@ -615,7 +677,7 @@ def show(
                 db.expire_all()
                 sessions = load_sessions(db, project)
                 moment = now()
-                ranges = today_and_ranges(sessions, moment)
+                ranges = project_ranges(project, sessions, moment)
                 current = start_index(ranges, selected)
     finally:
         console.show_cursor(True)

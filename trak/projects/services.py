@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any
 
 from sqlmodel import Session as DBSession
@@ -5,7 +6,15 @@ from sqlmodel import col, func, select
 
 from trak.projects.models import Project
 
-EDITABLE_FIELDS = {"name", "customer_fk", "description", "rate", "archived"}
+EDITABLE_FIELDS = {
+    "name",
+    "customer_fk",
+    "description",
+    "rate",
+    "archived",
+    "start",
+    "end",
+}
 
 
 def get_projects(
@@ -21,15 +30,28 @@ def get_projects(
     return list(db.exec(statement))
 
 
+def check_dates(start: date | None, end: date | None) -> None:
+    """Raise ValueError if a project can't run from `start` to `end`."""
+
+    if start is not None and end is not None and end < start:
+        raise ValueError("A project's end can't come before its start.")
+
+
 def check_project(
-    db: DBSession, name: str, rate: int, project_id: int | None = None
+    db: DBSession,
+    name: str,
+    rate: int,
+    project_id: int | None = None,
+    start: date | None = None,
+    end: date | None = None,
 ) -> None:
-    """Raise ValueError if a project can't have this name and rate."""
+    """Raise ValueError if a project can't have this name, rate and days."""
 
     if not name:
         raise ValueError("A project needs a name.")
     if rate < 0:
         raise ValueError("The rate can't be negative.")
+    check_dates(start, end)
     if any(p.id != project_id for p in get_projects(db, name=name, archived=True)):
         raise ValueError(f'There\'s already a project called "{name}".')
 
@@ -41,14 +63,18 @@ def create_project(
     customer_fk: int | None = None,
     description: str = "",
     rate: int = 0,
+    start: date | None = None,
+    end: date | None = None,
 ) -> Project:
     name = name.strip()
-    check_project(db, name, rate)
+    check_project(db, name, rate, start=start, end=end)
     project = Project(
         name=name,
         customer_fk=customer_fk,
         description=description.strip(),
         rate=rate,
+        start=start,
+        end=end,
     )
     db.add(project)
     db.commit()
@@ -69,6 +95,8 @@ def update_project(db: DBSession, project: Project, **changes: Any) -> Project:
         changes.get("name", project.name),
         changes.get("rate", project.rate),
         project_id=project.id,
+        start=changes.get("start", project.start),
+        end=changes.get("end", project.end),
     )
 
     for field, value in changes.items():

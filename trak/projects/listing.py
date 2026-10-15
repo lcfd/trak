@@ -2,14 +2,14 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.markup import escape
 from rich.table import Table
 from sqlmodel import Session as DBSession
 
-from trak import browser, entities
+from trak import browser, entities, output
 from trak.customers.models import Customer
 from trak.projects.models import Project
 from trak.projects.services import list_projects
@@ -58,6 +58,32 @@ def format_rate(rate: int) -> str:
     return f"{rate}/h" if rate else ""
 
 
+def format_dates(project: Project) -> str:
+    """ "2026-10-01 → 2026-12-31", "from 2026-10-01", "until 2026-12-31"."""
+
+    if project.start and project.end:
+        return f"{project.start} → {project.end}"
+    if project.start:
+        return f"from {project.start}"
+    if project.end:
+        return f"until {project.end}"
+    return ""
+
+
+def project_json(db: DBSession, project: Project) -> dict[str, Any]:
+    """The Project for `--json`: its fields, its customer and the time tracked."""
+
+    customer = db.get(Customer, project.customer_fk) if project.customer_fk else None
+    totals = session_totals(db, project_fk=project.id)
+    return {
+        **output.fields(project),
+        "customer": customer.name if customer else None,
+        "sessions": totals.sessions,
+        "tracked_seconds": output.seconds(totals.time),
+        "last_session": totals.last,
+    }
+
+
 def build_table(
     db: DBSession, projects: list[Project], cursor: int | None = None
 ) -> Table:
@@ -68,6 +94,7 @@ def build_table(
     table.add_column("Name", style="green")
     table.add_column("Customer")
     table.add_column("Rate", justify="right")
+    table.add_column("Dates", no_wrap=True)
     table.add_column("Sessions", justify="right")
     table.add_column("Time", justify="right")
     table.add_column("Status")
@@ -82,6 +109,7 @@ def build_table(
             escape(project.name),
             escape(customer_name(customer)) if customer else "",
             format_rate(project.rate),
+            format_dates(project),
             str(totals.sessions),
             format_duration(totals.time),
             "[dim]archived[/dim]" if project.archived else "",
@@ -111,6 +139,7 @@ def project_listing(db: DBSession) -> browser.Listing[Project, ProjectFilters]:
         noun="project",
         query=lambda filters: query(db, filters),
         table=lambda projects, cursor: build_table(db, projects, cursor),
+        to_json=lambda project: project_json(db, project),
         filter_shortcuts=FILTER_SHORTCUTS,
         ask_filter=lambda prompter, filters, action: ask_filter(
             db, prompter, filters, action

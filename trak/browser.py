@@ -9,7 +9,7 @@ When picking, j/k move a highlighted row across pages and Enter returns it.
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, replace
 from math import ceil
-from typing import Generic, Protocol, TypeVar
+from typing import Any, Generic, Protocol, TypeVar
 
 import typer
 from rich import get_console, print
@@ -20,7 +20,7 @@ from rich.style import Style
 from rich.table import Table
 from rich_toolkit._getchar import getchar as rich_toolkit_getchar
 
-from trak import dev_bar
+from trak import dev_bar, output
 from trak.base_messages import print_error, print_info
 from trak.prompts import ESC, PromptCancelled, split_escape
 from trak.sessions.guided import Prompter
@@ -80,6 +80,8 @@ class Listing(Generic[R, F]):
     query: Callable[[F], tuple[list[R], int]]
     # The table of a page; the row at the cursor, if any, is highlighted.
     table: Callable[[list[R], int | None], Table]
+    # A row for `--json`.
+    to_json: Callable[[R], dict[str, Any]]
     # Shortcuts whose action is a filter, asked with `ask_filter`.
     filter_shortcuts: list[Shortcut]
     # Ask the user for the filter of `action`; may raise PromptCancelled.
@@ -120,7 +122,31 @@ def filter_bar(filters: Filters) -> str:
 
 
 def print_page(listing: Listing[R, F], filters: F) -> None:
+    """
+    Print one page. In JSON mode: {"items", "total", "page", "pages",
+    "per_page"}; an empty result is fine, a page past the last isn't.
+    """
+
     rows, total = listing.query(filters)
+    pages = count_pages(total, filters.per_page)
+
+    if output.json_mode():
+        if total and not rows:
+            print_error(
+                title="This page doesn't exist",
+                text=f"There are {pages} pages of {listing.plural}.",
+            )
+            raise typer.Exit(1)
+        output.emit(
+            {
+                "items": [listing.to_json(row) for row in rows],
+                "total": total,
+                "page": filters.page,
+                "pages": pages,
+                "per_page": filters.per_page,
+            }
+        )
+        return
 
     if not total:
         print_info(
@@ -129,7 +155,6 @@ def print_page(listing: Listing[R, F], filters: F) -> None:
         )
         return
 
-    pages = count_pages(total, filters.per_page)
     if not rows:
         print_error(
             title="This page doesn't exist",

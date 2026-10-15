@@ -78,6 +78,42 @@ def test_all_ranges():
     }
 
 
+def test_since_the_start_runs_to_an_end_still_to_come():
+    ranges = by_key(all_ranges(date(2024, 5, 1), TODAY, date(2026, 12, 31)))
+
+    assert ranges["all"] == (date(2024, 5, 1), date(2026, 12, 31))
+    # An end already past doesn't cut the range: sessions can come after it.
+    ranges = by_key(all_ranges(date(2024, 5, 1), TODAY, date(2025, 1, 1)))
+    assert ranges["all"] == (date(2024, 5, 1), TODAY)
+
+
+def test_project_ranges_start_at_the_project_start(db):
+    project = add(db, Project(name="website", start=date(2026, 9, 1)))
+    track(db, project, at(date(2026, 10, 6), 9), 1)
+
+    [since_start, *_] = report.project_ranges(
+        project, report.load_sessions(db, project), NOW
+    )
+
+    assert (since_start.start, since_start.end) == (date(2026, 9, 1), TODAY)
+
+
+def test_project_ranges_start_at_a_session_before_the_project_start(db):
+    project = add(
+        db, Project(name="website", start=date(2026, 10, 1), end=date(2026, 11, 30))
+    )
+    track(db, project, at(date(2026, 9, 20), 9), 1)
+
+    [since_start, *_] = report.project_ranges(
+        project, report.load_sessions(db, project), NOW
+    )
+
+    assert (since_start.start, since_start.end) == (
+        date(2026, 9, 20),
+        date(2026, 11, 30),
+    )
+
+
 def test_ranges_are_only_the_ones_that_make_sense():
     # Started on Tue 6 Oct: older ranges would all be "Since the start".
     keys_ = [r.key for r in report_ranges(date(2026, 10, 6), TODAY)]
@@ -209,6 +245,20 @@ def test_report_shows_every_day_of_the_range(cli_db, monkeypatch):
     solid, dotted = line.count("─"), line.count("┈")
     assert line == "─" * solid + "┈" * dotted
     assert solid * 4 == dotted * 3
+
+
+def test_report_runs_to_the_project_end(cli_db, monkeypatch):
+    monkeypatch.setattr(report, "datetime", FrozenNow)
+    add(
+        cli_db,
+        Project(name="website", start=date(2026, 10, 1), end=date(2026, 10, 31)),
+    )
+
+    result = runner.invoke(app, ["projects", "report", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert "website · 2026-10-01 → 2026-10-31" in result.output
+    assert "Thu 01 Oct 2026 → Sat 31 Oct 2026" in result.output
 
 
 def test_report_draws_the_chart_even_when_nothing_is_tracked(cli_db, monkeypatch):

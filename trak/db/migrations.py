@@ -103,10 +103,16 @@ def _0003_goal(conn: Connection) -> None:
     """)
 
 
+def _0004_project_dates(conn: Connection) -> None:
+    conn.exec_driver_sql("ALTER TABLE project ADD COLUMN start DATE")
+    conn.exec_driver_sql('ALTER TABLE project ADD COLUMN "end" DATE')
+
+
 MIGRATIONS: list[Callable[[Connection], None]] = [
     _0001_initial,
     _0002_session_name,
     _0003_goal,
+    _0004_project_dates,
 ]
 
 LATEST_VERSION = len(MIGRATIONS)

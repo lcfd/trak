@@ -16,7 +16,12 @@ from trak.customers.services import get_customers
 from trak.projects.models import Project
 from trak.projects.services import get_projects
 from trak.sessions import commands
-from trak.sessions.display import elapsed, format_duration, session_customer
+from trak.sessions.display import (
+    elapsed,
+    format_duration,
+    session_customer,
+    session_json,
+)
 from trak.sessions.guided import Prompter, input_validator
 from trak.sessions.models import Session
 from trak.sessions.services import list_sessions, local_midnight
@@ -247,6 +252,7 @@ def session_listing(db: DBSession) -> browser.Listing[Session, ListFilters]:
         noun="session",
         query=lambda filters: query(db, filters),
         table=lambda sessions, cursor: build_table(db, sessions, cursor),
+        to_json=lambda session: session_json(db, session),
         filter_shortcuts=FILTER_SHORTCUTS,
         ask_filter=lambda prompter, filters, action: ask_filter(
             db, prompter, filters, action

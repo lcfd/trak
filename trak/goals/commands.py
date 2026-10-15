@@ -1,18 +1,20 @@
 """`trak goals create|show|edit`."""
 
-from datetime import date, timedelta
+from datetime import date
 from typing import Annotated, Any
 
 import typer
 from rich_toolkit.menu import Option
 from sqlmodel import Session as DBSession
 
-from trak import entities, forms
-from trak.base_messages import print_error, print_info, print_success, print_warning
+from trak import entities, forms, output
+from trak.base_messages import print_error, print_success, print_warning
+from trak.dates import DATE_PLACEHOLDER, parse_date
 from trak.goals import listing
 from trak.goals.display import (
     days_text,
     format_day,
+    goal_json,
     goal_label,
     to_go_text,
     tracked_text,
@@ -32,34 +34,12 @@ from trak.sessions import commands
 from trak.sessions.editing import row_name
 from trak.sessions.guided import Prompter, input_validator
 
-DATE_PLACEHOLDER = 'YYYY-MM-DD, "today", "tomorrow" or "+N" (in N days)'
-
 
 def parse_hours(value: str) -> int:
     value = value.strip()
     if not value.isdigit() or int(value) == 0:
         raise ValueError("the hours must be a whole number, 1 or more")
     return int(value)
-
-
-def parse_date(value: str, on: date | None = None) -> date:
-    """
-    A day typed by the user: "YYYY-MM-DD", "today", "tomorrow", or "+N" for
-    N days from `on` (today).
-    """
-
-    value = value.strip().lower()
-    on = on or today()
-    if value == "today":
-        return on
-    if value == "tomorrow":
-        return on + timedelta(days=1)
-    if value.startswith("+") and value[1:].isdigit():
-        return on + timedelta(days=int(value[1:]))
-    try:
-        return date.fromisoformat(value)
-    except ValueError:
-        raise ValueError(f"use {DATE_PLACEHOLDER}") from None
 
 
 def parse_start(value: str) -> date:
@@ -99,29 +79,50 @@ def pick_project(
 
 
 def ask_new_goal(
-    db: DBSession, prompter: Prompter, project: Project | None = None
+    db: DBSession,
+    prompter: Prompter,
+    project: Project | None = None,
+    defaults: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Ask for every field of a new Goal. None means the user gave up."""
+    """
+    Ask for every field of a new Goal, with `defaults` (from the flags)
+    already filled in. None means the user gave up.
+    """
 
+    defaults = defaults or {}
     fields: dict[str, Any] = {}
     if project is None:
         fields["project_fk"] = pick_project(prompter, get_projects(db))
+        project = db.get(Project, fields["project_fk"])
+        assert project is not None
     else:
         fields["project_fk"] = project.id
-    fields["name"] = prompter.input("Name", placeholder="optional, e.g. Launch").strip()
+    fields["name"] = prompter.input(
+        "Name", default=defaults.get("name", ""), placeholder="optional, e.g. Launch"
+    ).strip()
+    hours = defaults.get("hours")
     fields["hours"] = parse_hours(
-        prompter.input("Hours", placeholder="e.g. 40", validator=hours_validator)
+        prompter.input(
+            "Hours",
+            default=str(hours) if hours else "",
+            placeholder="e.g. 40",
+            validator=hours_validator,
+        )
     )
+    start = defaults.get("start")
     fields["start"] = parse_start(
         prompter.input(
             "From",
+            default=str(start) if start else "",
             placeholder=f"{DATE_PLACEHOLDER}; empty for today",
             validator=start_validator,
         )
     )
+    # The project's end is the natural deadline.
     fields["deadline"] = parse_date(
         prompter.input(
             "Deadline",
+            value=str(defaults.get("deadline") or project.end or ""),
             placeholder=DATE_PLACEHOLDER,
             validator=deadline_validator(fields["start"]),
         )
@@ -148,7 +149,10 @@ def create_command(
     deadline: Annotated[
         str | None,
         typer.Option(
-            "--by", "-b", metavar="DATE", help=f"The deadline: {DATE_PLACEHOLDER}."
+            "--by",
+            "-b",
+            metavar="DATE",
+            help=f"The deadline: {DATE_PLACEHOLDER}. The project's end if not given.",
         ),
     ] = None,
     start: Annotated[
@@ -165,8 +169,9 @@ def create_command(
     ] = "",
 ) -> None:
     """
-    Create a goal: hours to track on a project by a deadline. Without a
-    project, asks for every field.
+    Create a goal: hours to track on a project by a deadline. Without the
+    project, the hours or the deadline, asks for every field (in a terminal),
+    starting from the options.
     """
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
@@ -180,20 +185,35 @@ def create_command(
             )
             raise typer.Exit(1)
 
-        if project_name is None:
-            entities.require_terminal("Creating a goal without a project")
-            fields = commands.run_prompts(
-                lambda prompter: ask_new_goal(db, prompter),
-                cancelled="No goal was created.",
-            )
-            if fields is None:
-                print_warning(title="Cancelled", text="No goal was created.")
-                raise typer.Exit(1)
-        else:
+        project = None
+        if project_name is not None:
             project = commands.find_project(db, project_name)
             if project is None:
                 raise typer.Exit(1)
-            if hours is None or deadline is None:
+
+        try:
+            defaults: dict[str, Any] = {
+                "name": name,
+                "hours": hours,
+                "start": parse_date(start) if start is not None else None,
+                # The project's end is the natural deadline.
+                "deadline": (
+                    parse_date(deadline)
+                    if deadline is not None
+                    else project.end
+                    if project
+                    else None
+                ),
+            }
+        except ValueError as e:
+            commands.fail("Can't create the goal", e)
+
+        if project is not None and hours is not None and defaults["deadline"]:
+            fields = {"project_fk": project.id, **defaults}
+        else:
+            if project is None:
+                entities.require_terminal("Creating a goal without a project")
+            elif not commands.is_interactive():
                 print_error(
                     title="Can't create the goal",
                     text=(
@@ -202,28 +222,20 @@ def create_command(
                     ),
                 )
                 raise typer.Exit(1)
-            try:
-                fields = {
-                    "project_fk": project.id,
-                    "name": name,
-                    "hours": hours,
-                    "deadline": parse_date(deadline),
-                    "start": parse_date(start) if start is not None else None,
-                }
-            except ValueError as e:
-                message = str(e)
-                print_error(
-                    title="Can't create the goal",
-                    text=message[:1].upper() + message[1:],
-                )
+            fields = commands.run_prompts(
+                lambda prompter: ask_new_goal(db, prompter, project, defaults),
+                cancelled="No goal was created.",
+            )
+            if fields is None:
+                print_warning(title="Cancelled", text="No goal was created.")
                 raise typer.Exit(1)
 
         try:
             goal = create_goal(db, **fields)
         except ValueError as e:
-            print_error(title="Can't create the goal", text=str(e))
-            raise typer.Exit(1)
+            commands.fail("Can't create the goal", e)
 
+        output.emit(goal_json(db, goal))
         print_success(
             title="🎯 Create",
             text=(
@@ -270,6 +282,7 @@ def show_command(ctx: typer.Context, goal_id: IdArgument = None) -> None:
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         goal = get_or_pick(db, goal_id, "show")
+        output.emit(goal_json(db, goal))
         progress = goal_progress(db, goal)
         entities.print_details(
             title=f"Goal #{goal.id}",
@@ -359,30 +372,100 @@ def ask_edits(db: DBSession, prompter: Prompter, goal: Goal) -> dict[str, Any]:
     )
 
 
-def edit_command(ctx: typer.Context, goal_id: IdArgument = None) -> None:
+def flag_changes(
+    db: DBSession,
+    *,
+    project: str | None = None,
+    name: str | None = None,
+    hours: int | None = None,
+    start: str | None = None,
+    deadline: str | None = None,
+) -> dict[str, Any]:
     """
-    Edit a goal: its project, name, hours, start and deadline.
+    The changes the flags of `trak goals edit` ask for; None means the flag
+    wasn't given. Exits with 1, after the error, on a bad value.
     """
 
-    entities.require_terminal("Editing")
+    changes: dict[str, Any] = {}
+    if project is not None:
+        found = commands.find_project(db, project, archived=True)
+        if found is None:
+            raise typer.Exit(1)
+        changes["project_fk"] = found.id
+    if name is not None:
+        changes["name"] = name.strip()
+    if hours is not None:
+        changes["hours"] = hours
+    try:
+        if start is not None:
+            changes["start"] = parse_start(start)
+        if deadline is not None:
+            changes["deadline"] = parse_date(deadline)
+    except ValueError as e:
+        commands.fail("Can't save the goal", e)
+    return changes
+
+
+def edit_command(
+    ctx: typer.Context,
+    goal_id: IdArgument = None,
+    project: Annotated[
+        str | None, typer.Option("--project", "-p", help="The project, by name.")
+    ] = None,
+    name: Annotated[
+        str | None, typer.Option("--name", "-n", help="The name. Empty for none.")
+    ] = None,
+    hours: Annotated[
+        int | None, typer.Option("--hours", "-H", min=1, help="The hours to reach.")
+    ] = None,
+    start: Annotated[
+        str | None,
+        typer.Option(
+            "--from",
+            "-f",
+            metavar="DATE",
+            help=f"Count the time tracked from this day: {DATE_PLACEHOLDER}.",
+        ),
+    ] = None,
+    deadline: Annotated[
+        str | None,
+        typer.Option(
+            "--by", "-b", metavar="DATE", help=f"The deadline: {DATE_PLACEHOLDER}."
+        ),
+    ] = None,
+) -> None:
+    """
+    Edit a goal: its project, name, hours, start and deadline. With options,
+    saves them right away; without, opens the form (terminal).
+    """
+
+    flags = {
+        "project": project,
+        "name": name,
+        "hours": hours,
+        "start": start,
+        "deadline": deadline,
+    }
+    given = any(value is not None for value in flags.values())
+    if not given:
+        entities.require_terminal("Editing without options")
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         goal = get_or_pick(db, goal_id, "edit")
-        changes = commands.run_prompts(
-            lambda prompter: ask_edits(db, prompter, goal),
-            cancelled="No changes were saved.",
-        )
+        if given:
+            changes = forms.effective_changes(goal, flag_changes(db, **flags))
+        else:
+            changes = commands.run_prompts(
+                lambda prompter: ask_edits(db, prompter, goal),
+                cancelled="No changes were saved.",
+            )
 
-        if not changes:
-            print_info(title="Nothing changed", text=goal_label(db, goal))
-            return
-
-        try:
-            goal = update_goal(db, goal, **changes)
-        except ValueError as e:
-            print_error(title="Can't save the goal", text=str(e))
-            raise typer.Exit(1)
-
-        print_success(
-            title="✏️  Edit", text=f"Goal #{goal.id} {goal_label(db, goal)} saved."
+        entities.save_changes(
+            db,
+            goal,
+            changes,
+            update=update_goal,
+            noun="goal",
+            label=lambda g: goal_label(db, g),
+            to_json=lambda g: goal_json(db, g),
         )

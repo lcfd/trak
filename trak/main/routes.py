@@ -6,7 +6,7 @@ from typing import Any
 import typer
 from rich.console import Console
 
-from trak import config, dev_bar
+from trak import config, dev_bar, output
 from trak.base_messages import print_error
 from trak.db.engine import get_engine
 from trak.db.migrations import DatabaseTooNewError, migrate
@@ -20,6 +20,7 @@ from .annotations import (
     MainWebsiteOption,
 )
 from .menu import run_menu
+from .overview import emit_overview
 
 TRUTHY = {"1", "true", "yes", "on"}
 
@@ -99,8 +100,10 @@ def main(
     ctx.obj["DEV_MODE"] = DEV_MODE
 
     dev_bar.dev_db_path = config.DB_DEV_PATH if DEV_MODE else None
-    # On stderr, so piped output (like `--plain` lists) stays clean.
-    dev_bar.print_bar(Console(stderr=True))
+    # On stderr, so piped output (like `--plain` lists) stays clean; never in
+    # JSON mode, where stderr only carries errors.
+    if not output.json_mode():
+        dev_bar.print_bar(Console(stderr=True))
 
     DB_PATH = config.DB_DEV_PATH if DEV_MODE else config.DB_PATH
     DB_ENGINE = get_engine(DB_PATH)
@@ -110,10 +113,14 @@ def main(
     except DatabaseTooNewError as e:
         print_error(title="Database too new", text=f"{e} Please update trak.")
         raise typer.Exit(1)
-    print_migration_notice(Console(stderr=True), applied, DB_PATH)
+    if not output.json_mode():
+        print_migration_notice(Console(stderr=True), applied, DB_PATH)
 
     ctx.obj["DB_ENGINE"] = DB_ENGINE
 
     # Exclusive executable callback
     if ctx.invoked_subcommand is None:
-        run_menu(ctx)
+        if output.json_mode():
+            emit_overview(DB_ENGINE, DEV_MODE)
+        else:
+            run_menu(ctx)

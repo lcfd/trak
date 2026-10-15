@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.markup import escape
@@ -10,7 +10,7 @@ from rich.table import Table
 from sqlmodel import Session as DBSession
 from sqlmodel import func, select
 
-from trak import browser, entities
+from trak import browser, entities, output
 from trak.customers.models import Customer
 from trak.customers.services import list_customers
 from trak.projects.models import Project
@@ -52,6 +52,24 @@ def count_projects(db: DBSession, customer: Customer) -> int:
     ).one()
 
 
+def customer_json(db: DBSession, customer: Customer) -> dict[str, Any]:
+    """The Customer for `--json`: its fields, its projects and the time tracked."""
+
+    projects = db.exec(
+        select(Project).where(Project.customer_fk == customer.id).order_by(Project.name)
+    )
+    totals = session_totals(db, customer_fk=customer.id)
+    return {
+        **output.fields(customer),
+        "projects": [
+            {"id": p.id, "name": p.name, "archived": p.archived} for p in projects
+        ],
+        "sessions": totals.sessions,
+        "tracked_seconds": output.seconds(totals.time),
+        "last_session": totals.last,
+    }
+
+
 def build_table(
     db: DBSession, customers: list[Customer], cursor: int | None = None
 ) -> Table:
@@ -88,6 +106,7 @@ def customer_listing(db: DBSession) -> browser.Listing[Customer, CustomerFilters
         noun="customer",
         query=lambda filters: query(db, filters),
         table=lambda customers, cursor: build_table(db, customers, cursor),
+        to_json=lambda customer: customer_json(db, customer),
         filter_shortcuts=FILTER_SHORTCUTS,
         ask_filter=lambda prompter, filters, action: ask_name(prompter, filters),  # type: ignore[arg-type]
         clear=lambda filters: CustomerFilters(per_page=filters.per_page),

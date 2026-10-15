@@ -12,6 +12,8 @@ class FakePrompter:
         self.confirm_answer = confirm
         self.asked: list[str] = []
         self.defaults: dict[str, Any] = {}
+        # The text inputs start with (their `value`).
+        self.values: dict[str, Any] = {}
 
     def ask(self, label, options, **kwargs):
         self.asked.append(label)
@@ -21,6 +23,7 @@ class FakePrompter:
 
     def input(self, title, **kwargs):
         self.asked.append(title)
+        self.values[title] = kwargs.get("value")
         # Like rich-toolkit's Input: an empty answer means the default.
         return self._next() or kwargs.get("default", "")
 

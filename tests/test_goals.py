@@ -309,6 +309,38 @@ def test_create_without_project_asks_every_field(interactive, answers, cli_db):
     assert (created.start, created.deadline) == (TODAY, TODAY + timedelta(days=10))
 
 
+def test_create_without_project_offers_the_project_end(interactive, answers, cli_db):
+    end = TODAY + timedelta(days=20)
+    add(cli_db, Project(name="website", end=end))
+    fake = answers("website", "", "40", "", str(end))
+
+    result = invoke(cli_db, "goals", "create")
+
+    assert result.exit_code == 0, result.output
+    assert fake.values["Deadline"] == str(end)
+    [created] = cli_db.exec(select(Goal)).all()
+    assert created.deadline == end
+
+
+def test_create_deadline_defaults_to_the_project_end(cli_db):
+    add(cli_db, Project(name="website", end=TODAY + timedelta(days=20)))
+
+    result = invoke(cli_db, "goals", "create", "website", "-H", "40")
+
+    assert result.exit_code == 0, result.output
+    [created] = cli_db.exec(select(Goal)).all()
+    assert created.deadline == TODAY + timedelta(days=20)
+
+
+def test_create_needs_a_deadline_without_a_project_end(cli_db):
+    add(cli_db, Project(name="website"))
+
+    result = invoke(cli_db, "goals", "create", "website", "-H", "40")
+
+    assert result.exit_code == 1
+    assert "Give it the hours and the deadline" in result.output
+
+
 def test_create_without_project_not_confirmed(interactive, answers, cli_db):
     add(cli_db, Project(name="website"))
     answers("website", "", "40", "", "+10", confirm=False)

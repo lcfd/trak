@@ -1,8 +1,10 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from rich.markup import escape
 from sqlmodel import Session as DBSession
 
+from trak import output
 from trak.customers.models import Customer
 from trak.projects.models import Project
 from trak.sessions.models import Category, Session, Tag
@@ -26,6 +28,30 @@ def session_customer(db: DBSession, session: Session) -> Customer | None:
         project = db.get(Project, session.project_fk)
         customer_fk = project.customer_fk if project else None
     return db.get(Customer, customer_fk) if customer_fk is not None else None
+
+
+def session_json(
+    db: DBSession, session: Session, now: datetime | None = None
+) -> dict[str, Any]:
+    """
+    The Session for `--json`: its fields, the names of its associations
+    (`customer` is the effective one, maybe its Project's) and its duration.
+    """
+
+    def name_of(model: type, fk: int | None) -> str | None:
+        row = db.get(model, fk) if fk is not None else None
+        return row.name if row is not None else None
+
+    customer = session_customer(db, session)
+    return {
+        **output.fields(session),
+        "project": name_of(Project, session.project_fk),
+        "customer": customer.name if customer else None,
+        "customer_from_project": customer is not None and session.customer_fk is None,
+        "category": name_of(Category, session.category_fk),
+        "tag": name_of(Tag, session.tag_fk),
+        "duration_seconds": output.seconds(elapsed(session, now)),
+    }
 
 
 def describe_session(db: DBSession, session: Session) -> str:
@@ -150,6 +176,29 @@ def stopped_text(db: DBSession, sessions: list[Session], running: int = 0) -> st
         lines.append(_running_line(running, "still "))
     else:
         lines.append('[dim]Start a new one with "trak start".[/dim]')
+    return "\n".join(lines)
+
+
+def running_text(db: DBSession, sessions: list[Session]) -> str:
+    """The body of the panel `trak status` prints: each running session."""
+
+    lines: list[str] = []
+    for session in sessions:
+        if lines:
+            lines.append("")
+        lines += _detail_lines(
+            db,
+            session,
+            [
+                ("Started", format_start(session.start)),
+                (
+                    "Running",
+                    f"[bold green]{format_duration(elapsed(session))}[/bold green]",
+                ),
+                ("Id", str(session.id)),
+            ],
+        )
+    lines += ["", '[dim]Stop it with "trak stop".[/dim]']
     return "\n".join(lines)
 
 

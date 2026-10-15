@@ -5,14 +5,11 @@ from typing import Any
 from sqlmodel import Session as DBSession
 from sqlmodel import col, func, select
 
+from trak.dates import today
 from trak.goals.models import Goal
 from trak.sessions.services import local_midnight, session_totals
 
 EDITABLE_FIELDS = {"project_fk", "name", "hours", "start", "deadline"}
-
-
-def today() -> date:
-    return datetime.now().date()
 
 
 def check_goal(hours: int, start: date, deadline: date) -> None:

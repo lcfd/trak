@@ -11,7 +11,7 @@ from rich.table import Table
 from sqlmodel import Session as DBSession
 
 from trak import browser, entities
-from trak.goals.display import days_text, to_go_text, tracked_text
+from trak.goals.display import days_text, goal_json, to_go_text, tracked_text
 from trak.goals.models import Goal
 from trak.goals.services import goal_progress, list_goals
 from trak.projects.models import Project
@@ -91,6 +91,7 @@ def goal_listing(db: DBSession) -> browser.Listing[Goal, GoalFilters]:
         noun="goal",
         query=lambda filters: query(db, filters),
         table=lambda goals, cursor: build_table(db, goals, cursor),
+        to_json=lambda goal: goal_json(db, goal),
         filter_shortcuts=FILTER_SHORTCUTS,
         ask_filter=lambda prompter, filters, action: ask_project(db, prompter, filters),  # type: ignore[arg-type]
         clear=lambda filters: GoalFilters(per_page=filters.per_page),

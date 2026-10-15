@@ -1,5 +1,8 @@
 import typer
 from sqlmodel import Session, select
+from typer.core import TyperGroup
+
+from trak import output
 
 # from trak.main.annotations import (
 #     MainBugOption,
@@ -31,11 +34,27 @@ from trak.projects import listing as projects_listing
 from trak.sessions import creating as sessions_creating
 from trak.sessions import details as sessions_details
 from trak.sessions import listing as sessions_listing
-from trak.sessions.commands import start, stop
+from trak.sessions.commands import start, status, stop
 from trak.sessions.editing import edit_command
 from trak.sessions.models import Category
 
-app = typer.Typer(rich_markup_mode="markdown")
+
+class TrakGroup(TyperGroup):
+    """
+    The root `trak` group: gives every command the --json option, and turns
+    JSON mode on before any callback runs (so not even the dev bar prints).
+    """
+
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        super().__init__(*args, **kwargs)
+        output.add_json_option(self)
+
+    def parse_args(self, ctx: typer.Context, args: list[str]) -> list[str]:
+        output.set_json_mode("--json" in args)
+        return super().parse_args(ctx, args)
+
+
+app = typer.Typer(rich_markup_mode="markdown", cls=TrakGroup)
 
 
 app.callback(invoke_without_command=True)(main)
@@ -59,11 +78,11 @@ app.command(name="start", help="Start a session.", rich_help_panel="Quick usage"
 app.command(
     name="stop", help="Stop the active session.", rich_help_panel="Quick usage"
 )(stop)
-# app.command(
-#     name="status",
-#     help="Show the status of the current session.",
-#     rich_help_panel="Quick usage",
-# )(command_status)
+app.command(
+    name="status",
+    help="Show the running sessions.",
+    rich_help_panel="Quick usage",
+)(status)
 
 # Write actions
 # app.add_typer(

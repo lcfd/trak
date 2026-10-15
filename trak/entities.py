@@ -16,7 +16,8 @@ from rich.markup import escape
 from sqlmodel import Session as DBSession
 from typer.core import TyperGroup
 
-from trak.base_messages import print_error, print_info, print_warning
+from trak import output
+from trak.base_messages import print_error, print_info, print_success, print_warning
 from trak.main.menu import invoke_with_defaults
 from trak.sessions import commands
 from trak.sessions.guided import Prompter
@@ -102,6 +103,40 @@ def get_or_pick(
         print_warning(title="Cancelled", text=cancelled)
         raise typer.Exit(1)
     return row
+
+
+def save_changes(
+    db: DBSession,
+    row: R,
+    changes: dict[str, Any],
+    *,
+    update: Callable[..., R],
+    noun: str,
+    label: Callable[[R], str],
+    to_json: Callable[[R], dict[str, Any]],
+) -> None:
+    """
+    Save the `changes` to `row` with `update(db, row, **changes)` and report
+    it: "Nothing changed", the error (exit 1), or "saved". With --json, the
+    row as it is now.
+    """
+
+    if not changes:
+        output.emit(to_json(row))
+        print_info(title="Nothing changed", text=label(row))
+        return
+
+    try:
+        row = update(db, row, **changes)
+    except ValueError as e:
+        print_error(title=f"Can't save the {noun}", text=str(e))
+        raise typer.Exit(1)
+
+    output.emit(to_json(row))
+    print_success(
+        title="✏️  Edit",
+        text=f"{noun.capitalize()} #{row.id} {label(row)} saved.",  # type: ignore[attr-defined]
+    )
 
 
 def run_browser(browse: Callable[[Prompter], Any]) -> None:

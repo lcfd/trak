@@ -1,7 +1,7 @@
 """Guided mode for `trak start -g`: ask every Session field interactively."""
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Annotated, Any, Protocol
 
@@ -119,12 +119,18 @@ def ask_project_and_customer(
     fields: SessionFields,
     project: Project | None = None,
 ) -> None:
-    """Ask for the Project and, if it has none, the Customer of `fields`."""
+    """
+    Ask for the Project and, if it has none, the Customer of `fields`; what
+    `fields` already has (from the flags) is the default.
+    """
 
     projects = get_projects(db)
     if projects:
         fields.project_fk = pick(
-            prompter, "Project", projects, default=project.id if project else None
+            prompter,
+            "Project",
+            projects,
+            default=project.id if project else fields.project_fk,
         )
 
     chosen = db.get(Project, fields.project_fk) if fields.project_fk else None
@@ -133,7 +139,11 @@ def ask_project_and_customer(
     if chosen is None or chosen.customer_fk is None:
         customers = get_customers(db)
         if customers:
-            fields.customer_fk = pick(prompter, "Customer", customers)
+            fields.customer_fk = pick(
+                prompter, "Customer", customers, default=fields.customer_fk
+            )
+    else:
+        fields.customer_fk = None
 
 
 def ask_name_and_associations(
@@ -143,10 +153,13 @@ def ask_name_and_associations(
     project: Project | None = None,
     name: str = "",
 ) -> None:
-    """Ask for the name, Project, Customer, Category and Tag of `fields`."""
+    """
+    Ask for the name, Project, Customer, Category and Tag of `fields`; what
+    `fields` already has (from the flags) is the default.
+    """
 
     fields.name = prompter.input(
-        "Name", default=name, placeholder="optional, e.g. Landing page"
+        "Name", default=name or fields.name, placeholder="optional, e.g. Landing page"
     ).strip()
 
     ask_project_and_customer(db, prompter, fields, project=project)
@@ -154,7 +167,11 @@ def ask_name_and_associations(
     for model, attr in ((Category, "category_fk"), (Tag, "tag_fk")):
         rows = list(db.exec(select(model).order_by(model.name)))
         if rows:
-            setattr(fields, attr, pick(prompter, model.__name__, rows))
+            setattr(
+                fields,
+                attr,
+                pick(prompter, model.__name__, rows, default=getattr(fields, attr)),
+            )
 
 
 def ask_session_fields(
@@ -162,16 +179,22 @@ def ask_session_fields(
     prompter: Prompter,
     project: Project | None = None,
     name: str = "",
+    defaults: SessionFields | None = None,
 ) -> SessionFields | None:
-    """Ask for every field of a new Session. None means the user gave up."""
+    """
+    Ask for every field of a new Session, with `defaults` (from the flags)
+    already filled in. None means the user gave up.
+    """
 
-    fields = SessionFields()
+    fields = replace(defaults) if defaults else SessionFields()
 
     ask_name_and_associations(db, prompter, fields, project=project, name=name)
 
+    start = fields.start
     fields.start = parse_start(
         prompter.input(
             "Start",
+            default=f"{start.astimezone():%Y-%m-%d %H:%M}" if start else "",
             placeholder='now, "HH:MM" or "YYYY-MM-DD HH:MM"',
             validator=start_validator,
         )

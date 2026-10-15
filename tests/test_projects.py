@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlmodel import select
@@ -6,8 +6,9 @@ from typer.testing import CliRunner
 
 from tests.fakes import FakePrompter, add
 from trak.customers.models import Customer
+from trak.dates import today
 from trak.projects import listing
-from trak.projects.commands import ask_edits, parse_rate
+from trak.projects.commands import ask_edits, end_text, parse_rate
 from trak.projects.listing import ProjectFilters, browse
 from trak.projects.models import Project
 from trak.projects.services import create_project, list_projects, update_project
@@ -68,6 +69,34 @@ def test_update_project(db):
 
     db.refresh(project)
     assert (project.name, project.rate, project.archived) == ("site", 60, True)
+
+
+def test_create_project_with_dates(db):
+    project = create_project(
+        db, name="website", start=date(2026, 10, 1), end=date(2026, 12, 31)
+    )
+
+    assert (project.start, project.end) == (date(2026, 10, 1), date(2026, 12, 31))
+
+
+def test_create_project_rejects_an_end_before_the_start(db):
+    with pytest.raises(ValueError, match="end can't come before its start"):
+        create_project(
+            db, name="website", start=date(2026, 10, 1), end=date(2026, 9, 30)
+        )
+
+
+def test_update_project_dates_respect_each_other(db):
+    project = add(db, Project(name="website", start=date(2026, 10, 1)))
+
+    with pytest.raises(ValueError, match="end can't come before its start"):
+        update_project(db, project, end=date(2026, 9, 1))
+    # Moving both at once is fine, and so is clearing one.
+    update_project(db, project, start=date(2026, 8, 1), end=date(2026, 9, 1))
+    update_project(db, project, start=None)
+
+    db.refresh(project)
+    assert (project.start, project.end) == (None, date(2026, 9, 1))
 
 
 def test_update_project_keeps_its_own_name_but_not_others(db):
@@ -137,6 +166,32 @@ def test_create_with_options(cli_db):
     assert (project.name, project.rate, project.description) == ("Web site", 50, "x")
 
 
+def test_create_with_dates(cli_db):
+    result = invoke(
+        cli_db, "projects", "create", "website", "-s", "2026-10-01", "--end", "+30"
+    )
+
+    assert result.exit_code == 0, result.output
+    [project] = cli_db.exec(select(Project)).all()
+    assert project.start == date(2026, 10, 1)
+    assert project.end == today() + timedelta(days=30)
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (["--start", "soon"], "Use YYYY-MM-DD"),
+        (["-s", "2026-10-01", "-e", "2026-09-01"], "can't come before its start"),
+    ],
+)
+def test_create_with_invalid_dates(cli_db, args, message):
+    result = invoke(cli_db, "projects", "create", "website", *args)
+
+    assert result.exit_code == 1
+    assert message in result.output
+    assert not cli_db.exec(select(Project)).all()
+
+
 def test_create_with_unknown_customer(cli_db):
     result = invoke(cli_db, "projects", "create", "website", "-c", "Nobody")
 
@@ -156,7 +211,7 @@ def test_create_a_duplicate(cli_db):
 
 def test_create_without_name_asks_every_field(interactive, answers, cli_db):
     acme = add(cli_db, Customer(name="ACME"))
-    answers("website", "ACME", "40", "Pages")
+    answers("website", "ACME", "40", "Pages", "2026-10-01", "2026-12-31")
 
     result = invoke(cli_db, "projects", "create")
 
@@ -164,10 +219,21 @@ def test_create_without_name_asks_every_field(interactive, answers, cli_db):
     [project] = cli_db.exec(select(Project)).all()
     assert (project.name, project.customer_fk, project.rate) == ("website", acme.id, 40)
     assert project.description == "Pages"
+    assert (project.start, project.end) == (date(2026, 10, 1), date(2026, 12, 31))
+
+
+def test_create_without_name_leaves_the_dates_empty(interactive, answers, cli_db):
+    answers("website", "", "", "", "")
+
+    result = invoke(cli_db, "projects", "create")
+
+    assert result.exit_code == 0, result.output
+    [project] = cli_db.exec(select(Project)).all()
+    assert (project.start, project.end) == (None, None)
 
 
 def test_create_without_name_not_confirmed(interactive, answers, cli_db):
-    answers("website", "", "", confirm=False)
+    answers("website", "", "", "", "", confirm=False)
 
     result = invoke(cli_db, "projects", "create")
 
@@ -201,6 +267,42 @@ def test_projects_id_shows_the_project(cli_db):
     for text in ("website", "ACME", "50/h", "Pages", "active", "2h 0m"):
         assert text in result.output
     assert f'"trak projects edit {website.id}"' in result.output
+
+
+def test_show_the_dates(cli_db):
+    project = add(
+        cli_db,
+        Project(
+            name="website", start=date(2026, 10, 1), end=today() + timedelta(days=3)
+        ),
+    )
+
+    result = invoke(cli_db, "projects", str(project.id))
+
+    assert result.exit_code == 0, result.output
+    assert "Thu 01 Oct 2026" in result.output
+    assert "3 days left" in result.output
+
+
+def test_show_without_dates(cli_db):
+    project = add(cli_db, Project(name="website"))
+
+    result = invoke(cli_db, "projects", str(project.id))
+
+    assert result.exit_code == 0, result.output
+    assert "Start" in result.output and "End" in result.output
+
+
+def test_end_text():
+    on = date(2026, 10, 14)
+
+    def text(end):
+        return end_text(Project(name="p", end=end), on)
+
+    assert text(None) is None
+    assert "1 day left" in text(date(2026, 10, 15))
+    assert "ends today" in text(on)
+    assert "ended 2 days ago" in text(date(2026, 10, 12))
 
 
 def test_show_unknown_project(cli_db):
@@ -247,6 +349,37 @@ def test_ask_edits(db):
     changes = ask_edits(db, prompter, project)
 
     assert changes == {"name": "site", "customer_fk": acme.id, "archived": True}
+
+
+def test_ask_edits_dates(db):
+    project = add(db, Project(name="website", end=date(2026, 12, 31)))
+
+    prompter = FakePrompter(
+        "Start", "2026-10-01",
+        "End", "",  # cleared
+        "Save",
+    )  # fmt: skip
+
+    changes = ask_edits(db, prompter, project)
+
+    assert changes == {"start": date(2026, 10, 1), "end": None}
+
+
+def test_ask_edits_start_checks_the_end(db):
+    project = add(db, Project(name="website", end=date(2026, 9, 30)))
+    seen = {}
+
+    class Prompter(FakePrompter):
+        def input(self, title, **kwargs):
+            seen["validator"] = kwargs["validator"]
+            return super().input(title, **kwargs)
+
+    ask_edits(db, Prompter("Start", "", "Save"), project)
+
+    with pytest.raises(ValueError, match="can't come before its start"):
+        seen["validator"].validate_python("2026-10-01")
+    assert seen["validator"].validate_python("2026-09-01") == "2026-09-01"
+    assert seen["validator"].validate_python("") == ""
 
 
 def test_edit_by_id(interactive, answers, cli_db):
@@ -304,6 +437,19 @@ def test_projects_alone_lists_them(cli_db):
     assert "1h 30m" in result.output
     assert "old" not in result.output
     assert "Page 1 of 1 · 1 project" in result.output
+
+
+def test_list_shows_the_dates(cli_db):
+    add(cli_db, Project(name="both", start=date(2026, 10, 1), end=date(2026, 12, 31)))
+    add(cli_db, Project(name="open", start=date(2026, 10, 1)))
+    add(cli_db, Project(name="due", end=date(2026, 12, 31)))
+
+    result = invoke(cli_db, "projects", "list", "--plain")
+
+    assert result.exit_code == 0, result.output
+    assert "2026-10-01 → 2026-12-31" in result.output
+    assert "from 2026-10-01" in result.output
+    assert "until 2026-12-31" in result.output
 
 
 def test_list_with_archived_and_customer(cli_db):

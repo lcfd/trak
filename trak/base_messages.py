@@ -3,6 +3,8 @@ from rich import get_console, print
 from rich.padding import Padding
 from rich.panel import Panel
 
+from trak import output
+
 # Every message box is at least this wide, so they all feel the same.
 PANEL_MIN_WIDTH = 60
 
@@ -35,6 +37,10 @@ success_message_example = typer.style("good", fg=typer.colors.GREEN, bold=True)
 # typer.style("bad", fg=typer.colors.WHITE, bg=typer.colors.RED)
 
 
+# In JSON mode (see output.py) errors are JSON on stderr, and the other
+# messages are left out: the command emits its result instead.
+
+
 def print_error(title: str | None = None, text: str | None = None):
     shown_title = title if title else "Error"
     shown_text = (
@@ -46,22 +52,33 @@ def print_error(title: str | None = None, text: str | None = None):
             'Please, report it on GitHub issues, "trak --bug".'
         )
     )
+    if output.json_mode():
+        output.emit_error(shown_title, shown_text)
+        return
     print_panel(title=f"[bold red]{shown_title}[/bold red]", text=shown_text)
 
 
 def print_info(title: str, text: str):
+    if output.json_mode():
+        return
     shown_title = title if title else "Info"
     shown_text = text if text else ("Info text")
-    print_panel(title=f"[bold royal_blue1]{shown_title}[/bold royal_blue1]", text=shown_text)
+    print_panel(
+        title=f"[bold royal_blue1]{shown_title}[/bold royal_blue1]", text=shown_text
+    )
 
 
 def print_success(title: str | None = None, text: str | None = None):
+    if output.json_mode():
+        return
     shown_title = title if title else "Success"
     shown_text = text if text else ("Action performed successfully.")
     print_panel(title=f"[bold green]{shown_title}[/bold green]", text=shown_text)
 
 
 def print_warning(title: str, text: str):
+    if output.json_mode():
+        return
     shown_title = title if title else "Warning"
     shown_text = text if text else ("Warning text")
     print_panel(title=f"[bold orange3]{shown_title}[/bold orange3]", text=shown_text)

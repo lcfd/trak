@@ -221,11 +221,11 @@ def test_create_of_an_unknown_project(cli_db):
     assert "doesn't exist" in result.output
 
 
-def test_create_without_options_needs_a_terminal(cli_db):
+def test_create_without_start_and_terminal_asks_for_start(cli_db):
     result = invoke(cli_db)
 
     assert result.exit_code == 1
-    assert "needs a terminal" in result.output
+    assert "--start" in result.output
 
 
 def test_create_asks_every_field(cli_db, interactive, answers):

@@ -8,14 +8,14 @@ from sqlmodel import Session as DBSession
 from sqlmodel import select
 
 from trak import entities, forms
-from trak.base_messages import print_error, print_info, print_success
 from trak.customers.models import Customer
 from trak.customers.services import get_customers
 from trak.forms import current
 from trak.projects.models import Project
 from trak.projects.services import get_projects
 from trak.sessions import commands, listing
-from trak.sessions.display import session_label
+from trak.sessions.commands import CategoryOption, CustomerOption, TagOption
+from trak.sessions.display import session_json, session_label
 from trak.sessions.guided import Prompter, input_validator, parse_start, pick
 from trak.sessions.models import Category, Session, Tag
 from trak.sessions.services import update_session
@@ -177,6 +177,49 @@ def ask_edits(db: DBSession, prompter: Prompter, session: Session) -> dict[str, 
     )
 
 
+def flag_changes(
+    db: DBSession,
+    session: Session,
+    *,
+    name: str | None = None,
+    project: str | None = None,
+    customer: str | None = None,
+    category: str | None = None,
+    tag: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
+    """
+    The changes the flags of `trak sessions edit` ask for; None means the
+    flag wasn't given. Exits with 1, after the error, on a bad value.
+    """
+
+    changes: dict[str, Any] = commands.association_fks(
+        db, project=project, customer=customer, category=category, tag=tag
+    )
+    if name is not None:
+        changes["name"] = name.strip()
+    try:
+        if start is not None:
+            changes["start"] = parse_time(start, "start")
+        if end is not None:
+            changes["end"] = parse_time(end, "end")
+
+        # Like the form: a Project with a Customer takes the Session's place.
+        project_fk = changes.get("project_fk", session.project_fk)
+        chosen = db.get(Project, project_fk) if project_fk is not None else None
+        if chosen is not None and chosen.customer_fk is not None:
+            if "customer_fk" in changes:
+                changes["customer_fk"] = commands.session_customer_fk(
+                    db, project_fk, changes["customer_fk"]
+                )
+            elif "project_fk" in changes:
+                changes["customer_fk"] = None
+    except ValueError as e:
+        commands.fail("Can't save the session", e)
+    return changes
+
+
 def edit_command(
     ctx: typer.Context,
     session_id: Annotated[
@@ -186,32 +229,66 @@ def edit_command(
             help="The session to edit. Leave it empty to pick one from the list.",
         ),
     ] = None,
+    name: Annotated[
+        str | None, typer.Option("--name", "-n", help="The name. Empty for none.")
+    ] = None,
+    project: Annotated[
+        str | None,
+        typer.Option("--project", "-p", help="The project, by name. Empty for none."),
+    ] = None,
+    customer: CustomerOption = None,
+    category: CategoryOption = None,
+    tag: TagOption = None,
+    start: Annotated[
+        str | None,
+        typer.Option("--start", "-s", help=f"When it started: {TIME_PLACEHOLDER}."),
+    ] = None,
+    end: Annotated[
+        str | None,
+        typer.Option(
+            "--end",
+            "-e",
+            help=f"When it ended: {TIME_PLACEHOLDER}. Stops a running session.",
+        ),
+    ] = None,
 ) -> None:
     """
     Edit a session: its name, project, customer, category, tag, start and end.
+    With options, saves them right away; without, opens the form (terminal).
     """
 
-    entities.require_terminal("Editing")
+    flags = {
+        "name": name,
+        "project": project,
+        "customer": customer,
+        "category": category,
+        "tag": tag,
+        "start": start,
+        "end": end,
+    }
+    given = any(value is not None for value in flags.values())
+    if not given:
+        entities.require_terminal("Editing without options")
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         session = listing.get_or_pick(db, session_id, "edit")
 
-        changes = commands.run_prompts(
-            lambda prompter: ask_edits(db, prompter, session),
-            cancelled="No changes were saved.",
-        )
+        if given:
+            changes = forms.effective_changes(
+                session, flag_changes(db, session, **flags)
+            )
+        else:
+            changes = commands.run_prompts(
+                lambda prompter: ask_edits(db, prompter, session),
+                cancelled="No changes were saved.",
+            )
 
-        if not changes:
-            print_info(title="Nothing changed", text=session_label(db, session))
-            return
-
-        try:
-            session = update_session(db, session, **changes)
-        except ValueError as e:
-            print_error(title="Can't save the session", text=str(e))
-            raise typer.Exit(1)
-
-        print_success(
-            title="✏️  Edit",
-            text=f"Session #{session.id} {session_label(db, session)} saved.",
+        entities.save_changes(
+            db,
+            session,
+            changes,
+            update=update_session,
+            noun="session",
+            label=lambda s: session_label(db, s),
+            to_json=lambda s: session_json(db, s),
         )

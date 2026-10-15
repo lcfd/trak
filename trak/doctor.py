@@ -3,7 +3,7 @@
 import typer
 from sqlalchemy import Engine
 
-from trak import config
+from trak import config, output
 from trak.base_messages import print_error, print_success
 from trak.db.migrations import LATEST_VERSION, get_version
 
@@ -41,7 +41,19 @@ def doctor_command(ctx: typer.Context) -> None:
     ]
 
     problems = find_problems(engine)
+    output.emit(
+        {
+            "database": engine.url.database,
+            "dev_mode": ctx.obj["DEV_MODE"],
+            "schema_version": get_version(engine),
+            "latest_version": LATEST_VERSION,
+            "settings": str(config.SETTINGS_FILE_PATH),
+            "problems": problems,
+        }
+    )
     if problems:
+        if output.json_mode():
+            raise typer.Exit(1)
         print_error(
             title="Something is wrong",
             text="\n".join([*lines, "", *(f"• {p}" for p in problems)]),

@@ -1,18 +1,20 @@
 """`trak sessions create`: add a past session, for time tracked without `trak start`."""
 
 import re
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 import typer
 from sqlmodel import Session as DBSession
 
-from trak import entities
+from trak import output
 from trak.base_messages import print_error, print_success, print_warning
 from trak.projects.models import Project
 from trak.sessions import commands
-from trak.sessions.display import created_text
-from trak.sessions.editing import parse_time
+from trak.sessions.commands import CategoryOption, CustomerOption, TagOption
+from trak.sessions.display import created_text, session_json
+from trak.sessions.editing import format_time, parse_time
 from trak.sessions.guided import (
     Prompter,
     SessionFields,
@@ -61,23 +63,32 @@ def parse_end(value: str, start: datetime, now: datetime | None = None) -> datet
 
 
 def ask_new_session(
-    db: DBSession, prompter: Prompter, project: Project | None = None
+    db: DBSession,
+    prompter: Prompter,
+    project: Project | None = None,
+    defaults: SessionFields | None = None,
+    end: str = "",
 ) -> dict[str, Any] | None:
-    """Ask for every field of a past Session. None means the user gave up."""
+    """
+    Ask for every field of a past Session, with `defaults` and `end` (from the
+    flags) already filled in. None means the user gave up.
+    """
 
-    fields = SessionFields()
+    fields = replace(defaults) if defaults else SessionFields()
     ask_name_and_associations(db, prompter, fields, project=project)
 
     start = parse_past_start(
         prompter.input(
             "Start",
+            default=format_time(fields.start) if fields.start else "",
             placeholder=START_PLACEHOLDER,
             validator=input_validator(parse_past_start),
         )
     )
-    end = parse_end(
+    end_moment = parse_end(
         prompter.input(
             "End",
+            default=end,
             placeholder=END_PLACEHOLDER,
             validator=input_validator(lambda text: parse_end(text, start)),
         ),
@@ -86,7 +97,7 @@ def ask_new_session(
 
     if not prompter.confirm("Create this session?"):
         return None
-    return {**vars(fields), "start": start, "end": end}
+    return {**vars(fields), "start": start, "end": end_moment}
 
 
 def create_command(
@@ -95,8 +106,7 @@ def create_command(
         str | None,
         typer.Argument(
             metavar="PROJECT",
-            help="The project of the session. Leave it and --start empty "
-            "to fill in every field.",
+            help="The project of the session.",
         ),
     ] = None,
     start: Annotated[
@@ -117,60 +127,61 @@ def create_command(
     name: Annotated[
         str, typer.Option("--name", "-n", help="A name for the session.")
     ] = "",
-    customer_name: Annotated[
-        str | None,
-        typer.Option("--customer", "-c", help="The customer of the session."),
-    ] = None,
+    customer_name: CustomerOption = None,
+    category: CategoryOption = None,
+    tag: TagOption = None,
 ) -> None:
     """
     Add a past session, for time you didn't track with "trak start".
-    Without a project or --start, asks for every field.
+    Every field has an option; without --start, asks for every field in a
+    terminal, starting from the options.
     """
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         project = None
         if project_name is not None:
-            project = commands.find_project(db, project_name)
+            project = commands.find_project(db, project_name, archived=True)
             if project is None:
                 raise typer.Exit(1)
 
-        if start is None and project is None and customer_name is None:
-            entities.require_terminal("Creating a session without --start")
+        fks = commands.association_fks(
+            db, customer=customer_name, category=category, tag=tag
+        )
+        defaults = SessionFields(
+            name=name, project_fk=project.id if project else None, **fks
+        )
+
+        if start is None:
+            if not commands.is_interactive():
+                print_error(
+                    title="When did it start?",
+                    text='Give its start with --start, e.g. --start "09:30".',
+                )
+                raise typer.Exit(1)
             fields = commands.run_prompts(
-                lambda prompter: ask_new_session(db, prompter),
+                lambda prompter: ask_new_session(
+                    db, prompter, project=project, defaults=defaults, end=end or ""
+                ),
                 cancelled="No session was created.",
             )
             if fields is None:
                 print_warning(title="Cancelled", text="No session was created.")
                 raise typer.Exit(1)
         else:
-            if start is None:
-                print_error(
-                    title="When did it start?",
-                    text='Give its start with --start, e.g. --start "09:30".',
-                )
-                raise typer.Exit(1)
-            fields = {"name": name, "project_fk": project.id if project else None}
-            if customer_name is not None:
-                customer = commands.find_customer(db, customer_name)
-                if customer is None:
-                    raise typer.Exit(1)
-                fields["customer_fk"] = customer.id
+            fields = vars(defaults)
             try:
                 fields["start"] = parse_past_start(start)
                 fields["end"] = parse_end(end or "", fields["start"])
             except ValueError as e:
-                message = str(e)
-                print_error(
-                    title="Can't create the session",
-                    text=message[:1].upper() + message[1:] + ".",
-                )
-                raise typer.Exit(1)
+                commands.fail("Can't create the session", e)
 
         try:
+            fields["customer_fk"] = commands.session_customer_fk(
+                db, fields["project_fk"], fields["customer_fk"]
+            )
             session = create_session(db, **fields)
         except ValueError as e:
-            print_error(title="Can't create the session", text=str(e))
-            raise typer.Exit(1)
+            commands.fail("Can't create the session", e)
 
+        output.emit(session_json(db, session))
         print_success(title="✨ Create", text=created_text(db, session))

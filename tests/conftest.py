@@ -4,7 +4,7 @@ import pytest
 from sqlmodel import Session as DBSession
 
 from tests.fakes import FakePrompter
-from trak import config, dev_bar
+from trak import config, dev_bar, output
 from trak.db.engine import get_engine
 from trak.db.migrations import migrate
 from trak.sessions import commands
@@ -20,6 +20,15 @@ def isolated_paths(tmp_path, monkeypatch):
     monkeypatch.delenv(config.DEV_ENV_VAR, raising=False)
     monkeypatch.setattr(dev_bar, "dev_db_path", None)
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def no_json_mode():
+    """JSON mode is global: don't let one test's --json leak into the next."""
+
+    output.set_json_mode(False)
+    yield
+    output.set_json_mode(False)
 
 
 @pytest.fixture

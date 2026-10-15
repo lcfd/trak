@@ -87,12 +87,10 @@ def print_error_no_projects():
     )
 
 
-
 def print_error_work_field(work_id: str, project_id: str, field: str):
     print_error(
         title="Error", text=f"Error in {work_id}'s {field} of {project_id} project."
     )
-
 
 
 def print_missing_project(projects_in_config):
@@ -105,7 +103,6 @@ def print_missing_project(projects_in_config):
             "command to create a new project."
         ),
     )
-
 
 
 def print_project_archived_toggle(project_id: str, archived: bool):

@@ -1,6 +1,7 @@
 """How Goals look: their progress, days left, and the reminder above `trak`."""
 
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from rich.console import Console, Group
 from rich.markup import escape
@@ -9,6 +10,7 @@ from rich.progress_bar import ProgressBar
 from rich.table import Table
 from sqlmodel import Session as DBSession
 
+from trak import output
 from trak.goals.models import Goal
 from trak.goals.services import Progress, goal_progress, upcoming_goals
 from trak.projects.models import Project
@@ -25,6 +27,21 @@ def format_days_left(days: int) -> str:
     if days == 0:
         return "due today"
     return f"{days} day{'s' if days > 1 else ''} left"
+
+
+def goal_json(db: DBSession, goal: Goal, now: datetime | None = None) -> dict[str, Any]:
+    """The Goal for `--json`: its fields, its project and its progress."""
+
+    project = db.get(Project, goal.project_fk)
+    progress = goal_progress(db, goal, now=now)
+    return {
+        **output.fields(goal),
+        "project": project.name if project else None,
+        "tracked_seconds": output.seconds(progress.tracked),
+        "to_go_seconds": max(0, output.seconds(progress.budget - progress.tracked)),
+        "reached": progress.reached,
+        "days_left": progress.days_left,
+    }
 
 
 def describe_goal(db: DBSession, goal: Goal) -> str:

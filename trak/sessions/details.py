@@ -5,10 +5,15 @@ from typing import Annotated
 import typer
 from sqlmodel import Session as DBSession
 
-from trak import entities
+from trak import entities, output
 from trak.projects.models import Project
 from trak.sessions import listing
-from trak.sessions.display import elapsed, format_duration, session_customer
+from trak.sessions.display import (
+    elapsed,
+    format_duration,
+    session_customer,
+    session_json,
+)
 from trak.sessions.editing import format_time, row_name
 from trak.sessions.models import Category, Session, Tag
 
@@ -61,6 +66,7 @@ def show_command(ctx: typer.Context, session_id: IdArgument = None) -> None:
 
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         session = listing.get_or_pick(db, session_id, "show")
+        output.emit(session_json(db, session))
         entities.print_details(
             title=f"Session #{session.id}",
             rows=detail_rows(db, session),
