@@ -159,8 +159,7 @@ def toggle_command(
                 cancelled="Dev mode didn't change.",
             )
             if not confirmed:
-                print_warning(title="Cancelled", text="Dev mode didn't change.")
-                raise typer.Exit(1)
+                commands.cancel("Dev mode didn't change.")
 
         write_dev_mode(config.SETTINGS_FILE_PATH, target)
         output.emit(data)

@@ -5,7 +5,6 @@ from typing import Annotated, Any
 
 import typer
 from sqlmodel import Session as DBSession
-from sqlmodel import select
 
 from trak import entities, forms
 from trak.customers.models import Customer
@@ -72,14 +71,12 @@ def tag_list(db: DBSession, tag_fks: list[int]) -> str:
 def label_rows(
     db: DBSession, category_fk: int | None, tag_fks: list[int]
 ) -> list[tuple[str, str, str]]:
-    """The Category and Tags rows of a form, when there's something to pick."""
+    """The Category and Tags rows of a form: always there, picking can create one."""
 
-    rows = []
-    if category_fk is not None or db.exec(select(Category)).first():
-        rows.append(("category_fk", "Category", row_name(db, Category, category_fk)))
-    if tag_fks or db.exec(select(Tag)).first():
-        rows.append(("tag_fks", "Tags", tag_list(db, tag_fks)))
-    return rows
+    return [
+        ("category_fk", "Category", row_name(db, Category, category_fk)),
+        ("tag_fks", "Tags", tag_list(db, tag_fks)),
+    ]
 
 
 def ask_label(

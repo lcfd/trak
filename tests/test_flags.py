@@ -6,12 +6,15 @@ so every command works in one line, without a terminal.
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from sqlmodel import Session as DBSession
 from sqlmodel import select
 from typer.testing import CliRunner
 
 from tests.fakes import add
 from trak.customers.models import Customer
 from trak.dates import today
+from trak.db.engine import get_engine
+from trak.db.migrations import migrate
 from trak.goals.models import Goal
 from trak.labels.links import tag_names
 from trak.projects.models import Project
@@ -166,6 +169,44 @@ def test_status(cli_db):
     assert "Running (1)" in result.output and "Hero" in result.output
 
 
+def test_status_starship_prints_nothing_when_idle(cli_db):
+    result = invoke(cli_db, "status", "--starship")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == ""
+
+
+def test_status_starship_is_one_plain_line(cli_db, monkeypatch):
+    monkeypatch.setenv("TRAK_DEV", "0")
+    website = add(cli_db, Project(name="website"))
+    start_session(
+        cli_db, name="Hero", start=datetime.now(UTC) - timedelta(hours=1, minutes=5)
+    )
+    # The session started last names the line, the others are counted.
+    start_session(
+        cli_db, project_fk=website.id, start=datetime.now(UTC) - timedelta(minutes=30)
+    )
+
+    result = invoke(cli_db, "status", "-s")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "website 0h 30m +1\n"
+
+
+def test_status_starship_says_dev_mode(cli_db, monkeypatch):
+    monkeypatch.setenv("TRAK_DEV", "1")
+    from trak import config
+
+    engine = get_engine(config.DB_DEV_PATH)
+    migrate(engine)
+    with DBSession(engine) as dev_db:
+        start_session(dev_db, name="Hero")
+        dev_db.commit()
+    engine.dispose()
+
+    assert invoke(cli_db, "status", "--starship").stdout == "Hero 0h 0m (dev)\n"
+
+
 # trak sessions create
 
 
@@ -294,7 +335,7 @@ def test_edit_without_flags_still_needs_a_terminal(cli_db):
 
 def test_create_project_without_name_asks_from_the_flags(cli_db, interactive, answers):
     add(cli_db, Customer(name="ACME"))
-    fake = answers("website", "ACME", "", "", "", "")
+    fake = answers("website", "ACME", "", "", "None", "Done", "", "")
 
     result = invoke(
         cli_db, "projects", "create", "-c", "ACME", "-r", "70", "-d", "Pages"

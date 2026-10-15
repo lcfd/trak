@@ -213,7 +213,9 @@ def test_create_a_duplicate(cli_db):
 
 def test_create_without_name_asks_every_field(interactive, answers, cli_db):
     acme = add(cli_db, Customer(name="ACME"))
-    answers("website", "ACME", "40", "Pages", "2026-10-01", "2026-12-31")
+    answers(
+        "website", "ACME", "40", "Pages", "None", "Done", "2026-10-01", "2026-12-31"
+    )
 
     result = invoke(cli_db, "projects", "create")
 
@@ -225,7 +227,7 @@ def test_create_without_name_asks_every_field(interactive, answers, cli_db):
 
 
 def test_create_without_name_leaves_the_dates_empty(interactive, answers, cli_db):
-    answers("website", "", "", "", "")
+    answers("website", "", "", "None", "Done", "", "")
 
     result = invoke(cli_db, "projects", "create")
 
@@ -235,7 +237,7 @@ def test_create_without_name_leaves_the_dates_empty(interactive, answers, cli_db
 
 
 def test_create_without_name_not_confirmed(interactive, answers, cli_db):
-    answers("website", "", "", "", "", confirm=False)
+    answers("website", "", "", "None", "Done", "", "", confirm=False)
 
     result = invoke(cli_db, "projects", "create")
 

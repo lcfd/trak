@@ -185,6 +185,10 @@ def test_start_and_status_and_stop(cli_db):
     _, running = invoke_json(cli_db, "status")
     assert [s["id"] for s in running] == [started["id"]]
 
+    # JSON wins over --starship: still the list.
+    _, running = invoke_json(cli_db, "status", "--starship")
+    assert [s["id"] for s in running] == [started["id"]]
+
     _, stopped = invoke_json(cli_db, "stop")
     assert [s["id"] for s in stopped] == [started["id"]]
     assert not stopped[0]["active"] and stopped[0]["end"]

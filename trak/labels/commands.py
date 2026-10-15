@@ -11,7 +11,7 @@ from rich.markup import escape
 from sqlmodel import Session as DBSession
 
 from trak import entities, forms, output
-from trak.base_messages import print_error, print_success, print_warning
+from trak.base_messages import print_error, print_success
 from trak.entities import entity_app
 from trak.labels import listing
 from trak.labels.listing import LabelFilters, label_json
@@ -191,8 +191,7 @@ def make_app(kind: Kind, show_command: Callable[..., None]) -> typer.Typer:
                     cancelled=f"No {noun} was deleted.",
                 )
                 if not confirmed:
-                    print_warning(title="Cancelled", text=f"No {noun} was deleted.")
-                    raise typer.Exit(1)
+                    commands.cancel(f"No {noun} was deleted.")
 
             text = f"{kind.title} #{row.id} {label_text(row)} deleted."
             delete_label(db, kind, row)

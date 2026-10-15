@@ -1,16 +1,19 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlmodel import select
 from typer.testing import CliRunner
 
-from tests.fakes import FakePrompter, add
+from tests.fakes import FakePrompter, FakeScreen, add
+from trak.customers import commands as customers
 from trak.customers.models import Customer
+from trak.labels.links import tag_names
 from trak.projects.models import Project
-from trak.prompts import PromptCancelled
+from trak.prompts import ESC, PromptCancelled, ScreenPrompter
 from trak.sessions import listing
 from trak.sessions.editing import ask_edits, field_rows, parse_time
 from trak.sessions.listing import ListFilters, browse
-from trak.sessions.models import Category, Session
+from trak.sessions.models import Category, Session, Tag
 from trak.sessions.services import start_session, stop_session, update_session
 from trak.typer_app import app
 
@@ -192,12 +195,62 @@ def test_project_with_a_customer_replaces_the_session_customer(db):
     )
 
 
-def test_field_rows_show_category_only_when_there_are_some(db):
+def test_field_rows_always_have_category_and_tags(db):
     session = make(db)
-    assert "Category" not in [label for _, label, _ in field_rows(db, session, {})]
 
-    add(db, Category(name="Design"))
-    assert "Category" in [label for _, label, _ in field_rows(db, session, {})]
+    labels = [label for _, label, _ in field_rows(db, session, {})]
+
+    assert "Category" in labels and "Tags" in labels
+
+
+def test_the_form_creates_a_category_and_tags_when_there_are_none(db):
+    session = make(db)
+    prompter = FakePrompter(
+        "Category", "New category", "Design",
+        "Tags", "New tag", "billable", "New tag", "urgent", "Done",
+        "Save",
+    )  # fmt: skip
+
+    changes = ask_edits(db, prompter, session)
+
+    design = db.exec(select(Category)).one()
+    tags = {tag.name: tag.id for tag in db.exec(select(Tag))}
+    assert changes == {
+        "category_fk": design.id,
+        "tag_fks": sorted([tags["billable"], tags["urgent"]]),
+    }
+    update_session(db, session, **changes)
+    assert tag_names(db, session) == ["billable", "urgent"]
+
+
+def test_the_form_picks_an_existing_category(db):
+    session = make(db)
+    design = add(db, Category(name="Design"))
+
+    changes = ask_edits(db, FakePrompter("Category", "Design", "Save"), session)
+
+    assert changes == {"category_fk": design.id}
+
+
+def test_the_customer_form_sets_new_labels_on_the_screen(db):
+    """The real prompts, key by key: Enter on Category, New, a name; on Tags too."""
+
+    customer = add(db, Customer(name="ACME"))
+    keys = [
+        "j", "\r", ESC, "j", "\r", "D", "e", "s", "\r",  # Category: New, "Des"
+        "j", "\r", ESC, "j", "\r", "b", "i", "l", "l", "\r",  # Tags: New, "bill"
+        "g", "\r",  # Done
+        "G", "\r",  # Save
+    ]  # fmt: skip
+    prompter = ScreenPrompter(title="edit")
+    prompter.screen = FakeScreen(keys, 80, 20)
+
+    changes = customers.ask_edits(db, prompter, customer)
+
+    category = db.exec(select(Category)).one()
+    tag = db.exec(select(Tag)).one()
+    assert (category.name, tag.name) == ("Des", "bill")
+    assert changes == {"category_fk": category.id, "tag_fks": [tag.id]}
 
 
 def test_running_session_end_reads_running(db):

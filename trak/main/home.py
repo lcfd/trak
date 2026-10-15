@@ -53,6 +53,7 @@ from trak.panes import (
     day_label,
     heading,
 )
+from trak.sessions.commands import Cancelled, in_home
 from trak.sessions.display import (
     describe_session,
     elapsed,
@@ -447,17 +448,19 @@ class Home:
     def run(self, screen: tui.Screen, path: str, args: Sequence[str] = ()) -> bool:
         """
         Run a command on the normal screen, then wait for a key before coming
-        back (not after a full-screen view). True when that key is q: quit.
+        back (not after a full-screen view, nor when it was cancelled: it said
+        nothing). True when that key is q: quit.
         """
 
         with screen.suspended():
             dev_bar.clear(Console())
+            cancelled = False
             if path == HELP:
                 typer.echo(self.ctx.get_help())
             else:
-                run_command(self.ctx, self.commands[path], path, args)
+                cancelled = run_command(self.ctx, self.commands[path], path, args)
             quit_ = False
-            if not is_view(path):
+            if not (is_view(path) or cancelled):
                 Console().print(
                     "\n[dim]Press any key to go back to trak, "
                     "[bold]q[/bold] to quit.[/dim]"
@@ -547,14 +550,20 @@ class Home:
 
 def run_command(
     ctx: typer.Context, command: TyperCommand, path: str, args: Sequence[str]
-) -> None:
-    """Run `command` under `ctx` as if typed with `args`; its errors stay here."""
+) -> bool:
+    """
+    Run `command` under `ctx` as if typed with `args`; its errors stay here.
+    True when the user cancelled it, which then printed nothing (`in_home`).
+    """
 
+    token = in_home.set(True)
     try:
         with command.make_context(path, list(args), parent=ctx) as sub_ctx:
             command.invoke(sub_ctx)
+    except Cancelled:
+        return True
     except (typer.Exit, typer.Abort, SystemExit, KeyboardInterrupt):
-        # It said why already (an error panel, "Cancelled"), or Ctrl-C.
+        # It said why already (an error panel), or Ctrl-C.
         pass
     except typer.TyperException as error:
         # A usage error, like a bad option value.
@@ -563,3 +572,6 @@ def run_command(
             show()
         else:
             typer.echo(str(error), err=True)
+    finally:
+        in_home.reset(token)
+    return False

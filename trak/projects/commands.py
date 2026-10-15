@@ -10,7 +10,7 @@ from rich.markup import escape
 from sqlmodel import Session as DBSession
 
 from trak import entities, forms, output
-from trak.base_messages import print_error, print_success, print_warning
+from trak.base_messages import print_error, print_success
 from trak.customers.models import Customer
 from trak.customers.services import get_customers
 from trak.dates import DATE_PLACEHOLDER, parse_date, parse_optional_date, today
@@ -228,8 +228,7 @@ def create_command(
                 cancelled="No project was created.",
             )
             if fields is None:
-                print_warning(title="Cancelled", text="No project was created.")
-                raise typer.Exit(1)
+                commands.cancel("No project was created.")
         else:
             fields = {"name": name, **defaults}
 

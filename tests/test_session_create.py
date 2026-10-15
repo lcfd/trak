@@ -121,7 +121,7 @@ def test_ask_new_session(db):
     start = yesterday_at_9()
 
     fields = ask_new_session(
-        db, FakePrompter("Backfill", "website", local(start), "1h30m")
+        db, FakePrompter("Backfill", "website", "None", "Done", local(start), "1h30m")
     )
 
     assert fields == {
@@ -136,7 +136,9 @@ def test_ask_new_session(db):
 
 
 def test_ask_new_session_can_be_declined(db):
-    prompter = FakePrompter("", local(yesterday_at_9()), "1h", confirm=False)
+    prompter = FakePrompter(
+        "", "None", "Done", local(yesterday_at_9()), "1h", confirm=False
+    )
 
     assert ask_new_session(db, prompter) is None
 
@@ -230,7 +232,7 @@ def test_create_without_start_and_terminal_asks_for_start(cli_db):
 
 def test_create_asks_every_field(cli_db, interactive, answers):
     start = yesterday_at_9()
-    answers("Backfill", local(start), "45m")
+    answers("Backfill", "None", "Done", local(start), "45m")
 
     result = invoke(cli_db)
 

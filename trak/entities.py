@@ -18,7 +18,7 @@ from sqlmodel import Session as DBSession
 from typer.core import TyperGroup
 
 from trak import dev_bar, output
-from trak.base_messages import print_error, print_info, print_success, print_warning
+from trak.base_messages import print_error, print_info, print_success
 from trak.main.menu import invoke_with_defaults
 from trak.prompts import PromptCancelled
 from trak.sessions import commands
@@ -102,8 +102,7 @@ def get_or_pick(
     require_terminal("Picking")
     row = commands.run_prompts(pick, cancelled=cancelled)
     if row is None:
-        print_warning(title="Cancelled", text=cancelled)
-        raise typer.Exit(1)
+        commands.cancel(cancelled)
     return row
 
 

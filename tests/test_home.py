@@ -8,11 +8,12 @@ from rich.console import Console
 from sqlmodel import select
 from typer.testing import CliRunner
 
-from tests.fakes import FakeScreen
+from tests.fakes import FakePrompter, FakeScreen, add
 from trak import browser, clipboard, config, dev_bar, tui, views
 from trak.goals.models import Goal
 from trak.main import home, menu
 from trak.projects.models import Project
+from trak.prompts import PromptCancelled
 from trak.sessions import commands
 from trak.sessions.models import Category, Session, Tag
 from trak.sessions.services import start_session, stop_session, update_session
@@ -379,6 +380,52 @@ def test_full_screen_views_come_back_without_a_key(screen, monkeypatch):
     assert "No session matches" in result.output
     assert "Press any key" not in result.output
     assert fake.suspensions == 1
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "sessions create",
+        "projects create",
+        "customers create",
+        "goals create",
+        "categories create",
+    ],
+)
+def test_a_cancelled_command_comes_back_saying_nothing(
+    screen, cli_db, monkeypatch, path
+):
+    add(cli_db, Project(name="website"))
+    start_session(cli_db, project_fk=1)
+    monkeypatch.setattr(
+        commands,
+        "make_prompter",
+        lambda: nullcontext_of(FakePrompter(PromptCancelled())),
+    )
+    # Typing a whole path in the filter puts it first; no key after it: the
+    # command comes back by itself, q quits.
+    fake = screen("/", path, "\r", "q")
+
+    result = trak()
+
+    assert result.exit_code == 0, result.output
+    assert fake.suspensions == 1
+    assert "Cancelled" not in result.output
+    assert "was created" not in result.output
+    assert "Press any key" not in result.output
+
+
+def test_going_back_from_picking_comes_back_saying_nothing(screen, cli_db, monkeypatch):
+    start_session(cli_db)
+    monkeypatch.setattr(browser, "getchar", lambda: "q")
+    fake = screen("/", "sessions edit", "\r", "q")
+
+    result = trak()
+
+    assert result.exit_code == 0, result.output
+    assert fake.suspensions == 1
+    assert "Cancelled" not in result.output
+    assert "Press any key" not in result.output
 
 
 def test_errors_of_a_command_stay_on_its_screen(screen, monkeypatch):

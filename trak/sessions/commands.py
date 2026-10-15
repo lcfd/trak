@@ -1,5 +1,6 @@
 import sys
 from collections.abc import Callable
+from contextvars import ContextVar
 from typing import Annotated, Any, NoReturn, TypeVar
 
 import typer
@@ -17,6 +18,7 @@ from trak.sessions.display import (
     running_text,
     session_json,
     session_label,
+    starship_text,
     started_text,
     stopped_text,
 )
@@ -237,18 +239,39 @@ def is_interactive() -> bool:
     return not output.json_mode() and sys.stdin.isatty() and sys.stdout.isatty()
 
 
+class Cancelled(typer.Exit):
+    """The user went back from a prompt, or declined it: nothing happened."""
+
+    def __init__(self) -> None:
+        super().__init__(1)
+
+
+# True while the home runs a command, which comes back to it.
+in_home: ContextVar[bool] = ContextVar("in_home", default=False)
+
+
+def cancel(text: str = "") -> NoReturn:
+    """
+    Say `text` ("Cancelled") and exit with 1. From the home, say nothing: it
+    comes straight back, as if the command never ran.
+    """
+
+    if not in_home.get():
+        print_warning(title="Cancelled", text=text or "Nothing was changed.")
+    raise Cancelled()
+
+
 def run_prompts(ask: Callable[[Prompter], T], cancelled: str = "") -> T:
     """
     Run interactive prompts. Ctrl-C exits with 130; going back (Esc or q)
-    prints `cancelled` and exits with 1.
+    cancels (`cancel(cancelled)`).
     """
 
     try:
         with make_prompter() as prompter:
             return ask(prompter)
     except PromptCancelled:
-        print_warning(title="Cancelled", text=cancelled or "Nothing was changed.")
-        raise typer.Exit(1)
+        cancel(cancelled)
     except (KeyboardInterrupt, SystemExit):
         # Ctrl-C (SystemExit: from code that calls exit() on it).
         raise typer.Exit(130)
@@ -331,8 +354,7 @@ def start(
                 cancelled="No session was started.",
             )
             if fields is None:
-                print_warning(title="Cancelled", text="No session was started.")
-                raise typer.Exit(1)
+                cancel("No session was started.")
 
         elif project is None and not fks and is_interactive():
             run_prompts(
@@ -450,7 +472,17 @@ def stop(
         )
 
 
-def status(ctx: typer.Context) -> None:
+def status(
+    ctx: typer.Context,
+    starship: Annotated[
+        bool,
+        typer.Option(
+            "--starship",
+            "-s",
+            help="One plain line for a prompt like Starship, nothing when idle.",
+        ),
+    ] = False,
+) -> None:
     """
     Show the running sessions: what they are and how long they've been going.
     With --json, a list of sessions (empty when nothing is running).
@@ -459,6 +491,13 @@ def status(ctx: typer.Context) -> None:
     with DBSession(ctx.obj["DB_ENGINE"]) as db:
         sessions = get_active_sessions(db)
         output.emit([session_json(db, session) for session in sessions])
+
+        if starship:
+            if not output.json_mode():
+                text = starship_text(db, sessions, ctx.obj["DEV_MODE"])
+                if text:
+                    print(text)
+            return
 
         if not sessions:
             print_info(

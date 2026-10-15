@@ -168,7 +168,8 @@ command plus `help` and `quit`). The focus starts on Actions. `j`/`k`/`g`/`G`/Ct
 Enter shows the goal/session or runs the action, `e` edits, `n` new goal / start, `s` stops the
 running session in place, `/` filters the actions (`command_score`), `?` help, `q` quits. Commands
 run on the normal screen, then any key comes back (`q` quits; `list`/`report` and the
-sessions/goals/projects `show` views come back directly, `home.is_view`). Below 96 columns one pane shows at a time, with the three as tabs. Without a TTY it
+sessions/goals/projects `show` views come back directly, `home.is_view`); so does a cancelled command, saying nothing: `commands.cancel()` prints
+"Cancelled" only outside the home). Below 96 columns one pane shows at a time, with the three as tabs. Without a TTY it
 prints the help; with `--json`, the overview (`main/overview.py`). Tests drive it with a
 `FakeScreen` (`tests/test_home.py`).
 The filter ranks abbreviations first (`command_score`): "sl" → sessions list, "se" → sessions edit, "pc" → projects create.
@@ -180,7 +181,9 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
   `--customer` is an error (`session_customer_fk`)
 - `trak stop [PROJECT] [--all] [--id ID]` - Stop a running session; with several, picks one
   (terminal) or needs `--id`/`--all`
-- `trak status` - The running sessions (`--json`: a list, for statuslines)
+- `trak status [-s]` - The running sessions (`--json`: a list, for statuslines). `--starship`/`-s`:
+  one plain line for a prompt (`website 1h 23m +1 (dev)`: the session started last, the others
+  counted), nothing when idle so Starship hides it (`sessions/display.starship_text`)
 
 **Entity groups** (`trak sessions|projects|customers|goals`, built with `trak/entities.py`):
 - `trak <entities>` - Same as `trak <entities> list` with no options
@@ -226,7 +229,9 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
   (`--end` stops a running session)
 - `--tag` everywhere: repeat it or separate names with commas (`-t billable,urgent`); on
   `edit` it replaces the tags, `--tag ""` clears them (`commands.find_tags`). Prompts pick
-  tags with `guided.pick_many` (Enter toggles, Done ends)
+  tags with `guided.pick_many` (Enter toggles, Done ends). Create prompts always ask the Category
+  and Tags, and edit forms always have their rows; the pickers end with "New category…"/"New tag…",
+  which creates one
 - `trak projects edit [ID] [--name] [--customer] [--category] [--tag]... [--rate] [--description] [--start] [--end]
   [--archive/--unarchive]`; `trak customers edit [ID] [--name] [--category] [--tag]...`;
   `trak goals edit [ID] [--project] [--name] [--hours] [--from] [--by]`

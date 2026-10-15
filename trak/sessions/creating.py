@@ -9,7 +9,7 @@ import typer
 from sqlmodel import Session as DBSession
 
 from trak import output
-from trak.base_messages import print_error, print_success, print_warning
+from trak.base_messages import print_error, print_success
 from trak.projects.models import Project
 from trak.sessions import commands
 from trak.sessions.commands import CategoryOption, CustomerOption, TagsOption
@@ -166,8 +166,7 @@ def create_command(
                 cancelled="No session was created.",
             )
             if fields is None:
-                print_warning(title="Cancelled", text="No session was created.")
-                raise typer.Exit(1)
+                commands.cancel("No session was created.")
         else:
             fields = vars(defaults)
             try:

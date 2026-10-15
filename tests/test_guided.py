@@ -62,12 +62,12 @@ def test_parse_start_rejects_the_future():
 # ask_session_fields
 
 
-def test_empty_database_only_asks_the_start(db):
-    prompter = FakePrompter("", "")
+def test_empty_database_asks_the_labels_and_the_start(db):
+    prompter = FakePrompter("", "None", "Done", "")
 
     fields = ask_session_fields(db, prompter)
 
-    assert prompter.asked == ["Name", "Start"]
+    assert prompter.asked == ["Name", "Category", "Tags · Enter toggles", "Start"]
     assert fields == SessionFields()
 
 
@@ -105,7 +105,7 @@ def test_asks_every_field(db):
 def test_every_field_can_be_none(db):
     add(db, Customer(name="ACME"))
     add(db, Project(name="website"))
-    prompter = FakePrompter("", "None", "None", "")
+    prompter = FakePrompter("", "None", "None", "None", "Done", "")
 
     assert ask_session_fields(db, prompter) == SessionFields()
 
@@ -113,7 +113,7 @@ def test_every_field_can_be_none(db):
 def test_skips_customer_when_the_project_has_one(db):
     customer = add(db, Customer(name="ACME"))
     add(db, Project(name="website", customer_fk=customer.id))
-    prompter = FakePrompter("", "website", "")
+    prompter = FakePrompter("", "website", "None", "Done", "")
 
     fields = ask_session_fields(db, prompter)
 
@@ -124,7 +124,7 @@ def test_skips_customer_when_the_project_has_one(db):
 def test_project_argument_is_the_default(db):
     add(db, Project(name="app"))
     website = add(db, Project(name="website"))
-    prompter = FakePrompter("", "website", "")
+    prompter = FakePrompter("", "website", "None", "Done", "")
 
     ask_session_fields(db, prompter, project=website)
 
@@ -133,7 +133,7 @@ def test_project_argument_is_the_default(db):
 
 def test_archived_projects_are_not_offered(db):
     add(db, Project(name="old", archived=True))
-    prompter = FakePrompter("", "")
+    prompter = FakePrompter("", "None", "Done", "")
 
     ask_session_fields(db, prompter)
 
@@ -141,7 +141,10 @@ def test_archived_projects_are_not_offered(db):
 
 
 def test_declining_the_confirmation_returns_none(db):
-    assert ask_session_fields(db, FakePrompter("", "", confirm=False)) is None
+    assert (
+        ask_session_fields(db, FakePrompter("", "None", "Done", "", confirm=False))
+        is None
+    )
 
 
 # trak start -g
@@ -212,13 +215,17 @@ def test_guided_with_unknown_project_fails_before_prompting(
 
 
 def test_guided_name_defaults_to_the_name_option(db):
-    fields = ask_session_fields(db, FakePrompter("", ""), name="Landing page")
+    fields = ask_session_fields(
+        db, FakePrompter("", "None", "Done", ""), name="Landing page"
+    )
 
     assert fields.name == "Landing page"
 
 
 def test_guided_name_is_stripped(db):
-    fields = ask_session_fields(db, FakePrompter("  Landing page  ", ""))
+    fields = ask_session_fields(
+        db, FakePrompter("  Landing page  ", "None", "Done", "")
+    )
 
     assert fields.name == "Landing page"
 
@@ -281,3 +288,28 @@ def test_ask_session_to_stop_offers_every_session(db):
     assert picked == second
     assert options[0]["name"].startswith("Landing page · website  (since ")
     assert options[1]["name"].startswith("Emails  (since ")
+
+
+def test_pick_many_creates_a_row_picked(db):
+    a = add(db, Tag(name="a"))
+    made = []
+
+    def create():
+        made.append(add(db, Tag(name="b")))
+        return made[0]
+
+    prompter = FakePrompter("New tag", "Done")
+    picked = pick_many(prompter, "Tags", [a], [], create=create, new="New tag…")
+
+    assert picked == [made[0].id]
+    assert prompter.notes == {"Tags": "b"}
+
+
+def test_ask_tags_and_category_create_one_when_there_are_none(db):
+    from trak.sessions.guided import ask_category, ask_tags
+
+    prompter = FakePrompter("New tag", "urgent", "Done")
+    assert ask_tags(db, prompter, []) == [1]
+
+    prompter = FakePrompter("New category", "Design")
+    assert ask_category(db, prompter, None) == 1

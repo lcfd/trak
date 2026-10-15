@@ -242,6 +242,34 @@ def running_text(db: DBSession, sessions: list[Session]) -> str:
     return "\n".join(lines)
 
 
+def starship_text(
+    db: DBSession, sessions: list[Session], dev_mode: bool = False
+) -> str:
+    """
+    One plain line for a prompt (`trak status --starship`): the session started
+    last ("website 1h 23m"), "+2" for the other running ones, "(dev)" in dev mode. Empty when
+    nothing is running, so the prompt hides it.
+    """
+
+    if not sessions:
+        return ""
+    latest = sessions[-1]
+    project = db.get(Project, latest.project_fk) if latest.project_fk else None
+    customer = session_customer(db, latest)
+    name = (
+        (project.name if project else "")
+        or latest.name
+        or (customer.name if customer else "")
+        or f"#{latest.id}"
+    )
+    parts = [name, format_duration(elapsed(latest))]
+    if len(sessions) > 1:
+        parts.append(f"+{len(sessions) - 1}")
+    if dev_mode:
+        parts.append("(dev)")
+    return " ".join(parts)
+
+
 def created_text(db: DBSession, session: Session) -> str:
     """The body of the panel `trak sessions create` prints."""
 

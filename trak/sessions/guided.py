@@ -12,9 +12,10 @@ from sqlmodel import Session as DBSession
 from sqlmodel import select
 
 from trak.customers.services import get_customers
+from trak.labels.services import CATEGORY, TAG, Kind, check_label, create_label
 from trak.projects.models import Project
 from trak.projects.services import get_projects
-from trak.prompts import ScreenPrompter
+from trak.prompts import PromptCancelled, ScreenPrompter
 from trak.sessions.display import (
     describe_session,
     elapsed,
@@ -120,17 +121,25 @@ def pick(
 
 
 DONE = "done"
+NEW = "new"
 
 
 def pick_many(
-    prompter: Prompter, label: str, rows: list[Any], selected: list[int]
+    prompter: Prompter,
+    label: str,
+    rows: list[Any],
+    selected: list[int],
+    create: Callable[[], Any] | None = None,
+    new: str = "New…",
 ) -> list[int]:
     """
     Pick any number of rows by id: Enter on a row toggles it (✓), Done (the
     first option) ends. Rows need `id` and `name`. Returns the ids, sorted.
     It opens typing a filter; after a toggle it stays in NORMAL mode (j/k).
+    With `create`, a last option (`new`) makes a row, picked.
     """
 
+    rows = list(rows)
     chosen = set(selected)
     last: Any = DONE
     while True:
@@ -144,6 +153,8 @@ def pick_many(
             }
             for row in rows
         ]
+        if create is not None:
+            options.append({"name": new, "value": NEW})
         last = prompter.ask(
             f"{label} · Enter toggles",
             options,
@@ -154,28 +165,65 @@ def pick_many(
         )
         if last == DONE:
             break
+        if last == NEW:
+            assert create is not None
+            try:
+                row = create()
+            except PromptCancelled:
+                last = DONE
+                continue
+            rows.append(row)
+            last = row.id
+            chosen.add(row.id)
+            continue
         chosen ^= {last}
     names = [row.name for row in rows if row.id in chosen]
     prompter.note(label, ", ".join(names) or "—")
     return sorted(chosen)
 
 
+def new_label(db: DBSession, prompter: Prompter, kind: Kind) -> Any:
+    """Ask the name of a new Category or Tag, and create it."""
+
+    name = prompter.input(
+        f"New {kind.noun}",
+        placeholder="e.g. Design" if kind is CATEGORY else "e.g. billable",
+        validator=input_validator(lambda text: check_label(db, kind, text.strip())),
+    )
+    return create_label(db, kind, name=name)
+
+
 def ask_category(db: DBSession, prompter: Prompter, default: int | None) -> int | None:
-    """Pick the Category (None for none); without any, keeps `default`."""
+    """Pick the Category (None for none), or create one ("New category…")."""
 
     rows = list(db.exec(select(Category).order_by(Category.name)))
-    if not rows:
-        return default
-    return pick(prompter, "Category", rows, default=default)
+    options: list[Option[Any]] = [{"name": "None", "value": None}]
+    options += [{"name": row.name or f"#{row.id}", "value": row.id} for row in rows]
+    options.append({"name": "New category…", "value": NEW})
+    while True:
+        choice = prompter.ask(
+            "Category", options, allow_filtering=True, default=default
+        )
+        if choice != NEW:
+            return choice
+        try:
+            return new_label(db, prompter, CATEGORY).id
+        except PromptCancelled:
+            continue
 
 
 def ask_tags(db: DBSession, prompter: Prompter, selected: list[int]) -> list[int]:
-    """Pick the Tags; without any, keeps `selected`."""
+    """Pick the Tags, creating any new ones ("New tag…")."""
 
     rows = list(db.exec(select(Tag).order_by(Tag.name)))
-    if not rows:
-        return selected
-    return pick_many(prompter, "Tags", rows, selected)
+    return pick_many(
+        prompter,
+        "Tags",
+        rows,
+        selected,
+        create=lambda: new_label(db, prompter, TAG),
+        new="New tag…",
+    )
 
 
 def ask_project_and_customer(

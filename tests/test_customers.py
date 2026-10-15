@@ -11,6 +11,7 @@ from trak.customers.models import Customer
 from trak.customers.services import create_customer, list_customers, update_customer
 from trak.projects.models import Project
 from trak.prompts import PromptCancelled
+from trak.sessions.models import Category, CustomerTag, Tag
 from trak.sessions.services import session_totals, start_session, stop_session
 from trak.typer_app import app
 
@@ -103,7 +104,7 @@ def test_create_a_duplicate(cli_db):
 
 
 def test_create_without_name_asks_it(interactive, answers, cli_db):
-    answers("ACME")
+    answers("ACME", "None", "Done")
 
     result = invoke(cli_db, "customers", "create")
 
@@ -224,3 +225,17 @@ def test_browse_filters_by_name(db, capsys):
     last = frames(capsys.readouterr().out)[-1]
     assert 'Filters: name: "oth"' in last
     assert "Other" in last and "ACME" not in last
+
+
+def test_create_without_name_can_create_a_category_and_a_tag(
+    interactive, answers, cli_db
+):
+    answers("ACME", "New category", "Retail", "New tag", "vip", "Done")
+
+    result = invoke(cli_db, "customers", "create")
+
+    assert result.exit_code == 0, result.output
+    customer = cli_db.exec(select(Customer)).one()
+    assert cli_db.get(Category, customer.category_fk).name == "Retail"
+    assert [tag.name for tag in cli_db.exec(select(Tag))] == ["vip"]
+    assert cli_db.exec(select(CustomerTag)).one().customer_fk == customer.id

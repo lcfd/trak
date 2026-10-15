@@ -8,7 +8,7 @@ from rich_toolkit.menu import Option
 from sqlmodel import Session as DBSession
 
 from trak import entities, forms, output
-from trak.base_messages import print_error, print_success, print_warning
+from trak.base_messages import print_error, print_success
 from trak.dates import DATE_PLACEHOLDER, parse_date
 from trak.goals import listing
 from trak.goals.display import (
@@ -223,8 +223,7 @@ def create_command(
                 cancelled="No goal was created.",
             )
             if fields is None:
-                print_warning(title="Cancelled", text="No goal was created.")
-                raise typer.Exit(1)
+                commands.cancel("No goal was created.")
 
         try:
             goal = create_goal(db, **fields)
