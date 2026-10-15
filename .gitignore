@@ -166,3 +166,6 @@ dist.tar.gz
 # Local change notes
 changes-*.md
 todo-*.md
+
+# Local design report
+design-report.html
