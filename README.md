@@ -100,8 +100,9 @@ trak stop <project-name>
 trak stop --all
 ```
 
-A session can belong to a project, to a customer, both, or neither, and
-more than one session can run at the same time.
+A session can belong to a project or directly to a customer, or to neither.
+A session on a project belongs to the project's customer too.
+More than one session can run at the same time.
 
 ### Your data
 

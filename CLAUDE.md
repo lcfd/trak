@@ -62,7 +62,10 @@ Tag (id, name)
 Goal (id, project_fk, name, hours, start, deadline)
 ```
 
-- A Session can belong to a Project, to a Customer, both, or neither.
+- A Session can belong to a Project, directly to a Customer, or neither. A
+  Session on a Project belongs to the Project's Customer (`session_customer_fk`
+  stores no `customer_fk` then); a direct Customer is only for Sessions whose
+  Project has none.
 - A Project can belong to a Customer, and can run from `start` to `end` (dates,
   both included, each optional). They're informative: Sessions outside them are fine.
 - A Goal is an aim, not an obligation: `hours` to track on a Project from `start`
