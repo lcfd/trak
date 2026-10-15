@@ -1,8 +1,9 @@
 """
 `trak categories ...` and `trak tags ...`: the same commands for both, made
-for a `Kind` by `entity_app`.
+for a `Kind` by `make_app` (`show` is in view.py).
 """
 
+from collections.abc import Callable
 from typing import Annotated, Any
 
 import typer
@@ -11,7 +12,6 @@ from sqlmodel import Session as DBSession
 
 from trak import entities, forms, output
 from trak.base_messages import print_error, print_success, print_warning
-from trak.customers.models import Customer
 from trak.entities import entity_app
 from trak.labels import listing
 from trak.labels.listing import LabelFilters, label_json
@@ -20,50 +20,19 @@ from trak.labels.services import (
     check_label,
     create_label,
     delete_label,
-    labelled,
-    session_filter,
     update_label,
 )
-from trak.projects.models import Project
 from trak.sessions import commands
-from trak.sessions.display import format_duration
-from trak.sessions.editing import format_time
 from trak.sessions.guided import input_validator
-from trak.sessions.services import session_totals
 
 
 def label_text(row: Any) -> str:
     return f"[magenta]{escape(row.name)}[/magenta]"
 
 
-def names(rows: list[Any]) -> str:
-    return ", ".join(escape(row.name or f"#{row.id}") for row in rows)
-
-
 def name_validator(db: DBSession, kind: Kind, label_id: int | None = None) -> Any:
     return input_validator(
         lambda text: check_label(db, kind, text.strip(), label_id=label_id)
-    )
-
-
-def print_label(db: DBSession, kind: Kind, row: Any) -> None:
-    """The panel of `trak categories|tags show`."""
-
-    totals = session_totals(db, **session_filter(kind, row))
-    entities.print_details(
-        title=f"{kind.title} #{row.id}",
-        rows=[
-            ("Name", label_text(row)),
-            ("Projects", names(labelled(db, kind, row, Project)) or "[dim]—[/dim]"),
-            ("Customers", names(labelled(db, kind, row, Customer)) or "[dim]—[/dim]"),
-            ("Sessions", str(totals.sessions)),
-            ("Time", format_duration(totals.time)),
-            (
-                "Last session",
-                entities.or_dash(totals.last and format_time(totals.last)),
-            ),
-        ],
-        hint=f'Edit it with "trak {kind.plural} edit {row.id}".',
     )
 
 
@@ -86,36 +55,46 @@ def ask_edits(db: DBSession, kind: Kind, prompter: Any, row: Any) -> dict[str, A
     )
 
 
-def make_app(kind: Kind) -> typer.Typer:
-    """The Typer app of `trak <kind.plural>`."""
+def id_argument(kind: Kind) -> Any:
+    """The ID argument of `trak <kind.plural> show|edit|delete`."""
 
-    noun, plural = kind.noun, kind.plural
-
-    IdArgument = Annotated[
+    return Annotated[
         int | None,
         typer.Argument(
-            metavar="ID", help=f"The {noun}. Leave it empty to pick one from the list."
+            metavar="ID",
+            help=f"The {kind.noun}. Leave it empty to pick one from the list.",
         ),
     ]
 
-    def get_or_pick(db: DBSession, label_id: int | None, verb: str) -> Any:
-        done = {"show": "shown", "edit": "edited", "delete": "deleted"}[verb]
-        return entities.get_or_pick(
+
+def get_or_pick(db: DBSession, kind: Kind, label_id: int | None, verb: str) -> Any:
+    done = {"show": "shown", "edit": "edited", "delete": "deleted"}[verb]
+    return entities.get_or_pick(
+        db,
+        kind.model,
+        label_id,
+        lambda prompter: listing.browse(
             db,
-            kind.model,
-            label_id,
-            lambda prompter: listing.browse(
-                db,
-                kind,
-                prompter,
-                LabelFilters(),
-                pick=True,
-                title=f"Pick a {noun} to {verb}",
-            ),
-            noun=noun,
-            command=f"trak {plural} {verb}",
-            cancelled=f"No {noun} was {done}.",
-        )
+            kind,
+            prompter,
+            LabelFilters(),
+            pick=True,
+            title=f"Pick a {kind.noun} to {verb}",
+        ),
+        noun=kind.noun,
+        command=f"trak {kind.plural} {verb}",
+        cancelled=f"No {kind.noun} was {done}.",
+    )
+
+
+def make_app(kind: Kind, show_command: Callable[..., None]) -> typer.Typer:
+    """
+    The Typer app of `trak <kind.plural>`; `show_command` comes from view.py
+    (`make_show_command`), which imports this module.
+    """
+
+    noun, plural = kind.noun, kind.plural
+    IdArgument = id_argument(kind)
 
     def create_command(
         ctx: typer.Context,
@@ -154,12 +133,6 @@ def make_app(kind: Kind) -> typer.Typer:
                 ),
             )
 
-    def show_command(ctx: typer.Context, label_id: IdArgument = None) -> None:
-        with DBSession(ctx.obj["DB_ENGINE"]) as db:
-            row = get_or_pick(db, label_id, "show")
-            output.emit(label_json(db, kind, row))
-            print_label(db, kind, row)
-
     def edit_command(
         ctx: typer.Context,
         label_id: IdArgument = None,
@@ -171,7 +144,7 @@ def make_app(kind: Kind) -> typer.Typer:
             entities.require_terminal("Editing without options")
 
         with DBSession(ctx.obj["DB_ENGINE"]) as db:
-            row = get_or_pick(db, label_id, "edit")
+            row = get_or_pick(db, kind, label_id, "edit")
             if name is not None:
                 changes = forms.effective_changes(row, {"name": name.strip()})
             else:
@@ -200,7 +173,7 @@ def make_app(kind: Kind) -> typer.Typer:
         ] = False,
     ) -> None:
         with DBSession(ctx.obj["DB_ENGINE"]) as db:
-            row = get_or_pick(db, label_id, "delete")
+            row = get_or_pick(db, kind, label_id, "delete")
             data = label_json(db, kind, row)
             used = data["sessions"] + len(data["projects"]) + len(data["customers"])
             if not yes:
@@ -226,7 +199,6 @@ def make_app(kind: Kind) -> typer.Typer:
             output.emit(data)
             print_success(title="🗑️  Delete", text=text)
 
-    show_command.__doc__ = f"Show a {noun}: what has it and the time tracked."
     create_command.__doc__ = f"Create a {noun}."
     edit_command.__doc__ = (
         f"Rename a {noun}. With --name, saves it right away; without, opens the "

@@ -84,9 +84,10 @@ FILTER_SHORTCUTS: list[browser.Shortcut] = [
 
 
 def show_label(db: DBSession, kind: Kind, row: Any, screen: Any) -> None:
-    from trak.labels.commands import print_label
+    from trak import views
+    from trak.labels.view import VIEWS
 
-    entities.show_printed(screen, lambda: print_label(db, kind, row))
+    views.show_in(db, VIEWS[kind.noun], row, screen)
 
 
 def edit_label(db: DBSession, kind: Kind, row: Any, prompter: Prompter) -> str:

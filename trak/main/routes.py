@@ -47,6 +47,12 @@ def is_dev_mode(settings: dict[str, Any]) -> bool:
     env = os.environ.get(config.DEV_ENV_VAR)
     if env is not None:
         return is_truthy(env)
+    return settings_dev_mode(settings)
+
+
+def settings_dev_mode(settings: dict[str, Any]) -> bool:
+    """What settings.toml says, whatever the environment variable."""
+
     # settings.toml takes `development = true`, or the env var's name as a key
     # (`TRAK_DEV = true`), so the same switch works in both places.
     for key in ("development", config.DEV_ENV_VAR):

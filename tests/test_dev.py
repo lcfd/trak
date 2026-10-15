@@ -1,5 +1,6 @@
 """`trak dev fill`: years of made-up data in the dev database."""
 
+import json
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -168,3 +169,77 @@ def test_dev_is_in_the_help():
 
     assert result.exit_code == 0, result.output
     assert "dev" in result.output
+
+
+# trak dev toggle
+
+
+def settings() -> str:
+    return config.SETTINGS_FILE_PATH.read_text()
+
+
+def test_toggle_needs_yes_without_a_terminal():
+    result = runner.invoke(app, ["dev", "toggle"])
+
+    assert result.exit_code == 1
+    assert "--yes" in result.output
+    assert "development" not in settings()
+
+
+def test_toggle_flips_the_setting_and_keeps_the_rest():
+    config.SETTINGS_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    config.SETTINGS_FILE_PATH.write_text(
+        'currency = "€"\nTRAK_DEV=true\n\n[report]\ndevelopment = 1\n'
+    )
+
+    off = runner.invoke(app, ["dev", "toggle", "--yes"])
+    assert off.exit_code == 0, off.output
+    assert "Dev mode is off" in off.output
+    assert (
+        settings()
+        == 'currency = "€"\ndevelopment = false\n\n[report]\ndevelopment = 1\n'
+    )
+
+    on = runner.invoke(app, ["dev", "toggle", "-y"])
+    assert "Dev mode is on" in on.output
+    assert "development = true" in settings()
+
+
+def test_toggle_on_when_already_on_changes_nothing():
+    result = runner.invoke(app, ["dev", "toggle", "--off"])
+
+    assert result.exit_code == 0, result.output
+    assert "already off" in result.output
+    assert "development" not in settings()
+
+
+def test_toggle_asks_in_a_terminal(interactive, answers):
+    answers(confirm=False)
+    kept = runner.invoke(app, ["dev", "toggle"])
+    answers(confirm=True)
+    toggled = runner.invoke(app, ["dev", "toggle"])
+
+    assert kept.exit_code == 1 and "Dev mode didn't change" in kept.output
+    assert toggled.exit_code == 0, toggled.output
+    assert settings() == "development = true\n"
+
+
+def test_toggle_json():
+    result = runner.invoke(app, ["--json", "dev", "toggle", "--on", "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout) == {
+        "development": True,
+        "settings": str(config.SETTINGS_FILE_PATH),
+        "database": str(config.DB_DEV_PATH),
+    }
+
+
+def test_toggle_warns_that_the_env_var_wins(monkeypatch):
+    monkeypatch.setenv(config.DEV_ENV_VAR, "1")
+
+    result = runner.invoke(app, ["dev", "toggle", "--on", "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert "Dev mode is on" in result.output
+    assert f"{config.DEV_ENV_VAR}=1 wins" in result.output

@@ -29,6 +29,7 @@ from trak.goals import commands as goals
 from trak.goals import listing as goals_listing
 from trak.goals import view as goals_view
 from trak.labels import commands as labels
+from trak.labels import view as labels_view
 from trak.labels.services import CATEGORY, TAG
 from trak.main.routes import main
 from trak.projects import commands as projects
@@ -151,8 +152,16 @@ goals_app.command(name="create", help="Create a goal.")(goals.create_command)
 goals_app.command(name="edit", help="Edit a goal.")(goals.edit_command)
 app.add_typer(goals_app, name="goals", rich_help_panel="Your data")
 
-app.add_typer(labels.make_app(CATEGORY), name="categories", rich_help_panel="Your data")
-app.add_typer(labels.make_app(TAG), name="tags", rich_help_panel="Your data")
+app.add_typer(
+    labels.make_app(CATEGORY, labels_view.make_show_command(CATEGORY)),
+    name="categories",
+    rich_help_panel="Your data",
+)
+app.add_typer(
+    labels.make_app(TAG, labels_view.make_show_command(TAG)),
+    name="tags",
+    rich_help_panel="Your data",
+)
 
 app.command(
     name="doctor",

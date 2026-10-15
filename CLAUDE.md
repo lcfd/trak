@@ -42,13 +42,14 @@ trak/
 ├── entities.py          # EntityGroup (`trak <entities> ID`), get_or_pick, print_details, save_changes
 ├── doctor.py            # `trak doctor`: DB path, schema version, integrity and FK checks
 ├── dev/                 # `trak dev` (in --help, not in the menu: `NOT_IN_MENU` in main/menu.py)
-│   ├── commands.py      # `trak dev fill`
+│   ├── commands.py      # `trak dev fill`, `trak dev toggle`
 │   └── fill.py          # Years of made-up data relative to today (projects, sessions, goals)
 ├── labels/              # Categories and Tags
 │   ├── links.py         # Tags of Sessions/Projects/Customers (link tables), with_tags, labels_json
 │   ├── services.py      # Kind (CATEGORY, TAG) + create/update/list/delete, shared by both
 │   ├── listing.py       # `categories|tags list` browser, label_json
-│   └── commands.py      # make_app(kind): list/show/create/edit/delete
+│   ├── commands.py      # make_app(kind, show): list/create/edit/delete, get_or_pick
+│   └── view.py          # `show`: LabelView (CategoryView, TagView), label_rows, make_show_command
 ├── sessions/
 │   ├── models.py        # Session, Category, Tag, SessionTag/ProjectTag/CustomerTag models
 │   ├── services.py      # start/stop/update/list sessions, session_totals
@@ -185,13 +186,13 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
 - `trak <entities>` - Same as `trak <entities> list` with no options
 - `trak <entities> ID` - Same as `trak <entities> show ID` (`EntityGroup` routes a number to `show`)
 - `trak <entities>` are sessions, projects, customers, goals, categories, tags
-- `trak sessions|goals|projects show [ID] [--plain]` - In a terminal, full screen in two panes
+- `trak sessions|goals|projects|categories|tags show [ID] [--plain]` - In a terminal, full screen in two panes
   like the home (`views.DetailView`): [1] the row (where the focus starts; `e` edits it in
   place) and [2] sessions by day (j/k, Enter shows one). Sessions: [2] is its project's
   sessions, Enter shows one in place (Esc/Ctrl-o back), `s` stops it. Goals: progress bar and
   pace in [1], [2] the sessions counted. Projects: its goals in [1], [2] its sessions, `R` its
-  report. `--plain`, no TTY or `--json` print the details panel. Customers, categories and
-  tags `show` print a panel
+  report. Categories and tags: what has it in [1], [2] its sessions. `--plain`, no TTY or
+  `--json` print the details panel. Customers `show` prints a panel
 - `trak <entities> show|edit [ID]` - Without ID, pick it in the list browser (j/k + Enter, needs a TTY).
   `edit` takes a flag per field and saves them; without flags it opens a menu of fields
   (`trak/forms.py`; Esc discards), which needs a TTY
@@ -255,6 +256,9 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
 
 **Other:**
 - `trak config` - Manage settings
+- `trak dev toggle [--on/--off] [--yes]` - Turn dev mode on or off in settings.toml
+  (`development = ...`, the rest of the file kept); asks in a terminal, needs `--yes` without
+  one. Warns when `TRAK_DEV` is set, since it wins
 - `trak doctor` - DB path, schema version vs latest, `integrity_check` and
   `foreign_key_check`; exits 1 on any problem (`--json`: the same, `problems` a list)
 - `trak dev fill [--years 6] [--seed N] [--reset]` - Fill the dev database (always
