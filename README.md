@@ -160,23 +160,35 @@ The database is upgraded automatically when you install a new version.
 
 ## Starship
 
-> `trak status` is being rewritten in 0.0.6: this integration will come back with it.
+Show the running session in your prompt with [Starship](https://starship.rs).
 
-There is a dedicated command that outputs clean strings for tools like Starship:
+`trak status -s` (or `trak status --starship`) prints one plain line:
 
-`trak status -s` or `trak status --starship`
-
-To see the status in your terminal line open `$HOME/.config/starship.toml`
-and put this snippet inside of it:
-
-```bash
-[custom.trak]
-command = """ trak status -s """
-when = "trak status"
-shell = "sh"
+```
+website 1h 23m +1
 ```
 
-This way you can stay updated on the state of your session wherever you integrate this command.
+That's the session you started last, how long it has been running, and how many
+other sessions are running (`+1`). In development mode the line ends with `(dev)`.
+When nothing is running it prints nothing.
+
+Open `~/.config/starship.toml` and add:
+
+```toml
+[custom.trak]
+command = "trak status -s"
+when = true
+shell = ["sh"]
+```
+
+Use `when = true`, not a command like `when = "trak status"`. Starship already
+hides the module when `trak status -s` prints nothing, so the extra check would
+only run trak a second time on every prompt.
+
+`trak status -s` is built for this and answers in a few tens of milliseconds,
+well within Starship's default 500 ms `command_timeout`. If Starship still warns
+that the command timed out, check that the `trak` on your `PATH` is up to date
+(`trak --version`).
 
 ## Distribution
 

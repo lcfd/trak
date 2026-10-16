@@ -25,6 +25,7 @@ trak/
 ├── tui.py               # Full screen: open_screen() (Terminal, or PlainScreen without a TTY), page(), overlay()
 ├── panes.py             # Lazygit-style panes (Pane, Item, render, side_by_side, tabs): home and show views
 ├── views.py             # DetailView: the two-pane `show` of sessions, goals, projects; show_in(), run()
+├── starship.py          # `status -s` in plain sqlite3, run by __main__ before importing the app (prompt speed)
 ├── clipboard.py         # copy(): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 (`y` in views)
 ├── prompts.py           # ScreenPrompter: full-screen vim prompts (Menu, TextInput), answers listed above
 ├── main/
@@ -183,7 +184,9 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
   (terminal) or needs `--id`/`--all`
 - `trak status [-s]` - The running sessions (`--json`: a list, for statuslines). `--starship`/`-s`:
   one plain line for a prompt (`website 1h 23m +1 (dev)`: the session started last, the others
-  counted), nothing when idle so Starship hides it (`sessions/display.starship_text`)
+  counted), nothing when idle so Starship hides it (`sessions/display.starship_text`). `trak/starship.py`
+  answers it in ~30ms without importing the app (Starship's timeout is 500ms); keep both in sync
+  (`tests/test_starship.py`)
 
 **Entity groups** (`trak sessions|projects|customers|goals`, built with `trak/entities.py`):
 - `trak <entities>` - Same as `trak <entities> list` with no options
