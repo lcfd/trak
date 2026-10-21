@@ -303,6 +303,8 @@ def ask_session_fields(
             "Start",
             default=f"{start.astimezone():%Y-%m-%d %H:%M}" if start else "",
             placeholder='now, "HH:MM" or "YYYY-MM-DD HH:MM"',
+            picker="datetime",
+            empty="now",
             validator=start_validator,
         )
     )

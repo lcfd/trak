@@ -60,11 +60,12 @@ def test_three_panes_with_the_focus_on_actions(screen):
 
 
 def test_actions_list_every_command(screen):
-    fake = screen("q")
+    fake = screen("q", height=50)
 
     trak()
 
-    for path in ("start", "stop", "sessions list", "goals create", "help", "quit"):
+    paths = ("start", "stop", "sessions list", "goals create", "goals delete")
+    for path in (*paths, "help", "quit"):
         assert f"│ {path} " in fake.last
     # Hidden commands and the developer tools stay out.
     assert "dev fill" not in fake.last

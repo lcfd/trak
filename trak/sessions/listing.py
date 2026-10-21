@@ -9,7 +9,7 @@ from rich_toolkit.menu import Option
 from sqlmodel import Session as DBSession
 from sqlmodel import select
 
-from trak import browser, entities, tables, tui
+from trak import browser, deleting, entities, tables, tui
 from trak.base_messages import print_error
 from trak.customers.models import Customer
 from trak.customers.services import get_customers
@@ -18,6 +18,7 @@ from trak.projects.models import Project
 from trak.projects.services import get_projects
 from trak.sessions import commands
 from trak.sessions.display import (
+    describe_session,
     elapsed,
     format_duration,
     session_customer,
@@ -25,7 +26,7 @@ from trak.sessions.display import (
 )
 from trak.sessions.guided import Prompter, input_validator
 from trak.sessions.models import Category, Session, Tag
-from trak.sessions.services import list_sessions, local_midnight
+from trak.sessions.services import delete_session, list_sessions, local_midnight
 
 
 @dataclass
@@ -287,7 +288,10 @@ def ask_dates(prompter: Prompter, filters: ListFilters) -> ListFilters:
     if kind == "day":
         day = _required_day(
             prompter.input(
-                "Day", placeholder=DAY_PLACEHOLDER, validator=required_day_validator
+                "Day",
+                placeholder=DAY_PLACEHOLDER,
+                picker="date",
+                validator=required_day_validator,
             )
         )
         return replace(filters, since=day, until=day, page=1)
@@ -296,6 +300,8 @@ def ask_dates(prompter: Prompter, filters: ListFilters) -> ListFilters:
         prompter.input(
             "From",
             placeholder=DAY_PLACEHOLDER + ", empty for no limit",
+            picker="date",
+            empty="no limit",
             validator=day_validator,
         )
     )
@@ -303,6 +309,8 @@ def ask_dates(prompter: Prompter, filters: ListFilters) -> ListFilters:
         prompter.input(
             "To",
             placeholder=DAY_PLACEHOLDER + ", empty for no limit",
+            picker="date",
+            empty="no limit",
             validator=day_validator,
         )
     )
@@ -360,10 +368,30 @@ def edit_session(db: DBSession, session: Session, prompter: Prompter) -> str:
     )
 
 
+def describe_for_delete(db: DBSession, session: Session) -> str:
+    """ "#12 website · Landing page (Tue 20 Oct 09:00, 1h 30m)"."""
+
+    start = session.start.astimezone()
+    took = format_duration(elapsed(session))
+    return f"#{session.id} {describe_session(db, session)} ({start:%a %d %b %H:%M}, {took})"
+
+
+DELETION = deleting.Deletion(
+    model=Session,
+    noun="session",
+    describe=describe_for_delete,
+    consequences=lambda db, s: "It's running." if s.active else "",
+    delete=delete_session,
+)
+
+
 def session_listing(db: DBSession) -> browser.Listing[Session, ListFilters]:
     return browser.Listing(
         show=lambda session, screen: show_session(db, session, screen),
         edit=lambda session, prompter: edit_session(db, session, prompter),
+        delete=lambda session, screen, back, keys: deleting.delete_from_browser(
+            db, DELETION, session, screen, back, keys
+        ),
         noun="session",
         query=lambda filters: query(db, filters),
         cells=lambda session: session_cells(db, session),
@@ -420,7 +448,7 @@ def get_or_pick(db: DBSession, session_id: int | None, verb: str) -> Session:
         ),
         noun="session",
         command=f"trak sessions {verb}",
-        cancelled=f"No session was {'shown' if verb == 'show' else 'edited'}.",
+        cancelled=f"No session was {entities.DONE[verb]}.",
     )
 
 

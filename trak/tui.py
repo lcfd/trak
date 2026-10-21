@@ -14,6 +14,7 @@ import signal
 import sys
 from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
+from datetime import datetime
 from typing import Protocol, Self
 
 from rich import get_console
@@ -154,6 +155,12 @@ def header(width: int, right: Text | None = None) -> Text:
     return spread(left, right or Text(), width)
 
 
+def clock() -> Text:
+    """The day and time, for the right of the header: "Wed 21 Oct 11:24"."""
+
+    return Text(f"{datetime.now():%a %d %b %H:%M} ", style="dim")
+
+
 # Below this, views say so instead of drawing themselves squeezed.
 MIN_WIDTH, MIN_HEIGHT = 30, 8
 
@@ -194,11 +201,14 @@ def page(
 ) -> Frame:
     """
     A whole view: the dev bar, the header, one panel filling the terminal
-    with `body` (fit to `body_size`), and the `footer` (its keys).
+    with `body` (fit to `body_size`), and the `footer` (its keys). It looks
+    like the home's focused pane, the time on the right unless `right`.
     """
 
     if too_small(width, height):
         return small_frame(console, width, height)
+    if right is None:
+        right = clock()
     top = [*top_lines(width), line(header(width, right), width)]
     panel_height = height - len(top) - 1
     panel = Panel(
@@ -207,7 +217,7 @@ def page(
         title_align="left",
         subtitle=escape(subtitle) if subtitle else None,
         subtitle_align="right",
-        border_style="green",
+        border_style="bold green",
         padding=(0, 1),
         height=panel_height,
         width=width,

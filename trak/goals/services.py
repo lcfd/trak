@@ -151,3 +151,10 @@ def goal_progress(db: DBSession, goal: Goal, now: datetime | None = None) -> Pro
         tracked=totals.time,
         days_left=(goal.deadline - now.astimezone().date()).days,
     )
+
+
+def delete_goal(db: DBSession, goal: Goal) -> None:
+    """Delete it: its progress was never stored, nothing else changes."""
+
+    db.delete(goal)
+    db.commit()

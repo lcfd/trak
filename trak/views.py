@@ -13,7 +13,8 @@ it, by day.
 
 The focus starts on [1]. On [2], j/k move and Enter shows the session. `y`
 copies the id of what's selected: the session under the cursor on [2], the
-row itself on [1]. `e` edits the row, on the same screen.
+row itself on [1]; `D` deletes it, asking first. `e` edits the row, on the
+same screen.
 """
 
 from collections.abc import Callable, Sequence
@@ -30,7 +31,8 @@ from rich.text import Text
 from sqlalchemy import Engine
 from sqlmodel import Session as DBSession
 
-from trak import clipboard, panes, tui
+from trak import clipboard, deleting, panes, tui
+from trak.base_messages import print_success
 from trak.panes import CTRL_D, CTRL_O, CTRL_U, DOWN, ENTER, LEFT, RIGHT, UP
 from trak.prompts import PromptCancelled
 from trak.sessions import commands
@@ -126,6 +128,8 @@ class DetailView:
         # Markup lines below the rows (e.g. a progress bar, the goals).
         self.extra: list[str] = []
         self.loaded = 0.0
+        # What the footer said when `d` deleted the row shown, and the view ended.
+        self.deleted = ""
 
     # What subclasses say.
 
@@ -139,6 +143,14 @@ class DetailView:
 
     def update(self, db: DBSession, row: Any, **changes: Any) -> Any:
         raise NotImplementedError
+
+    def deletion(self) -> deleting.Deletion[Any] | None:
+        """How `d` on [1] deletes the row; None if it can't."""
+
+        return None
+
+    def forget(self, session_id: int) -> None:
+        """A session of [2] was deleted (e.g. drop it from a history)."""
 
     def key(self, screen: tui.Screen, key: str) -> bool:
         """Keys of this view only; True if `key` was one."""
@@ -200,6 +212,7 @@ class DetailView:
         pairs = [
             ("y", f"copy {self.copied_noun()} id"),
             ("e", "edit"),
+            ("D", f"delete {self.copied_noun()}"),
             *self.extra_hints(),
         ]
         if self.focus == 1:
@@ -260,6 +273,7 @@ class DetailView:
             ("Enter", "Show the session"),
             ("y", f"Copy the id of what's focused: the {self.noun}, or the session"),
             ("e", f"Edit the {self.noun}"),
+            ("D", f"Delete what's focused: the {self.noun}, or the session"),
             *self.extra_help(),
             ("r", "Reload"),
             ("?", "Show these shortcuts"),
@@ -322,6 +336,46 @@ class DetailView:
         self.message = "[green]Saved[/green]"
         self.load()
 
+    def delete(self, screen: tui.Screen) -> bool:
+        """
+        `D`: delete what's focused, asking first: on [1] the row shown (then
+        the view ends, or goes back), on [2] the session under the cursor.
+        True when the view ends.
+        """
+
+        from trak.sessions.listing import DELETION
+
+        width, height = screen.size()
+        back = self.frame(screen.console, width, height)
+        if self.focus == 1:
+            session_id = self.list.selected(self.now())
+            if session_id is None:
+                self.message = "[yellow]No session selected.[/yellow]"
+                return False
+            done, self.message = deleting.delete_in_place(
+                self.engine, DELETION, session_id, screen, back
+            )
+            if not done:
+                return False
+            self.forget(session_id)
+            if session_id != self.row_id or self.model is not Session:
+                self.load()
+                return False
+        else:
+            deletion = self.deletion()
+            if deletion is None:
+                return False
+            done, self.message = deleting.delete_in_place(
+                self.engine, deletion, self.row_id, screen, back
+            )
+            if not done:
+                return False
+        # The row shown is gone.
+        if self.back():
+            return False
+        self.deleted = self.message
+        return True
+
     def handle(self, screen: tui.Screen, key: str) -> bool:
         """Act on one key; True to quit."""
 
@@ -359,6 +413,8 @@ class DetailView:
             self.copy(screen)
         elif key == "e":
             self.edit()
+        elif key == "D":
+            return self.delete(screen)
         elif key == "r":
             self.load()
         elif key == "q":
@@ -403,6 +459,8 @@ def run(view: DetailView) -> None:
             view.loop(screen)
     except KeyboardInterrupt:
         raise typer.Exit(130)
+    if view.deleted:
+        print_success(title="🗑️  Delete", text=view.deleted)
 
 
 # The terminal, full screen; tests swap it for a fake one.

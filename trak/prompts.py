@@ -26,13 +26,12 @@ from collections.abc import Callable, Sequence
 from contextlib import ExitStack
 from typing import Any, Literal, Self
 
-from rich.console import Group, RenderableType
 from rich.style import Style
 from rich.text import Text
 from rich_toolkit.menu import Option
 from typer._click.globals import get_current_context
 
-from trak import tui
+from trak import panes, tui
 
 ESC = tui.ESC
 CTRL_A = "\x01"
@@ -91,8 +90,11 @@ class Menu:
         button: Any = None,
         default: Any = None,
         normal: bool = False,
+        render: Callable[[Option[Any]], Text] | None = None,
     ) -> None:
         self.label = label
+        # How an option looks (its name, by default).
+        self.render = render
         self.all_options = options
         self.inline = inline
         self.allow_filtering = allow_filtering
@@ -217,13 +219,20 @@ class Menu:
                 ("Esc", "normal mode"),
             ]
         moves = ("h/l", "move") if self.inline else ("j/k", "move")
+        if self.button is not None:
+            # A form: Enter changes the field at the cursor, or saves.
+            return [moves, ("Enter", "change or save"), ("Esc", "discard")]
         pairs = [moves, ("Enter", "pick")]
         if self.allow_filtering:
             pairs.append(("/", "filter"))
         return [*pairs, ("Esc", "back")]
 
-    def body(self, width: int, height: int) -> list[Text]:
-        """The lines of the list, scrolled to the cursor, in `height` lines."""
+    def body(self, width: int, height: int, focused: bool = True) -> list[Text]:
+        """
+        The lines of the list, scrolled to the cursor, in `height` lines.
+        Not `focused` (a form while one of its fields is asked), the cursor
+        is a dim ▸.
+        """
 
         lines: list[Text] = []
         if self.allow_filtering:
@@ -246,15 +255,19 @@ class Menu:
             is_button = self.button is not None and option["value"] == self.button
             if is_button and rows:
                 rows.append((Text(), -1))
+            name = Text(option_text(option))
+            if self.render and not is_button:
+                name = self.render(option)
             if is_button:
-                style = "bold reverse green" if i == self.selected else "bold reverse"
+                on = i == self.selected and focused
+                style = "bold reverse green" if on else "bold reverse"
                 text = Text.assemble("  ", (f" {option_text(option)} ", style))
+            elif i == self.selected and focused:
+                text = Text.assemble(("› ", "bold green"), name, style=SELECTED)
             elif i == self.selected:
-                text = Text.assemble(
-                    ("› ", "bold green"), option_text(option), style=SELECTED
-                )
+                text = Text.assemble(("▸ ", "dim"), name)
             else:
-                text = Text(f"  {option_text(option)}")
+                text = Text.assemble("  ", name)
             rows.append((text, i))
 
         room = max(1, height - len(lines))
@@ -393,18 +406,36 @@ def command_title() -> str:
     return " ".join(reversed(names)) or "trak"
 
 
+# Below this width the two panes don't fit side by side: one at a time.
+WIDE = 96
+
+# What a question is: a list, a line of text, or a picker (`pickers.py`).
+Question = Any
+
+
 class ScreenPrompter:
     """
-    Asks questions full screen: `with ScreenPrompter() as prompter:`.
+    Asks questions full screen, laid out like the home: `with ScreenPrompter()
+    as prompter:`.
 
-    Each answer is listed above the next question, so a series of prompts
-    reads like a form being filled in. A menu with a `button` is a form of its
-    own (`forms.py`): it starts the list afresh.
+        ┌[1] sessions create──┐┌[2] Start─────────────────────┐
+        │Name     Landing page││‹ October 2026 ›              │
+        │Project  website     ││Mo Tu We Th Fr Sa Su          │
+        │▸ Start              ││ ...                          │
+        └─────────────────────┘└──────────────────────────────┘
+
+    [1] is what's being filled in: the answers given so far, or the fields of
+    a form (a menu with a `button`, `forms.py`). [2] is the question; on a
+    form's fields, it previews the one at the cursor (`preview`). The focused
+    pane is green. Narrow terminals show the focused pane alone.
     """
 
     def __init__(self, title: str | None = None) -> None:
         self.title = title
         self.answers: list[tuple[str, str]] = []
+        # The form being filled in (its menu of fields), and its preview.
+        self.form: Menu | None = None
+        self.preview: Callable[[Any], tuple[str, list[Text]]] | None = None
         self._stack = ExitStack()
 
     def __enter__(self) -> Self:
@@ -415,39 +446,94 @@ class ScreenPrompter:
     def __exit__(self, *exc: object) -> None:
         self._stack.close()
 
-    def frame(self, question: Menu | TextInput) -> tui.Frame:
-        width, height = self.screen.size()
-        inner_width, inner_height = tui.body_size(width, height)
-        lines: list[RenderableType] = []
-        if self.answers:
-            label_width = max(len(label) for label, _ in self.answers)
-            for label, answer in self.answers:
-                lines.append(
-                    Text.assemble((f"{label:<{label_width}}  ", "dim"), answer or "—")
-                )
-            lines.append(Text())
-        lines.append(Text(question.label, style="bold"))
-        lines.append(Text())
-        room = inner_height - len(lines)
-        if room < 3:
-            # No room for the answers: the question comes first.
-            lines = [Text(question.label, style="bold")]
-            room = inner_height - 1
-        lines += question.body(inner_width, room)
-        for text in lines:
-            if isinstance(text, Text):
-                text.no_wrap = True
-                text.overflow = "ellipsis"
-        return tui.page(
-            self.screen.console,
-            width,
-            height,
-            title=self.title or "trak",
-            body=Group(*lines),
-            footer=tui.hints(question.hints()),
+    # Drawing.
+
+    def answer_lines(self, label: str) -> list[Text]:
+        """The answers so far, then the question being asked (▸)."""
+
+        width = max((len(text) for text, _ in self.answers), default=0)
+        lines = [
+            Text.assemble((f"{text:<{width}}  ", "dim"), answer or "—")
+            for text, answer in self.answers
+        ]
+        lines.append(Text.assemble(("▸ ", "bold green"), (label, "bold")))
+        return lines
+
+    def panes(
+        self, question: Question, height: int
+    ) -> tuple[tuple[str, list[Text]], tuple[str, list[Text]], int]:
+        """[1] and [2] as (title, lines), and the focused one (0 or 1)."""
+
+        title = self.title or "trak"
+        if question is self.form:
+            name, lines = ("", [])
+            if self.preview is not None and question.options:
+                name, lines = self.preview(question.value)
+            return (question.label, question.body(0, height)), (name, lines), 0
+        if self.form is not None:
+            form = (self.form.label, self.form.body(0, height, focused=False))
+            return form, (question.label, question.body(0, height)), 1
+        return (
+            (title, self.answer_lines(question.label)),
+            (
+                question.label,
+                question.body(0, height),
+            ),
+            1,
         )
 
-    def run(self, question: Menu | TextInput) -> None:
+    def frame(self, question: Question) -> tui.Frame:
+        width, height = self.screen.size()
+        console = self.screen.console
+        if tui.too_small(width, height):
+            return tui.small_frame(console, width, height)
+
+        wide = width >= WIDE
+        top = tui.top_lines(width)
+        body_height = height - len(top) - 2
+        inner = body_height - 2
+        (first, first_lines), (second, second_lines), focus = self.panes(
+            question, inner
+        )
+
+        right = Text()
+        if not wide:
+            right = panes.tabs([("1", first), ("2", second or "Field")], focus)
+        right.append(tui.clock())
+        top.append(tui.line(tui.header(width, right), width))
+
+        def box(index: int, title: str, lines: list[Text], box_width: int) -> tui.Frame:
+            return panes.box(
+                console,
+                f"[{index + 1}] {title}",
+                panes.fit_lines(lines, max(1, box_width - 4)),
+                box_width,
+                body_height,
+                focused=focus == index,
+            )
+
+        if wide:
+            left = max(44, width * 2 // 5)
+            body = panes.side_by_side(
+                [
+                    box(0, first, first_lines, left),
+                    box(1, second, second_lines, width - left),
+                ]
+            )
+        elif focus == 0:
+            body = box(0, first, first_lines, width)
+        else:
+            lines = second_lines
+            if self.form is None and self.answers:
+                # The answers above the question, while there's room.
+                above = [*self.answer_lines(question.label)[:-1], Text()]
+                if inner - len(above) >= 3:
+                    lines = [*above, *second_lines]
+            body = box(1, second, lines, width)
+        footer = tui.hints(question.hints())
+        return [*top, *body, tui.line(footer, width)]
+
+    def run(self, question: Question) -> None:
         while True:
             self.screen.draw(self.frame(question))
             data = self.screen.read_key()
@@ -456,6 +542,8 @@ class ScreenPrompter:
             for key in tui.split_keys(data):
                 if question.handle_key(key):
                     return
+
+    # Questions.
 
     def ask(
         self,
@@ -468,11 +556,17 @@ class ScreenPrompter:
         default: Any = None,
         record: bool = True,
         normal: bool = False,
+        render: Callable[[Option[Any]], Text] | None = None,
+        preview: Callable[[Any], tuple[str, list[Text]]] | None = None,
         **_: Any,
     ) -> Any:
         """
         The value of the option picked. Its answer is listed above the next
         questions, unless `record` is False (see `note`).
+
+        A menu with a `button` is a form: it stays in [1] while its fields
+        are asked, until the button is picked; `preview(value)` is [2] then,
+        as (title, lines).
         """
 
         menu = Menu(
@@ -484,10 +578,19 @@ class ScreenPrompter:
             button=button,
             default=default,
             normal=normal,
+            render=render,
         )
         if button is not None:
             self.answers = []
-        self.run(menu)
+            self.form, self.preview = menu, preview
+        try:
+            self.run(menu)
+        except PromptCancelled:
+            if button is not None:
+                self.form = None
+            raise
+        if button is not None and menu.value == button:
+            self.form = None
         if button is None and record:
             self.answers.append((label, menu.answer))
         return menu.value
@@ -504,15 +607,36 @@ class ScreenPrompter:
         value: str | None = None,
         placeholder: str | None = None,
         validator: Validator | None = None,
+        picker: str | None = None,
+        empty: str | None = None,
         **_: Any,
     ) -> str:
-        question = TextInput(
-            title,
-            default=default,
-            value=value,
-            placeholder=placeholder,
-            validator=validator,
-        )
+        """
+        A line of text. With `picker` ("date" or "datetime") a calendar picks
+        it instead (`pickers.py`), its answer as text all the same; `empty` is
+        what no answer means there ("none", "now").
+        """
+
+        question: TextInput | Any
+        if picker is not None:
+            from trak.pickers import picker_of
+
+            question = picker_of(
+                picker,
+                title,
+                value=value or default or "",
+                empty=empty,
+                placeholder=placeholder or "",
+                validator=validator,
+            )
+        else:
+            question = TextInput(
+                title,
+                default=default,
+                value=value,
+                placeholder=placeholder,
+                validator=validator,
+            )
         self.run(question)
         self.answers.append((title, question.answer))
         return question.value

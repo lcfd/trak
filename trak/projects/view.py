@@ -117,6 +117,11 @@ class ProjectView(views.DetailView):
     def ask_edits(self, db: DBSession, prompter: Any, row: Any) -> dict[str, Any]:
         return ask_edits(db, prompter, row)
 
+    def deletion(self) -> Any:
+        from trak.projects.listing import DELETION
+
+        return DELETION
+
     def update(self, db: DBSession, row: Any, **changes: Any) -> Any:
         return update_project(db, row, **changes)
 

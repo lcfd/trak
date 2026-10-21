@@ -9,7 +9,7 @@ import typer
 from rich.markup import escape
 from sqlmodel import Session as DBSession
 
-from trak import entities, forms, output
+from trak import deleting, entities, forms, output
 from trak.base_messages import print_error, print_success
 from trak.customers.models import Customer
 from trak.customers.services import get_customers
@@ -23,6 +23,7 @@ from trak.projects.services import (
     check_dates,
     check_project,
     create_project,
+    delete_project,
     update_project,
 )
 from trak.sessions import commands
@@ -80,6 +81,8 @@ def ask_start(prompter: Prompter, value: date | None, end: date | None) -> date 
             "Start",
             value=str(value or ""),
             placeholder=OPTIONAL_DATE_PLACEHOLDER,
+            picker="date",
+            empty="none",
             validator=dates_validator(end=end),
         )
     )
@@ -91,6 +94,8 @@ def ask_end(prompter: Prompter, value: date | None, start: date | None) -> date 
             "End",
             value=str(value or ""),
             placeholder=OPTIONAL_DATE_PLACEHOLDER,
+            picker="date",
+            empty="none",
             validator=dates_validator(start=start),
         )
     )
@@ -261,6 +266,7 @@ IdArgument = Annotated[
 CANCELLED = {
     "show": "No project was shown.",
     "edit": "No project was edited.",
+    "delete": "No project was deleted.",
     "report": "No report was shown.",
 }
 
@@ -568,3 +574,34 @@ def report_command(
         except KeyboardInterrupt:
             # Ctrl-C is a normal way to leave the report.
             pass
+
+
+def delete_command(
+    ctx: typer.Context,
+    project_id: IdArgument = None,
+    with_sessions: Annotated[
+        bool,
+        typer.Option(
+            "--with-sessions",
+            help="Delete its sessions too, instead of keeping them without a project.",
+        ),
+    ] = False,
+    yes: deleting.YesOption = False,
+) -> None:
+    """
+    Delete a project and its goals. Its sessions stay, without a project (on
+    its customer, if it has one), unless --with-sessions.
+    """
+
+    with DBSession(ctx.obj["DB_ENGINE"]) as db:
+        project = get_or_pick(db, project_id, "delete")
+        deleting.delete_row(
+            db,
+            project,
+            listing.DELETION,
+            yes=yes,
+            to_json=lambda p: project_json(db, p),
+            label=project_label(project),
+            consequences=listing.project_consequences(db, project, with_sessions),
+            delete=lambda: delete_project(db, project, sessions=with_sessions),
+        )

@@ -84,6 +84,11 @@ class GoalView(views.DetailView):
     def ask_edits(self, db: DBSession, prompter: Any, row: Any) -> dict[str, Any]:
         return ask_edits(db, prompter, row)
 
+    def deletion(self) -> Any:
+        from trak.goals.listing import DELETION
+
+        return DELETION
+
     def update(self, db: DBSession, row: Any, **changes: Any) -> Any:
         return update_goal(db, row, **changes)
 

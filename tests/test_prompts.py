@@ -316,7 +316,8 @@ def test_each_question_takes_the_whole_screen():
 
     frame = screen.last.splitlines()
     assert len(frame) == 24 and all(len(line) == 80 for line in frame)
-    assert "─ start ─" in frame[1]
+    # Narrow: the question's pane alone, the panes as tabs on top.
+    assert "1 start" in frame[0] and "─ [2] Name ─" in frame[1]
     assert "Enter confirm" in frame[-1]
 
 
@@ -409,3 +410,71 @@ def test_a_filterable_menu_can_start_in_normal_mode():
     assert menu.mode == "normal"
     menu.handle_key("j")
     assert menu.value == 2 and menu.text == ""
+
+
+# laid out like the home
+
+
+def test_wide_terminals_show_the_answers_beside_the_question():
+    p, screen = prompter("w", "\r", "\r", width=120, height=24)
+
+    p.input("Name")
+    p.ask("Project", [{"name": "website", "value": 1}])
+
+    top = screen.last.splitlines()[1]
+    assert "[1] start" in top and "[2] Project" in top
+    assert "Name  w" in screen.last and "▸ Project" in screen.last
+
+
+def edit_form(p, *keys):
+    """A form of two fields, Name and Hours, changed by typing."""
+
+    from trak import forms
+
+    class Row:
+        name, hours = "Launch", "40"
+
+    def rows(changes):
+        return [
+            ("name", "Name", forms.current(Row, changes, "name")),
+            ("hours", "Hours", forms.current(Row, changes, "hours")),
+        ]
+
+    def ask_field(changes, field):
+        changes[field] = p.input(field.capitalize(), value=getattr(Row, field))
+
+    return forms.ask_changes(p, "Edit goal #1", Row, rows, ask_field)
+
+
+def test_a_form_previews_the_field_at_the_cursor():
+    p, screen = prompter("j", "\r", "\x15", "5", "0", "\r", "j", "\r", width=120)
+
+    assert edit_form(p) == {"hours": "50"}
+
+    first = screen.frames[0]
+    assert "[1] Edit goal #1" in first and "[2] Name" in first
+    assert "Enter changes it" in first
+    # Asking a field: the form stays in [1], the field marked.
+    asking = screen.frames[2]
+    assert "▸ Hours" in asking and "[2] Hours" in asking
+    # Back on the form: what it was.
+    back = next(f for f in screen.frames if "was 40" in f)
+    assert "Hours  50  •" in back
+
+
+def test_save_previews_the_changes():
+    p, screen = prompter("j", "\r", "\x15", "5", "\r", "j", "\r", width=120)
+
+    edit_form(p)
+
+    assert "[2] Save" in screen.last
+    assert "Hours  40 → 5" in screen.last and "Enter saves 1 change." in screen.last
+
+
+def test_esc_on_a_form_discards_and_forgets_it():
+    p, screen = prompter("\x1b", width=120)
+
+    with pytest.raises(PromptCancelled):
+        edit_form(p)
+
+    assert p.form is None

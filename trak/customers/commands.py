@@ -7,7 +7,7 @@ from rich.markup import escape
 from sqlmodel import Session as DBSession
 from sqlmodel import select
 
-from trak import entities, forms, output
+from trak import deleting, entities, forms, output
 from trak.base_messages import print_error, print_success
 from trak.customers import listing
 from trak.customers.listing import CustomerFilters, customer_json
@@ -117,7 +117,7 @@ def get_or_pick(db: DBSession, customer_id: int | None, verb: str) -> Customer:
         ),
         noun="customer",
         command=f"trak customers {verb}",
-        cancelled=f"No customer was {'shown' if verb == 'show' else 'edited'}.",
+        cancelled=f"No customer was {entities.DONE[verb]}.",
     )
 
 
@@ -233,4 +233,23 @@ def edit_command(
             noun="customer",
             label=customer_label,
             to_json=lambda c: customer_json(db, c),
+        )
+
+
+def delete_command(
+    ctx: typer.Context,
+    customer_id: IdArgument = None,
+    yes: deleting.YesOption = False,
+) -> None:
+    """Delete a customer. Its projects and sessions stay, without a customer."""
+
+    with DBSession(ctx.obj["DB_ENGINE"]) as db:
+        customer = get_or_pick(db, customer_id, "delete")
+        deleting.delete_row(
+            db,
+            customer,
+            listing.DELETION,
+            yes=yes,
+            to_json=lambda c: customer_json(db, c),
+            label=customer_label(customer),
         )

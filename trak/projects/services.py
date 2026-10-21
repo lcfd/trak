@@ -2,10 +2,12 @@ from datetime import date
 from typing import Any
 
 from sqlmodel import Session as DBSession
-from sqlmodel import col, func, select
+from sqlmodel import col, delete, func, select, update
 
+from trak.goals.models import Goal
 from trak.labels.links import set_tags
 from trak.projects.models import Project
+from trak.sessions.models import Session, SessionTag
 
 EDITABLE_FIELDS = {
     "name",
@@ -150,3 +152,40 @@ def list_projects(
         .offset(offset)
     )
     return list(db.exec(statement)), total
+
+
+def count_project_rows(db: DBSession, project: Project) -> tuple[int, int]:
+    """How many Goals and Sessions the Project has."""
+
+    goals = db.exec(
+        select(func.count()).select_from(Goal).where(Goal.project_fk == project.id)
+    ).one()
+    sessions = db.exec(
+        select(func.count())
+        .select_from(Session)
+        .where(Session.project_fk == project.id)
+    ).one()
+    return goals, sessions
+
+
+def delete_project(db: DBSession, project: Project, *, sessions: bool = False) -> None:
+    """
+    Delete it and its Goals (they need a Project). Its Sessions go too with
+    `sessions`; otherwise they stay without a project, on its Customer.
+    """
+
+    db.exec(delete(Goal).where(Goal.project_fk == project.id))  # type: ignore[call-overload]
+    on_project = Session.project_fk == project.id
+    if sessions:
+        ids = select(Session.id).where(on_project)
+        db.exec(delete(SessionTag).where(col(SessionTag.session_fk).in_(ids)))  # type: ignore[call-overload]
+        db.exec(delete(Session).where(on_project))  # type: ignore[call-overload]
+    else:
+        db.exec(
+            update(Session)  # type: ignore[call-overload]
+            .where(on_project)
+            .values(project_fk=None, customer_fk=project.customer_fk)
+        )
+    set_tags(db, project, [])
+    db.delete(project)
+    db.commit()

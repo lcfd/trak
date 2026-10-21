@@ -8,9 +8,15 @@ import typer
 from rich.markup import escape
 from sqlmodel import Session as DBSession
 
-from trak import browser, entities, output, tables
+from trak import browser, deleting, entities, output, tables
 from trak.customers.models import Customer
-from trak.labels.services import Kind, labelled, list_labels, session_filter
+from trak.labels.services import (
+    Kind,
+    delete_label,
+    labelled,
+    list_labels,
+    session_filter,
+)
 from trak.projects.models import Project
 from trak.sessions import commands
 from trak.sessions.display import format_duration
@@ -105,10 +111,31 @@ def edit_label(db: DBSession, kind: Kind, row: Any, prompter: Prompter) -> str:
     )
 
 
+def label_consequences(db: DBSession, kind: Kind, row: Any) -> str:
+    data = label_json(db, kind, row)
+    used = data["sessions"] + len(data["projects"]) + len(data["customers"])
+    if not used:
+        return ""
+    return f"It comes off {used} sessions, projects, customers."
+
+
+def deletion(kind: Kind) -> deleting.Deletion[Any]:
+    return deleting.Deletion(
+        model=kind.model,
+        noun=kind.noun,
+        describe=lambda db, row: row.name,
+        consequences=lambda db, row: label_consequences(db, kind, row),
+        delete=lambda db, row: delete_label(db, kind, row),
+    )
+
+
 def label_listing(db: DBSession, kind: Kind) -> browser.Listing[Any, LabelFilters]:
     return browser.Listing(
         show=lambda row, screen: show_label(db, kind, row, screen),
         edit=lambda row, prompter: edit_label(db, kind, row, prompter),
+        delete=lambda row, screen, back, keys: deleting.delete_from_browser(
+            db, deletion(kind), row, screen, back, keys
+        ),
         noun=kind.noun,
         plural_noun=kind.plural,
         query=lambda filters: list_labels(

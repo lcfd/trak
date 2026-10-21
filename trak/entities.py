@@ -26,6 +26,9 @@ from trak.sessions.guided import Prompter
 
 R = TypeVar("R")
 
+# What a verb did, for "No session was shown.".
+DONE = {"show": "shown", "edit": "edited", "delete": "deleted"}
+
 
 class EntityGroup(TyperGroup):
     """A group where a number in place of the command means `show <number>`."""

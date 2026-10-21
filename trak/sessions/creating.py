@@ -82,6 +82,7 @@ def ask_new_session(
             "Start",
             default=format_time(fields.start) if fields.start else "",
             placeholder=START_PLACEHOLDER,
+            picker="datetime",
             validator=input_validator(parse_past_start),
         )
     )
@@ -90,6 +91,8 @@ def ask_new_session(
             "End",
             default=end,
             placeholder=END_PLACEHOLDER,
+            picker="datetime",
+            empty="now",
             validator=input_validator(lambda text: parse_end(text, start)),
         ),
         start,

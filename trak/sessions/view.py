@@ -123,6 +123,12 @@ class SessionView(views.DetailView):
     def update(self, db: DBSession, row: Any, **changes: Any) -> Any:
         return update_session(db, row, **changes)
 
+    def deletion(self) -> Any:
+        return listing.DELETION
+
+    def forget(self, session_id: int) -> None:
+        self.history = [i for i in self.history if i != session_id]
+
     def open(self, screen: tui.Screen, session_id: int) -> None:
         """Another session of the project: shown in this one's place."""
 

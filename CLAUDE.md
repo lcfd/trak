@@ -27,7 +27,9 @@ trak/
 ├── views.py             # DetailView: the two-pane `show` of sessions, goals, projects; show_in(), run()
 ├── starship.py          # `status -s` in plain sqlite3, run by __main__ before importing the app (prompt speed)
 ├── clipboard.py         # copy(): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 (`y` in views)
-├── prompts.py           # ScreenPrompter: full-screen vim prompts (Menu, TextInput), answers listed above
+├── prompts.py           # ScreenPrompter: full-screen vim prompts (Menu, TextInput) in two panes like the home
+├── pickers.py           # DatePicker: calendar (+ time) for date fields, `input(..., picker="date"|"datetime")`
+├── deleting.py          # Deletion (per entity, in its listing.py), delete_row (CLI), D in views (overlay)
 ├── main/
 │   ├── routes.py        # Main callback - settings, dev mode, DB engine, migrations
 │   ├── menu.py          # run_menu: opens the home; the commands it lists (collect_commands, command_score)
@@ -167,7 +169,7 @@ redrawn on resize, in three panes reachable with `1` `2` `3` (and `h`/`l`, Tab):
 progress, days left), **Sessions** (running first, then recent ones by day), **Actions** (every
 command plus `help` and `quit`). The focus starts on Actions. `j`/`k`/`g`/`G`/Ctrl-d/Ctrl-u move,
 Enter shows the goal/session or runs the action, `e` edits, `n` new goal / start, `s` stops the
-running session in place, `/` filters the actions (`command_score`), `?` help, `q` quits. Commands
+running session in place, `D` deletes the goal/session (y/n overlay), `/` filters the actions (`command_score`), `?` help, `q` quits. Commands
 run on the normal screen, then any key comes back (`q` quits; `list`/`report` and the
 sessions/goals/projects `show` views come back directly, `home.is_view`); so does a cancelled command, saying nothing: `commands.cancel()` prints
 "Cancelled" only outside the home). Below 96 columns one pane shows at a time, with the three as tabs. Without a TTY it
@@ -202,6 +204,13 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
 - `trak <entities> show|edit [ID]` - Without ID, pick it in the list browser (j/k + Enter, needs a TTY).
   `edit` takes a flag per field and saves them; without flags it opens a menu of fields
   (`trak/forms.py`; Esc discards), which needs a TTY
+- `trak <entities> delete [ID] [--yes]` - Every entity. Asks in a terminal (saying what goes
+  with it), needs `--yes` without one; `--json` emits the row as it was. Without ID, pick it.
+  A session or goal goes alone (a goal only counts sessions). A project takes its goals; its
+  sessions stay without a project, on its customer (`session_customer_fk`'s rule kept), unless
+  `projects delete --with-sessions`. A customer's projects and sessions stay, without one.
+  Services: `delete_<entity>`; each entity's `listing.DELETION` (`trak/deleting.py`) says what
+  else goes, for the question, and is used by `D` in the home, the browsers and the views
 - `trak sessions list [--project] [--customer] [--category] [--tag] [--name] [--date|--from/--to] [--page] [--per-page] [--plain]` - Browse sessions (newest first); `--plain` or no TTY prints one page
 - `trak projects list [--name] [--customer] [--archived] [--page] [--per-page] [--plain]` - Browse projects; `a` toggles archived in the browser
 - `trak customers list [--name] [--page] [--per-page] [--plain]` - Browse customers
@@ -229,7 +238,7 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
   Backfill a past session. `--end` takes a time or a duration (`1h30m`), default now.
   Without `--start`, asks every field (TTY), starting from the flags
 - `trak sessions edit [ID] [--name] [--project] [--customer] [--category] [--tag]... [--start] [--end]`
-  (`--end` stops a running session)
+  (`--end` stops a running session; `--end ""`, or emptying End in the form, makes it run again)
 - `--tag` everywhere: repeat it or separate names with commas (`-t billable,urgent`); on
   `edit` it replaces the tags, `--tag ""` clears them (`commands.find_tags`). Prompts pick
   tags with `guided.pick_many` (Enter toggles, Done ends). Create prompts always ask the Category
@@ -251,13 +260,11 @@ The filter ranks abbreviations first (`command_score`): "sl" → sessions list, 
   `show`/`edit` of a row). Rows are always selectable: j/k move a highlighted row across pages,
   g/G first/last row, Enter shows it (the views above on the same screen, via `views.show_in`,
   which ends the browser's read first; panels via `entities.show_printed`), `e` edits it in
-  place (`entities.edit_in_place`), `y` copies its id; when picking, Enter returns it. A page is
+  place (`entities.edit_in_place`), `D` deletes it after a y/n overlay (`Listing.delete`;
+  not `d`: that's the sessions' date filter), `y` copies its id; when picking, Enter returns it. A page is
   queried and its table fit once (cursor moves restyle a row), and keys already typed are all
   handled before the next frame, so holding j/k doesn't lag;
   the table comes from `Listing.cells` (a row's cells, computed once) and `Listing.layouts` (`tables.py`)
-
-**Data operations (to implement):**
-- `trak delete project|session|...` - Delete entities
 
 **Reporting:**
 - `trak report [project] [--period]` - Generate time reports
@@ -332,8 +339,20 @@ Design principle for every interactive UI: a vim/neovim user should feel at home
 - Without a terminal (tests), `tui.PlainScreen` prints each frame below the last;
   `tests/fakes.py` has `FakeScreen` (scripted keys and resizes) and `frames()`.
 - Build prompts with `trak/prompts.py` (`ScreenPrompter`, via `guided.make_prompter()`),
-  never with rich-toolkit's `Menu`/`Input` directly. Each question is a full
-  screen titled with the command, the answers so far listed above it.
+  never with rich-toolkit's `Menu`/`Input` directly. Prompts look like the home: the
+  header with the time, two panes (focused one green, `panes.box`), the hints. [1] is
+  what's being filled in (the answers so far, `▸` on the question; or a form's fields),
+  [2] the question. On a form's field list (focused [1]), [2] previews the field at the
+  cursor (value, "was"), or on Save the changes (`forms.preview_of`). Below 96 columns
+  only the focused pane shows, the two as tabs in the header.
+- Date and time fields use the calendar picker (`input(..., picker="date"|"datetime",
+  empty="none")`, `trak/pickers.py`): h/l day, j/k week, `[`/`]` month, `{`/`}` year,
+  g/G month's first/last day, t today; Tab to the hour and minute (j/k ±1h/±5m, digits
+  type them), n now; `x` empties it when `empty` says what that means; `i` types it in the
+  flag formats (Esc back to the calendar). Its answer is text, parsed and validated like a
+  typed one, so tests' `FakePrompter.input` scripts it as text.
+- Deleting in full-screen views is `D`, then `y` on the red overlay (`deleting.confirm`;
+  any other key keeps it). In a two-pane view it deletes what's focused, like `y` copies.
 - Filterable lists open in INSERT mode (typing filters); Esc switches to NORMAL mode:
   `j`/`k` move, `g`/`G` first/last, Ctrl-d/Ctrl-u half a screen, `i` resumes the
   filter, `/` starts a new one, Enter picks, Esc/`q` go back. Other lists are always

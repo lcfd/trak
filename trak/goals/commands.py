@@ -7,7 +7,7 @@ import typer
 from rich_toolkit.menu import Option
 from sqlmodel import Session as DBSession
 
-from trak import entities, forms, output
+from trak import deleting, entities, forms, output
 from trak.base_messages import print_error, print_success
 from trak.dates import DATE_PLACEHOLDER, parse_date
 from trak.goals import listing
@@ -111,6 +111,8 @@ def ask_new_goal(
             "From",
             default=str(start) if start else "",
             placeholder=f"{DATE_PLACEHOLDER}; empty for today",
+            picker="date",
+            empty="today",
             validator=start_validator,
         )
     )
@@ -120,6 +122,7 @@ def ask_new_goal(
             "Deadline",
             value=str(defaults.get("deadline") or project.end or ""),
             placeholder=DATE_PLACEHOLDER,
+            picker="date",
             validator=deadline_validator(fields["start"]),
         )
     )
@@ -266,7 +269,7 @@ def get_or_pick(db: DBSession, goal_id: int | None, verb: str) -> Goal:
         ),
         noun="goal",
         command=f"trak goals {verb}",
-        cancelled=f"No goal was {'shown' if verb == 'show' else 'edited'}.",
+        cancelled=f"No goal was {entities.DONE[verb]}.",
     )
 
 
@@ -317,6 +320,8 @@ def ask_field(
                 "From",
                 value=str(value),
                 placeholder=f"{DATE_PLACEHOLDER}; empty for today",
+                picker="date",
+                empty="today",
                 validator=input_validator(parse),
             )
         )
@@ -327,6 +332,7 @@ def ask_field(
                 "Deadline",
                 value=str(value),
                 placeholder=DATE_PLACEHOLDER,
+                picker="date",
                 validator=deadline_validator(start),
             )
         )
@@ -438,4 +444,23 @@ def edit_command(
             noun="goal",
             label=lambda g: goal_label(db, g),
             to_json=lambda g: goal_json(db, g),
+        )
+
+
+def delete_command(
+    ctx: typer.Context,
+    goal_id: IdArgument = None,
+    yes: deleting.YesOption = False,
+) -> None:
+    """Delete a goal. Its sessions stay: a goal only counts them."""
+
+    with DBSession(ctx.obj["DB_ENGINE"]) as db:
+        goal = get_or_pick(db, goal_id, "delete")
+        deleting.delete_row(
+            db,
+            goal,
+            listing.DELETION,
+            yes=yes,
+            to_json=lambda g: goal_json(db, g),
+            label=goal_label(db, goal),
         )

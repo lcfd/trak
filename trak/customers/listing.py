@@ -9,9 +9,13 @@ from rich.markup import escape
 from sqlmodel import Session as DBSession
 from sqlmodel import func, select
 
-from trak import browser, entities, output, tables
+from trak import browser, deleting, entities, output, tables
 from trak.customers.models import Customer
-from trak.customers.services import list_customers
+from trak.customers.services import (
+    count_customer_rows,
+    delete_customer,
+    list_customers,
+)
 from trak.labels.links import category_name, labels_json, tag_names
 from trak.projects.models import Project
 from trak.sessions import commands
@@ -140,10 +144,32 @@ def edit_customer(db: DBSession, customer: Customer, prompter: Prompter) -> str:
     )
 
 
+def customer_consequences(db: DBSession, customer: Customer) -> str:
+    """What else deleting the customer does: nothing goes with it."""
+
+    projects, sessions = count_customer_rows(db, customer)
+    return deleting.its(
+        [(projects, "project"), (sessions, "session")],
+        ("stays, without a customer.", "stay, without a customer."),
+    )
+
+
+DELETION = deleting.Deletion(
+    model=Customer,
+    noun="customer",
+    describe=lambda db, customer: customer.name,
+    consequences=customer_consequences,
+    delete=delete_customer,
+)
+
+
 def customer_listing(db: DBSession) -> browser.Listing[Customer, CustomerFilters]:
     return browser.Listing(
         show=lambda customer, screen: show_customer(db, customer, screen),
         edit=lambda customer, prompter: edit_customer(db, customer, prompter),
+        delete=lambda customer, screen, back, keys: deleting.delete_from_browser(
+            db, DELETION, customer, screen, back, keys
+        ),
         noun="customer",
         query=lambda filters: query(db, filters),
         cells=lambda customer: customer_cells(db, customer),

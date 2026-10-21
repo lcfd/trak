@@ -86,6 +86,11 @@ class LabelView(views.DetailView):
     def ask_edits(self, db: DBSession, prompter: Any, row: Any) -> dict[str, Any]:
         return ask_edits(db, self.kind, prompter, row)
 
+    def deletion(self) -> Any:
+        from trak.labels.listing import deletion
+
+        return deletion(self.kind)
+
     def update(self, db: DBSession, row: Any, **changes: Any) -> Any:
         return update_label(db, self.kind, row, **changes)
 

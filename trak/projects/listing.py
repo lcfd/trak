@@ -8,11 +8,11 @@ import typer
 from rich.markup import escape
 from sqlmodel import Session as DBSession
 
-from trak import browser, entities, output, tables, tui
+from trak import browser, deleting, entities, output, tables, tui
 from trak.customers.models import Customer
 from trak.labels.links import category_name, labels_json, tag_names
 from trak.projects.models import Project
-from trak.projects.services import list_projects
+from trak.projects.services import count_project_rows, delete_project, list_projects
 from trak.sessions import commands
 from trak.sessions.display import format_duration
 from trak.sessions.guided import Prompter
@@ -204,10 +204,39 @@ def edit_project(db: DBSession, project: Project, prompter: Prompter) -> str:
     )
 
 
+def project_consequences(
+    db: DBSession, project: Project, with_sessions: bool = False
+) -> str:
+    """What else deleting the project does."""
+
+    goals, sessions = count_project_rows(db, project)
+    go = ("goes too.", "go too.")
+    if with_sessions:
+        return deleting.its([(goals, "goal"), (sessions, "session")], go)
+    where = "on its customer" if project.customer_fk else "without a project"
+    parts = [
+        deleting.its([(goals, "goal")], go),
+        deleting.its([(sessions, "session")], (f"stays, {where}.", f"stay, {where}.")),
+    ]
+    return " ".join(part for part in parts if part)
+
+
+DELETION = deleting.Deletion(
+    model=Project,
+    noun="project",
+    describe=lambda db, project: project.name,
+    consequences=project_consequences,
+    delete=delete_project,
+)
+
+
 def project_listing(db: DBSession) -> browser.Listing[Project, ProjectFilters]:
     return browser.Listing(
         show=lambda project, screen: show_project(db, project, screen),
         edit=lambda project, prompter: edit_project(db, project, prompter),
+        delete=lambda project, screen, back, keys: deleting.delete_from_browser(
+            db, DELETION, project, screen, back, keys
+        ),
         noun="project",
         query=lambda filters: query(db, filters),
         cells=lambda project: project_cells(db, project),

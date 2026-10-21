@@ -10,18 +10,12 @@ import typer
 from rich.markup import escape
 from sqlmodel import Session as DBSession
 
-from trak import entities, forms, output
+from trak import deleting, entities, forms, output
 from trak.base_messages import print_error, print_success
 from trak.entities import entity_app
 from trak.labels import listing
 from trak.labels.listing import LabelFilters, label_json
-from trak.labels.services import (
-    Kind,
-    check_label,
-    create_label,
-    delete_label,
-    update_label,
-)
+from trak.labels.services import Kind, check_label, create_label, update_label
 from trak.sessions import commands
 from trak.sessions.guided import input_validator
 
@@ -68,7 +62,6 @@ def id_argument(kind: Kind) -> Any:
 
 
 def get_or_pick(db: DBSession, kind: Kind, label_id: int | None, verb: str) -> Any:
-    done = {"show": "shown", "edit": "edited", "delete": "deleted"}[verb]
     return entities.get_or_pick(
         db,
         kind.model,
@@ -83,7 +76,7 @@ def get_or_pick(db: DBSession, kind: Kind, label_id: int | None, verb: str) -> A
         ),
         noun=kind.noun,
         command=f"trak {kind.plural} {verb}",
-        cancelled=f"No {kind.noun} was {done}.",
+        cancelled=f"No {kind.noun} was {entities.DONE[verb]}.",
     )
 
 
@@ -168,35 +161,18 @@ def make_app(kind: Kind, show_command: Callable[..., None]) -> typer.Typer:
     def delete_command(
         ctx: typer.Context,
         label_id: IdArgument = None,
-        yes: Annotated[
-            bool, typer.Option("--yes", "-y", help="Don't ask for confirmation.")
-        ] = False,
+        yes: deleting.YesOption = False,
     ) -> None:
         with DBSession(ctx.obj["DB_ENGINE"]) as db:
             row = get_or_pick(db, kind, label_id, "delete")
-            data = label_json(db, kind, row)
-            used = data["sessions"] + len(data["projects"]) + len(data["customers"])
-            if not yes:
-                if not commands.is_interactive():
-                    print_error(
-                        title=f"Deleting a {noun} needs a confirmation",
-                        text="Give --yes to delete it without a terminal.",
-                    )
-                    raise typer.Exit(1)
-                question = f"Delete the {noun} {row.name}?"
-                if used:
-                    question += f" It comes off {used} sessions, projects, customers."
-                confirmed = commands.run_prompts(
-                    lambda prompter: prompter.confirm(question, default=False),
-                    cancelled=f"No {noun} was deleted.",
-                )
-                if not confirmed:
-                    commands.cancel(f"No {noun} was deleted.")
-
-            text = f"{kind.title} #{row.id} {label_text(row)} deleted."
-            delete_label(db, kind, row)
-            output.emit(data)
-            print_success(title="🗑️  Delete", text=text)
+            deleting.delete_row(
+                db,
+                row,
+                listing.deletion(kind),
+                yes=yes,
+                to_json=lambda r: label_json(db, kind, r),
+                label=label_text(row),
+            )
 
     create_command.__doc__ = f"Create a {noun}."
     edit_command.__doc__ = (

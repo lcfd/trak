@@ -1,10 +1,12 @@
 from typing import Any
 
 from sqlmodel import Session as DBSession
-from sqlmodel import col, func, select
+from sqlmodel import col, func, select, update
 
 from trak.customers.models import Customer
 from trak.labels.links import set_tags
+from trak.projects.models import Project
+from trak.sessions.models import Session
 
 EDITABLE_FIELDS = {"name", "category_fk", "tag_fks"}
 
@@ -86,3 +88,33 @@ def list_customers(
         .offset(offset)
     )
     return list(db.exec(statement)), total
+
+
+def count_customer_rows(db: DBSession, customer: Customer) -> tuple[int, int]:
+    """How many Projects, and Sessions directly on it, the Customer has."""
+
+    projects = db.exec(
+        select(func.count())
+        .select_from(Project)
+        .where(Project.customer_fk == customer.id)
+    ).one()
+    sessions = db.exec(
+        select(func.count())
+        .select_from(Session)
+        .where(Session.customer_fk == customer.id)
+    ).one()
+    return projects, sessions
+
+
+def delete_customer(db: DBSession, customer: Customer) -> None:
+    """Delete it: its Projects and Sessions stay, without a customer."""
+
+    for model in (Project, Session):
+        db.exec(
+            update(model)  # type: ignore[call-overload]
+            .where(model.customer_fk == customer.id)  # type: ignore[attr-defined]
+            .values(customer_fk=None)
+        )
+    set_tags(db, customer, [])
+    db.delete(customer)
+    db.commit()

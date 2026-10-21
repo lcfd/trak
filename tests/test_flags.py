@@ -312,6 +312,18 @@ def test_edit_session_rejects_an_end_before_the_start(cli_db):
     assert "can't end before it starts" in result.output
 
 
+def test_edit_session_empty_end_makes_it_run_again(cli_db):
+    session = start_session(cli_db, start=yesterday_at(9))
+    stop_session(cli_db, session, end=yesterday_at(10))
+
+    result = invoke(cli_db, "sessions", "edit", "1", "--end", "")
+
+    assert result.exit_code == 0, result.output
+    cli_db.expire_all()
+    running = only_session(cli_db)
+    assert (running.active, running.end) == (True, None)
+
+
 def test_edit_session_with_the_same_values_changes_nothing(cli_db):
     start_session(cli_db, name="same")
 
@@ -488,3 +500,17 @@ def test_create_goal_missing_hours_asks_from_the_flags(cli_db, interactive, answ
     assert fake.values["Deadline"] == str(today() + timedelta(days=5))
     goal = cli_db.exec(select(Goal)).one()
     assert (goal.name, goal.hours) == ("Launch", 12)
+
+
+def test_delete_with_flags_needs_no_terminal(cli_db):
+    project = add(cli_db, Project(name="website"))
+    start = datetime(2026, 10, 10, 9, 0, tzinfo=UTC)
+    session = start_session(cli_db, project_fk=project.id, start=start)
+    stop_session(cli_db, session, end=start + timedelta(hours=1))
+    cli_db.commit()
+
+    result = runner.invoke(app, ["projects", "delete", "1", "--with-sessions", "-y"])
+
+    assert result.exit_code == 0, result.output
+    cli_db.expire_all()
+    assert cli_db.get(Project, 1) is None and cli_db.get(Session, 1) is None

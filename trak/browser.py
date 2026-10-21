@@ -54,7 +54,7 @@ Shortcut = tuple[str, tuple[str, ...], str, str]
 
 
 def row_shortcuts(
-    noun: str, pick: bool, show: bool = True, edit: bool = True
+    noun: str, pick: bool, show: bool = True, edit: bool = True, delete: bool = False
 ) -> list[Shortcut]:
     """What acts on the highlighted row: Enter picks it, or shows it."""
 
@@ -68,12 +68,14 @@ def row_shortcuts(
         shortcuts.append(("Enter", ("\r", "\n"), "open", f"Show the {noun}"))
     if edit and not pick:
         shortcuts.append(("e", ("e",), "edit", f"Edit the {noun}"))
+    if delete and not pick:
+        shortcuts.append(("D", ("D",), "delete", f"Delete the {noun} (asks first)"))
     shortcuts.append(("y", ("y",), "copy", f"Copy the {noun}'s id"))
     return shortcuts
 
 
 # Actions on the highlighted row: nothing to do without rows.
-ROW_ACTIONS = {"down", "up", "pick", "open", "edit", "copy"}
+ROW_ACTIONS = {"down", "up", "pick", "open", "edit", "delete", "copy"}
 PAGE_SHORTCUTS: list[Shortcut] = [
     ("l  →  Ctrl-f", ("l", "\x1b[C", "\x06"), "next", "Next page"),
     ("h  ←  Ctrl-b", ("h", "\x1b[D", "\x02"), "previous", "Previous page"),
@@ -113,6 +115,9 @@ class Listing(Generic[R, F]):
     show: Callable[[R, tui.Screen], None] | None = None
     # `e` on a row: edit it on the same screen; returns what the footer says.
     edit: Callable[[R, Prompter], str] | None = None
+    # `D` on a row: delete it, asking over the page (the frame drawn) with the
+    # keys read next; returns what the footer says.
+    delete: Callable[[R, tui.Screen, tui.Frame, Callable[[], str]], str] | None = None
 
     @property
     def plural(self) -> str:
@@ -121,7 +126,11 @@ class Listing(Generic[R, F]):
     def shortcuts(self, pick: bool = False) -> list[Shortcut]:
         return (
             row_shortcuts(
-                self.noun, pick, show=self.show is not None, edit=self.edit is not None
+                self.noun,
+                pick,
+                show=self.show is not None,
+                edit=self.edit is not None,
+                delete=self.delete is not None,
             )
             + PAGE_SHORTCUTS
             + self.filter_shortcuts
@@ -268,6 +277,8 @@ def hints(listing: Listing, pick: bool) -> list[tuple[str, str]]:
             pairs.append(("Enter", "show"))
         if listing.edit is not None:
             pairs.append(("e", "edit"))
+        if listing.delete is not None:
+            pairs.append(("D", "delete"))
     pairs += [("y", f"copy {listing.noun} id"), ("h/l", "pages")]
     pairs += [
         (keys.split()[0], description.lower())
@@ -500,6 +511,11 @@ def browse(
             elif action == "edit":
                 assert listing.edit is not None
                 message = listing.edit(rows[cursor], prompter)
+                forget()
+            elif action == "delete":
+                assert listing.delete is not None
+                drawn = page(size, filters, rows, total, cursor, "")
+                message = listing.delete(rows[cursor], view, drawn, next_key)
                 forget()
             elif action == "help":
                 drawn = page(size, filters, rows, total, cursor, message)

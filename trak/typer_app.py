@@ -39,7 +39,7 @@ from trak.sessions import creating as sessions_creating
 from trak.sessions import listing as sessions_listing
 from trak.sessions import view as sessions_view
 from trak.sessions.commands import start, status, stop
-from trak.sessions.editing import edit_command
+from trak.sessions.editing import delete_command, edit_command
 from trak.sessions.models import Category
 
 
@@ -118,6 +118,7 @@ sessions_app.command(name="create", help="Add a past session.")(
     sessions_creating.create_command
 )
 sessions_app.command(name="edit", help="Edit a session.")(edit_command)
+sessions_app.command(name="delete", help="Delete a session.")(delete_command)
 app.add_typer(sessions_app, name="sessions", rich_help_panel="Your data")
 
 projects_app = entity_app("projects")
@@ -127,6 +128,7 @@ projects_app.command(name="list", help="List projects by name.")(
 projects_app.command(name="show", help="Show a project.")(projects_view.show_command)
 projects_app.command(name="create", help="Create a project.")(projects.create_command)
 projects_app.command(name="edit", help="Edit a project.")(projects.edit_command)
+projects_app.command(name="delete", help="Delete a project.")(projects.delete_command)
 projects_app.command(name="report", help="Report the time tracked on a project.")(
     projects.report_command
 )
@@ -141,6 +143,9 @@ customers_app.command(name="create", help="Create a customer.")(
     customers.create_command
 )
 customers_app.command(name="edit", help="Edit a customer.")(customers.edit_command)
+customers_app.command(name="delete", help="Delete a customer.")(
+    customers.delete_command
+)
 app.add_typer(customers_app, name="customers", rich_help_panel="Your data")
 
 goals_app = entity_app("goals")
@@ -150,6 +155,7 @@ goals_app.command(name="list", help="List goals, nearest deadline first.")(
 goals_app.command(name="show", help="Show a goal.")(goals_view.show_command)
 goals_app.command(name="create", help="Create a goal.")(goals.create_command)
 goals_app.command(name="edit", help="Edit a goal.")(goals.edit_command)
+goals_app.command(name="delete", help="Delete a goal.")(goals.delete_command)
 app.add_typer(goals_app, name="goals", rich_help_panel="Your data")
 
 app.add_typer(

@@ -385,3 +385,21 @@ def test_fields_keep_the_model_order(model):
     row = model(name="x", start=START) if model is Session else model(name="x")
 
     assert list(output.fields(row)) == list(model.model_fields)
+
+
+def test_delete_returns_the_row_as_it_was(cli_db):
+    website_id = seed(cli_db).id
+
+    result, data = invoke_json(cli_db, "projects", "delete", str(website_id), "--yes")
+
+    assert result.exit_code == 0, result.output
+    assert data["id"] == website_id and data["name"] == "website"
+    assert runner.invoke(app, ["projects", "list", "--json"]).stdout.count('"id"') == 0
+
+
+def test_delete_without_yes_is_an_error(cli_db):
+    seed(cli_db)
+
+    result, _ = invoke_json(cli_db, "sessions", "delete", "1")
+
+    assert "--yes" in error_of(result)["message"]

@@ -99,7 +99,8 @@ EDITABLE_FIELDS = {
 def update_session(db: DBSession, session: Session, **changes: Any) -> Session:
     """
     Change the editable fields of a Session. Giving an active Session an
-    `end` stops it. `tag_fks` replaces its Tags.
+    `end` stops it; `end=None` makes a stopped one run again. `tag_fks`
+    replaces its Tags.
     """
 
     unknown = set(changes) - EDITABLE_FIELDS
@@ -110,20 +111,25 @@ def update_session(db: DBSession, session: Session, **changes: Any) -> Session:
     end = changes.get("end", session.end)
     if end is not None and end < start:
         raise ValueError("A session can't end before it starts.")
-    if session.end is not None and "end" in changes and end is None:
-        raise ValueError("A stopped session can't be running again.")
 
     if "tag_fks" in changes:
         set_tags(db, session, changes.pop("tag_fks"))
     for field, value in changes.items():
         setattr(session, field, value.strip() if field == "name" else value)
-    if session.end is not None:
-        session.active = False
+    session.active = session.end is None
 
     db.add(session)
     db.commit()
     db.refresh(session)
     return session
+
+
+def delete_session(db: DBSession, session: Session) -> None:
+    """Delete it, with its Tags (running or not)."""
+
+    set_tags(db, session, [])
+    db.delete(session)
+    db.commit()
 
 
 def local_midnight(day: date) -> datetime:

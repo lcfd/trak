@@ -55,12 +55,20 @@ def test_update_session_end_stops_an_active_session(db):
     assert session.end == NOW - timedelta(hours=1)
 
 
+def test_update_session_without_an_end_runs_again(db):
+    session = make(db)
+
+    update_session(db, session, end=None)
+
+    assert session.active
+    assert session.end is None
+
+
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
         ({"end": local("2026-10-10 08:00")}, "end before it starts"),
         ({"start": local("2026-10-10 11:00")}, "end before it starts"),
-        ({"end": None}, "running again"),
         ({"active": True}, "Can't edit active"),
     ],
 )
@@ -251,6 +259,25 @@ def test_the_customer_form_sets_new_labels_on_the_screen(db):
     tag = db.exec(select(Tag)).one()
     assert (category.name, tag.name) == ("Des", "bill")
     assert changes == {"category_fk": category.id, "tag_fks": [tag.id]}
+
+
+def test_emptying_the_end_makes_the_session_run_again(db):
+    session = make(db)
+
+    changes = ask_edits(db, FakePrompter("End", "", "Save"), session)
+
+    assert changes == {"end": None}
+    update_session(db, session, **changes)
+    assert session.active
+    assert field_rows(db, session, {})[-1] == ("end", "End", "running")
+
+
+def test_now_stops_a_running_session_in_the_form(db):
+    session = start_session(db, start=NOW - timedelta(hours=1))
+
+    changes = ask_edits(db, FakePrompter("End", "now", "Save"), session)
+
+    assert changes["end"] is not None
 
 
 def test_running_session_end_reads_running(db):

@@ -27,7 +27,7 @@ from rich.text import Text
 from sqlmodel import Session as DBSession
 from typer.core import TyperCommand
 
-from trak import clipboard, dev_bar, panes, tui
+from trak import clipboard, deleting, dev_bar, panes, tui
 from trak.goals.display import (
     days_text,
     describe_goal,
@@ -91,6 +91,7 @@ class GoalsPane(Pane):
     hints = (
         ("Enter", "show"),
         ("e", "edit"),
+        ("D", "delete"),
         ("y", "copy goal id"),
         ("n", "new goal"),
     )
@@ -135,6 +136,7 @@ class SessionsPane(Pane):
         ("Enter", "show"),
         ("e", "edit"),
         ("s", "stop"),
+        ("D", "delete"),
         ("y", "copy session id"),
         ("n", "start"),
     )
@@ -332,6 +334,7 @@ class Home:
             ("Ctrl-d  Ctrl-u", "Half a pane down, up"),
             ("Enter", "Show the goal or session, run the action"),
             ("e", "Edit the goal or session"),
+            ("D", "Delete the goal or session (asks first)"),
             ("n", "New goal (Goals), start a session (Sessions)"),
             ("s", "Stop the running session (Sessions)"),
             ("y", "Copy the goal's or session's id, the action's command"),
@@ -386,7 +389,7 @@ class Home:
         pane.cursor = 0
 
     def open(self, screen: tui.Screen, key: str) -> bool:
-        """What Enter, e, n and s do on the focused pane; True to quit."""
+        """What Enter, e, n, s and D do on the focused pane; True to quit."""
 
         now = self.now()
         pane = self.pane
@@ -415,6 +418,8 @@ class Home:
             return self.run(screen, f"{entity} edit", [str(value)])
         if key == "s" and pane is self.sessions:
             self.stop(value)
+        if key == "D":
+            self.delete(screen, value)
         return False
 
     def copy(self, screen: tui.Screen) -> None:
@@ -429,6 +434,23 @@ class Home:
                 return
             value = f"trak {value}"
         self.message = clipboard.copied(str(value), screen.console, what=what)
+
+    def delete(self, screen: tui.Screen, row_id: int) -> None:
+        """The goal or session selected, asking over the home first."""
+
+        from trak.goals.listing import DELETION as GOAL
+        from trak.sessions.listing import DELETION as SESSION
+
+        width, height = screen.size()
+        back = self.frame(screen.console, width, height)
+        _, self.message = deleting.delete_in_place(
+            self.ctx.obj["DB_ENGINE"],
+            GOAL if self.focus == 0 else SESSION,
+            row_id,
+            screen,
+            back,
+        )
+        self.load()
 
     def stop(self, session_id: int) -> None:
         if not self.sessions.is_running(session_id):
@@ -514,7 +536,7 @@ class Home:
             self.load()
         elif key == "q":
             return True
-        elif key in (*ENTER, "e", "n", "s"):
+        elif key in (*ENTER, "e", "n", "s", "D"):
             return self.open(screen, key)
         return False
 

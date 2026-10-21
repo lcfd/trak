@@ -6,7 +6,7 @@ from typing import Annotated, Any
 import typer
 from sqlmodel import Session as DBSession
 
-from trak import entities, forms
+from trak import deleting, entities, forms
 from trak.customers.models import Customer
 from trak.customers.services import get_customers
 from trak.forms import current
@@ -28,6 +28,7 @@ from trak.sessions.models import Category, Session, Tag
 from trak.sessions.services import update_session
 
 TIME_PLACEHOLDER = 'now, "HH:MM" or "YYYY-MM-DD HH:MM"'
+END_PLACEHOLDER = f"{TIME_PLACEHOLDER}; empty for running"
 
 
 def format_time(moment: datetime) -> str:
@@ -54,6 +55,14 @@ def parse_time(
     if before is not None and moment > before:
         raise ValueError("a session can't start after it ends")
     return moment
+
+
+def parse_end(value: str, start: datetime) -> datetime | None:
+    """An end typed by the user on `edit`; empty means running (None)."""
+
+    if not value.strip():
+        return None
+    return parse_time(value, "end", after=start)
 
 
 def row_name(db: DBSession, model: type, fk: int | None) -> str:
@@ -164,6 +173,7 @@ def ask_field(
                 "Start",
                 value=format_time(value),
                 placeholder=TIME_PLACEHOLDER,
+                picker="datetime",
                 validator=input_validator(
                     lambda text: parse_time(text, "start", before=end)
                 ),
@@ -174,20 +184,16 @@ def ask_field(
 
     elif field == "end":
         start = current(session, changes, "start")
-        placeholder = TIME_PLACEHOLDER
-        if value is None:
-            placeholder += ", stops the session"
-        changes["end"] = parse_time(
+        changes["end"] = parse_end(
             prompter.input(
                 "End",
                 value=format_time(value) if value else "",
-                placeholder=placeholder,
-                validator=input_validator(
-                    lambda text: parse_time(text, "end", after=start)
-                ),
+                placeholder=END_PLACEHOLDER,
+                picker="datetime",
+                empty="running",
+                validator=input_validator(lambda text: parse_end(text, start)),
             ),
-            "end",
-            after=start,
+            start,
         )
 
 
@@ -240,7 +246,7 @@ def flag_changes(
         if start is not None:
             changes["start"] = parse_time(start, "start")
         if end is not None:
-            changes["end"] = parse_time(end, "end")
+            changes["end"] = parse_end(end, changes.get("start", session.start))
 
         # Like the form: a Project with a Customer takes the Session's place.
         project_fk = changes.get("project_fk", session.project_fk)
@@ -285,7 +291,8 @@ def edit_command(
         typer.Option(
             "--end",
             "-e",
-            help=f"When it ended: {TIME_PLACEHOLDER}. Stops a running session.",
+            help=f"When it ended: {TIME_PLACEHOLDER}. Stops a running session;"
+            ' empty (--end "") makes it run again.',
         ),
     ] = None,
 ) -> None:
@@ -329,4 +336,29 @@ def edit_command(
             noun="session",
             label=lambda s: session_label(db, s),
             to_json=lambda s: session_json(db, s),
+        )
+
+
+def delete_command(
+    ctx: typer.Context,
+    session_id: Annotated[
+        int | None,
+        typer.Argument(
+            metavar="ID",
+            help="The session to delete. Leave it empty to pick one from the list.",
+        ),
+    ] = None,
+    yes: deleting.YesOption = False,
+) -> None:
+    """Delete a session, running or not."""
+
+    with DBSession(ctx.obj["DB_ENGINE"]) as db:
+        session = listing.get_or_pick(db, session_id, "delete")
+        deleting.delete_row(
+            db,
+            session,
+            listing.DELETION,
+            yes=yes,
+            to_json=lambda s: session_json(db, s),
+            label=session_label(db, session),
         )

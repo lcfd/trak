@@ -9,10 +9,16 @@ import typer
 from rich.markup import escape
 from sqlmodel import Session as DBSession
 
-from trak import browser, entities, tables, tui
-from trak.goals.display import days_text, goal_json, to_go_text, tracked_text
+from trak import browser, deleting, entities, tables, tui
+from trak.goals.display import (
+    days_text,
+    describe_goal,
+    goal_json,
+    to_go_text,
+    tracked_text,
+)
 from trak.goals.models import Goal
-from trak.goals.services import Progress, goal_progress, list_goals
+from trak.goals.services import Progress, delete_goal, goal_progress, list_goals
 from trak.projects.models import Project
 from trak.sessions import commands
 from trak.sessions.guided import Prompter
@@ -146,10 +152,22 @@ def edit_goal(db: DBSession, goal: Goal, prompter: Prompter) -> str:
     )
 
 
+DELETION = deleting.Deletion(
+    model=Goal,
+    noun="goal",
+    describe=lambda db, goal: f"#{goal.id} {describe_goal(db, goal)}",
+    consequences=lambda db, goal: "Its sessions stay: a goal only counts them.",
+    delete=delete_goal,
+)
+
+
 def goal_listing(db: DBSession) -> browser.Listing[Goal, GoalFilters]:
     return browser.Listing(
         show=lambda goal, screen: show_goal(db, goal, screen),
         edit=lambda goal, prompter: edit_goal(db, goal, prompter),
+        delete=lambda goal, screen, back, keys: deleting.delete_from_browser(
+            db, DELETION, goal, screen, back, keys
+        ),
         noun="goal",
         query=lambda filters: query(db, filters),
         cells=lambda goal: goal_cells(db, goal),
